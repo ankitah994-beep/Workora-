@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Halo glow -->
+    <path
+        android:pathData="M54,52m-28,0a28,28 0 1,0 56,0a28,28 0 1,0 -56,0"
+        android:fillColor="#33FF8C00" />
+
+    <!-- Helmet Group scaled to fit within adaptive icon safe zone -->
+    <group
+        android:translateX="18.0"
+        android:translateY="20.0"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        
+        <!-- Helmet Dome -->
+        <path
+            android:fillColor="#FF8C00"
+            android:pathData="M18,56C18,36.67 33.67,21 53,21C72.33,21 88,36.67 88,56H18Z" />
+        
+        <!-- Helmet Top Ridge -->
+        <path
+            android:fillColor="#FFA500"
+            android:pathData="M47,16H59V32C59,32 55.5,33 53,33C50.5,33 47,32 47,32V16Z" />
+        
+        <!-- Front Brim / Visor Base -->
+        <path
+            android:fillColor="#E57D00"
+            android:pathData="M12,56C12,53.79 13.79,52 16,52H90C92.21,52 94,53.79 94,56C94,58.21 92.21,60 90,60H16C13.79,60 12,58.21 12,56Z" />
+        
+        <!-- Reflector Badge -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.95"
+            android:pathData="M49.5,38H56.5C58.43,38 60,39.57 60,41.5C60,43.43 58.43,45 56.5,45H49.5C47.57,45 46,43.43 46,41.5C46,39.57 47.57,38 49.5,38Z" />
+    </group>
+</vector>
+
