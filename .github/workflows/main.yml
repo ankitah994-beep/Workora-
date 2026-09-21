@@ -1,4 +1,4 @@
-name: Build Workora APK
+herename: Build Workora APK
 
 on:
   workflow_dispatch:
@@ -20,13 +20,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: bash ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
