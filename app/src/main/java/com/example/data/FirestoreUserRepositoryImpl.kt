@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
 
 /**
- * FirestoreUserRepositoryImpl implements UserRepository using Firebase Firestore.
+ * FirestoreUserRepositoryImpl implements UserRepository using Firebase Firestore for basic User profiles.
  */
 class FirestoreUserRepositoryImpl(
     private val firestore: FirebaseFirestore? = runCatching { FirebaseFirestore.getInstance() }.getOrNull()
@@ -20,18 +20,16 @@ class FirestoreUserRepositoryImpl(
 
     private val fallbackUser = MutableStateFlow<User?>(
         User(
-            id = 1,
-            name = "Sunil Kumar",
-            trade = "Mason",
-            dailyWage = 850,
-            experienceYears = 5,
-            rating = 4.9f,
-            reviewsCount = 42,
-            location = "Delhi Chowk, Delhi",
-            distance = "1.2 km",
-            phone = "+91 98123 45678",
-            isAvailableToday = true,
-            isVerified = true
+            id = 1L,
+            uid = "1",
+            fullName = "Ramesh Verma",
+            mobileNumber = "+91 98765 43210",
+            email = "customer@workora.com",
+            password = "",
+            location = "Sector 14, Gurugram",
+            role = "CUSTOMER",
+            isLoggedIn = true,
+            createdAt = System.currentTimeMillis()
         )
     )
 
@@ -41,22 +39,19 @@ class FirestoreUserRepositoryImpl(
         return try {
             val userMap = hashMapOf<String, Any>(
                 "id" to user.id,
-                "name" to user.name,
-                "trade" to user.trade,
-                "dailyWage" to user.dailyWage,
-                "experienceYears" to user.experienceYears,
-                "rating" to user.rating.toDouble(),
-                "reviewsCount" to user.reviewsCount,
+                "uid" to user.uid,
+                "fullName" to user.fullName,
+                "mobileNumber" to user.mobileNumber,
+                "email" to user.email,
                 "location" to user.location,
-                "distance" to user.distance,
-                "phone" to user.phone,
-                "isAvailableToday" to user.isAvailableToday,
-                "isVerified" to user.isVerified,
+                "role" to user.role,
+                "isLoggedIn" to user.isLoggedIn,
                 "updatedAt" to System.currentTimeMillis()
             )
 
+            val docId = if (user.uid.isNotBlank()) user.uid else user.id.toString()
             db.collection(usersCollection)
-                .document(user.id.toString())
+                .document(docId)
                 .set(userMap, SetOptions.merge())
                 .awaitTask()
             true
@@ -81,17 +76,15 @@ class FirestoreUserRepositoryImpl(
                     if (data != null) {
                         val parsedUser = User(
                             id = (data["id"] as? Number)?.toLong() ?: userId.toLongOrNull() ?: 1L,
-                            name = data["name"] as? String ?: "Sunil Kumar",
-                            trade = data["trade"] as? String ?: "Mason",
-                            dailyWage = (data["dailyWage"] as? Number)?.toInt() ?: 850,
-                            experienceYears = (data["experienceYears"] as? Number)?.toInt() ?: 5,
-                            rating = (data["rating"] as? Number)?.toFloat() ?: 4.9f,
-                            reviewsCount = (data["reviewsCount"] as? Number)?.toInt() ?: 42,
-                            location = data["location"] as? String ?: "Delhi Chowk, Delhi",
-                            distance = data["distance"] as? String ?: "1.2 km",
-                            phone = data["phone"] as? String ?: "+91 98123 45678",
-                            isAvailableToday = data["isAvailableToday"] as? Boolean ?: true,
-                            isVerified = data["isVerified"] as? Boolean ?: true
+                            uid = data["uid"] as? String ?: userId,
+                            fullName = data["fullName"] as? String ?: data["name"] as? String ?: "Customer",
+                            mobileNumber = data["mobileNumber"] as? String ?: data["phone"] as? String ?: "+91 98765 43210",
+                            email = data["email"] as? String ?: "customer@workora.com",
+                            password = data["password"] as? String ?: "",
+                            location = data["location"] as? String ?: "Gurugram",
+                            role = data["role"] as? String ?: "CUSTOMER",
+                            isLoggedIn = data["isLoggedIn"] as? Boolean ?: true,
+                            createdAt = (data["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
                         )
                         fallbackUser.value = parsedUser
                         trySend(parsedUser)
