@@ -7,7 +7,7 @@ import com.example.data.FirestoreWorkerRepositoryImpl
 import com.example.data.JobRepository
 import com.example.data.WorkerRepository
 import com.example.model.Job
-import com.example.model.Worker
+import com.example.model.WorkerProfile
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +29,7 @@ class HomeViewModel(
 
     // Default dummy list of 3-4 workers matching the requested trades and details
     val dummyWorkers = listOf(
-        Worker(
+        WorkerProfile(
             id = 1,
             name = "Rajesh Sharma",
             trade = "Mason",
@@ -43,7 +43,7 @@ class HomeViewModel(
             isAvailableToday = true,
             isVerified = true
         ),
-        Worker(
+        WorkerProfile(
             id = 2,
             name = "Vikram Singh",
             trade = "Electrician",
@@ -57,7 +57,7 @@ class HomeViewModel(
             isAvailableToday = true,
             isVerified = true
         ),
-        Worker(
+        WorkerProfile(
             id = 3,
             name = "Manoj Tiwari",
             trade = "Plumber",
@@ -71,7 +71,7 @@ class HomeViewModel(
             isAvailableToday = true,
             isVerified = true
         ),
-        Worker(
+        WorkerProfile(
             id = 4,
             name = "Suresh Prajapati",
             trade = "Carpenter",
@@ -94,7 +94,7 @@ class HomeViewModel(
     val selectedCategory: StateFlow<String> = _selectedCategory.asStateFlow()
 
     // Raw flow from WorkerRepository, defaulting to dummyWorkers if empty
-    val rawWorkers: StateFlow<List<Worker>> = workerRepository.getAvailableWorkers()
+    val rawWorkers: StateFlow<List<WorkerProfile>> = workerRepository.getAvailableWorkers()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -102,7 +102,7 @@ class HomeViewModel(
         )
 
     // Exposes filtered list of available workers based on search query and category
-    val availableWorkers: StateFlow<List<Worker>> = combine(
+    val availableWorkers: StateFlow<List<WorkerProfile>> = combine(
         rawWorkers,
         _searchQuery,
         _selectedCategory
@@ -123,7 +123,7 @@ class HomeViewModel(
     )
 
     // Direct alias for available workers
-    val workers: StateFlow<List<Worker>> = availableWorkers
+    val workers: StateFlow<List<WorkerProfile>> = availableWorkers
 
     // Tab state: 0 = "Find Workers", 1 = "My Posted Work"
     private val _selectedTab = MutableStateFlow(0)
@@ -171,7 +171,7 @@ class HomeViewModel(
         _selectedCategory.value = category
     }
 
-    fun getWorkerById(workerId: Long): Worker? {
+    fun getWorkerById(workerId: Long): WorkerProfile? {
         return availableWorkers.value.firstOrNull { it.id == workerId }
             ?: dummyWorkers.firstOrNull { it.id == workerId }
     }
