@@ -1,11 +1,7 @@
 package com.example
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,14 +33,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -67,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -82,11 +75,11 @@ import com.example.ui.theme.MyApplicationTheme
 
 /**
  * Workora Authentication Screen.
- * Supports Sign In, Registration, Role selection, and Mock OTP bypass.
+ * Supports Sign In, Registration, UserRole selection, and Mock OTP bypass.
  * Explicitly forces high-contrast dark text in all OutlinedTextFields to fix visibility issues.
  */
 @Composable
-fun AuthScreen(...)
+fun AuthScreen(
     onAuthSuccess: (User) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -99,18 +92,16 @@ fun AuthScreen(...)
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
-    var selectedRole by remember { mutableStateOf(UserRole.WORKER.name) }
+    var selectedRole by remember { mutableStateOf(UserRole.WORKER) }
 
     // OTP / Verification states (Mock OTP flow)
     var isOtpVerificationStep by remember { mutableStateOf(false) }
     var otpCode by remember { mutableStateOf("123456") }
-    var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
 
-    // Consistent high-contrast text styling for visible input
+    // Consistent high-contrast text styling for visible input (Non-composable TextStyle constructor)
     val inputTextColor = Color(0xFF0F172A) // Deep Slate / Charcoal Black (#0F172A)
-    val inputTextStyle = LocalTextStyle.current.copy(
+    val inputTextStyle = TextStyle(
         color = inputTextColor,
         fontSize = 15.sp,
         fontWeight = FontWeight.Normal
@@ -137,7 +128,7 @@ fun AuthScreen(...)
         unfocusedTrailingIconColor = Color(0xFF94A3B8)
     )
 
-    fun completeAuth(finalRole: String) {
+    val handleCompleteAuth: (UserRole) -> Unit = { finalRole ->
         val user = User(
             id = "usr_${System.currentTimeMillis()}",
             name = if (name.isNotBlank()) name.trim() else if (isSignUp) "New Worker" else "Demo User",
@@ -283,8 +274,8 @@ fun AuthScreen(...)
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 FilterChip(
-                                    selected = selectedRole == UserRole.WORKER.name,
-                                    onClick = { selectedRole = UserRole.WORKER.name },
+                                    selected = selectedRole == UserRole.WORKER,
+                                    onClick = { selectedRole = UserRole.WORKER },
                                     label = { Text("Worker / Labor") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Color(0xFFDBEAFE),
@@ -293,8 +284,8 @@ fun AuthScreen(...)
                                     modifier = Modifier.weight(1f).testTag("chip_worker")
                                 )
                                 FilterChip(
-                                    selected = selectedRole == UserRole.EMPLOYER.name,
-                                    onClick = { selectedRole = UserRole.EMPLOYER.name },
+                                    selected = selectedRole == UserRole.EMPLOYER,
+                                    onClick = { selectedRole = UserRole.EMPLOYER },
                                     label = { Text("Employer / Contractor") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Color(0xFFDBEAFE),
@@ -478,7 +469,7 @@ fun AuthScreen(...)
                         // Quick Mock Bypass Button
                         OutlinedButton(
                             onClick = {
-                                completeAuth(selectedRole)
+                                handleCompleteAuth(selectedRole)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -561,7 +552,8 @@ fun AuthScreen(...)
                             label = { Text("6-Digit OTP Code") },
                             placeholder = { Text("123456") },
                             singleLine = true,
-                            textStyle = inputTextStyle.copy(
+                            textStyle = TextStyle(
+                                color = inputTextColor,
                                 textAlign = TextAlign.Center,
                                 letterSpacing = 4.sp,
                                 fontWeight = FontWeight.Bold,
@@ -583,7 +575,7 @@ fun AuthScreen(...)
                         // Verify Button
                         Button(
                             onClick = {
-                                completeAuth(selectedRole)
+                                handleCompleteAuth(selectedRole)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -607,7 +599,7 @@ fun AuthScreen(...)
                         // Skip OTP Button
                         TextButton(
                             onClick = {
-                                completeAuth(selectedRole)
+                                handleCompleteAuth(selectedRole)
                             },
                             modifier = Modifier.testTag("btn_skip_otp")
                         ) {
@@ -644,9 +636,9 @@ fun AuthScreen(...)
 
 @Preview(showBackground = true)
 @Composable
-fun AuthenticationScreenPreview() {
+fun AuthScreenPreview() {
     MyApplicationTheme {
-        AuthenticationScreen(
+        AuthScreen(
             onAuthSuccess = {}
         )
     }
