@@ -1,4 +1,4 @@
-herepluginManagement {
+pluginManagement {
     repositories {
         google()
         mavenCentral()
@@ -11,7 +11,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // सुरक्षित अल्टरनेटिव सर्वर (यदि मुख्य सर्वर डाउन या ब्लॉक हो)
         maven { url = uri("https://repo1.maven.org/maven2/") }
         maven { url = uri("https://plugins.gradle.org/m2/") }
     }
