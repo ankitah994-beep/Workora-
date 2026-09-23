@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.User
 import com.example.model.UserRole
+import com.example.model.UserRole.EMPLOYER
+import com.example.model.UserRole.WORKER
 import com.example.ui.theme.MyApplicationTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -73,8 +76,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoraMainApp() {
   val context = LocalContext.current
-  var selectedRole by remember { mutableStateOf(UserRole.WORKER) }
-  var currentUser by remember { mutableStateOf<User?>(null) }
+  var selectedRole: UserRole by remember<MutableState<UserRole>> {
+    mutableStateOf<UserRole>(UserRole.WORKER)
+  }
+  var currentUser: User? by remember<MutableState<User?>> {
+    mutableStateOf<User?>(null)
+  }
 
   if (currentUser == null) {
     AuthScreen(
@@ -93,7 +100,7 @@ fun WorkoraMainApp() {
       }
     )
   } else {
-    val user = currentUser!!
+    val user: User = currentUser!!
     Scaffold(
       topBar = {
         TopAppBar(
