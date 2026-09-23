@@ -71,24 +71,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.User
-import com.example.model.UserRole
-import com.example.model.UserRole.EMPLOYER
-import com.example.model.UserRole.WORKER
 import com.example.ui.theme.MyApplicationTheme
 
 /**
  * Workora Authentication Screen.
- * Exact parameter signature matching MainActivity.kt:
- * - selectedRole: UserRole
- * - onRoleChanged: (UserRole) -> Unit
+ * Exact parameter signature matching MainActivity.kt using standard String roles:
+ * - selectedRole: String ("WORKER" or "EMPLOYER")
+ * - onRoleChanged: (String) -> Unit
  * - onBackToRoleSelection: () -> Unit
  * - onLoginSuccess: (User) -> Unit
  * - toastMessage: (String) -> Unit
  */
 @Composable
 fun AuthScreen(
-    selectedRole: UserRole = UserRole.WORKER,
-    onRoleChanged: (UserRole) -> Unit = {},
+    selectedRole: String = "WORKER",
+    onRoleChanged: (String) -> Unit = {},
     onBackToRoleSelection: () -> Unit = {},
     onLoginSuccess: (User) -> Unit = {},
     toastMessage: (String) -> Unit = {},
@@ -97,7 +94,7 @@ fun AuthScreen(
     var selectedTabIndex: Int by remember<MutableIntState> { mutableIntStateOf(0) }
     val isSignUp: Boolean = selectedTabIndex == 1
 
-    // Form inputs state with explicit types to eliminate inference issues
+    // Form inputs state
     var name: String by remember<MutableState<String>> { mutableStateOf<String>("") }
     var phoneNumber: String by remember<MutableState<String>> { mutableStateOf<String>("") }
     var email: String by remember<MutableState<String>> { mutableStateOf<String>("") }
@@ -137,7 +134,7 @@ fun AuthScreen(
         unfocusedTrailingIconColor = Color(0xFF94A3B8)
     )
 
-    fun handleCompleteAuth(finalRole: UserRole) {
+    fun handleCompleteAuth(finalRole: String) {
         val user = User(
             id = "usr_${System.currentTimeMillis()}",
             name = if (name.isNotBlank()) name.trim() else if (isSignUp) "New Worker" else "Demo User",
@@ -281,7 +278,7 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Role Selection for registration
+                        // Role Selection for registration using exact String literals
                         if (isSignUp) {
                             Text(
                                 text = "Account Role:",
@@ -296,8 +293,8 @@ fun AuthScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 FilterChip(
-                                    selected = selectedRole == UserRole.WORKER,
-                                    onClick = { onRoleChanged(UserRole.WORKER) },
+                                    selected = selectedRole == "WORKER",
+                                    onClick = { onRoleChanged("WORKER") },
                                     label = { Text("Worker / Labor") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Color(0xFFDBEAFE),
@@ -306,8 +303,8 @@ fun AuthScreen(
                                     modifier = Modifier.weight(1f).testTag("chip_worker")
                                 )
                                 FilterChip(
-                                    selected = selectedRole == UserRole.EMPLOYER,
-                                    onClick = { onRoleChanged(UserRole.EMPLOYER) },
+                                    selected = selectedRole == "EMPLOYER",
+                                    onClick = { onRoleChanged("EMPLOYER") },
                                     label = { Text("Employer") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Color(0xFFDBEAFE),
@@ -653,7 +650,7 @@ fun AuthScreen(
 fun AuthScreenPreview() {
     MyApplicationTheme {
         AuthScreen(
-            selectedRole = UserRole.WORKER,
+            selectedRole = "WORKER",
             onRoleChanged = {},
             onBackToRoleSelection = {},
             onLoginSuccess = {},
