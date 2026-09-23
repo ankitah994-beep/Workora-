@@ -1,6 +1,6 @@
 package com.example.data
 
-import com.example.model.User
+import com.example.model.WorkerProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * WorkerRepository interface defining operations to fetch worker data.
  */
 interface WorkerRepository {
-    fun getAvailableWorkers(): Flow<List<User>>
+    fun getAvailableWorkers(): Flow<List<WorkerProfile>>
+    suspend fun getWorkersByIds(workerIds: List<String>): List<WorkerProfile>
+    suspend fun getWorkersByUids(uids: List<String>): List<WorkerProfile>
 }
 
 /**
@@ -18,9 +20,9 @@ interface WorkerRepository {
  */
 class MockWorkerRepository : WorkerRepository {
 
-    private val _availableWorkers = MutableStateFlow<List<User>>(
+    private val _availableWorkers = MutableStateFlow<List<WorkerProfile>>(
         listOf(
-            User(
+            WorkerProfile(
                 id = 1,
                 name = "Rajesh Sharma",
                 trade = "Mason",
@@ -34,7 +36,7 @@ class MockWorkerRepository : WorkerRepository {
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 2,
                 name = "Sunil Kumar",
                 trade = "Painter",
@@ -48,7 +50,7 @@ class MockWorkerRepository : WorkerRepository {
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 3,
                 name = "Amit Verma",
                 trade = "Carpenter",
@@ -62,7 +64,7 @@ class MockWorkerRepository : WorkerRepository {
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 4,
                 name = "Manoj Singh",
                 trade = "Plumber",
@@ -79,5 +81,27 @@ class MockWorkerRepository : WorkerRepository {
         )
     )
 
-    override fun getAvailableWorkers(): Flow<List<User>> = _availableWorkers.asStateFlow()
+    override fun getAvailableWorkers(): Flow<List<WorkerProfile>> = _availableWorkers.asStateFlow()
+
+    override suspend fun getWorkersByIds(workerIds: List<String>): List<WorkerProfile> {
+        val all = _availableWorkers.value
+        return workerIds.mapNotNull { idStr ->
+            all.firstOrNull { it.id.toString() == idStr }
+                ?: WorkerProfile(
+                    id = idStr.toLongOrNull() ?: 1L,
+                    name = "Worker $idStr",
+                    trade = "Skilled Artisan",
+                    dailyWage = 750,
+                    experienceYears = 5,
+                    rating = 4.8f,
+                    reviewsCount = 24,
+                    location = "Delhi NCR",
+                    phone = "+91 98765 00000"
+                )
+        }
+    }
+
+    override suspend fun getWorkersByUids(uids: List<String>): List<WorkerProfile> {
+        return getWorkersByIds(uids)
+    }
 }
