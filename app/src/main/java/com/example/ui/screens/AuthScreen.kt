@@ -74,14 +74,12 @@ import com.example.ui.theme.MyApplicationTheme
 
 /**
  * Workora Authentication Screen.
- * Fully synchronized with MainActivity parameters:
+ * Exact parameter signature matching MainActivity.kt:
  * - selectedRole: UserRole
  * - onRoleChanged: (UserRole) -> Unit
  * - onBackToRoleSelection: () -> Unit
  * - onLoginSuccess: (User) -> Unit
  * - toastMessage: (String) -> Unit
- *
- * Forces deep dark slate text (#0F172A) in OutlinedTextFields for high contrast and full visibility.
  */
 @Composable
 fun AuthScreen(
@@ -95,27 +93,26 @@ fun AuthScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: Sign In, 1: Register
     val isSignUp = selectedTabIndex == 1
 
-    // Form field states
+    // Form inputs state
     var name by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
-    // OTP / Verification states (Mock OTP flow)
+    // Mock OTP verification step
     var isOtpVerificationStep by remember { mutableStateOf(false) }
     var otpCode by remember { mutableStateOf("123456") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // High-contrast text styling for visible input (Non-composable TextStyle constructor)
-    val inputTextColor = Color(0xFF0F172A) // Deep Slate / Charcoal Black (#0F172A)
+    // High contrast dark text (#0F172A) to guarantee text visibility on light background
+    val inputTextColor = Color(0xFF0F172A)
     val inputTextStyle = TextStyle(
         color = inputTextColor,
         fontSize = 15.sp,
         fontWeight = FontWeight.Normal
     )
 
-    // Material 3 TextField colors forcing dark text on white background
     val workoraTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = inputTextColor,
         unfocusedTextColor = inputTextColor,
@@ -123,10 +120,10 @@ fun AuthScreen(
         errorTextColor = Color(0xFFDC2626),
         focusedContainerColor = Color.White,
         unfocusedContainerColor = Color(0xFFF8FAFC),
-        focusedBorderColor = Color(0xFF1D4ED8),       // Workora Primary Blue
-        unfocusedBorderColor = Color(0xFFCBD5E1),     // Slate-300
+        focusedBorderColor = Color(0xFF1D4ED8),
+        unfocusedBorderColor = Color(0xFFCBD5E1),
         focusedLabelColor = Color(0xFF1D4ED8),
-        unfocusedLabelColor = Color(0xFF475569),       // Slate-600
+        unfocusedLabelColor = Color(0xFF475569),
         focusedPlaceholderColor = Color(0xFF94A3B8),
         unfocusedPlaceholderColor = Color(0xFF94A3B8),
         cursorColor = Color(0xFF1D4ED8),
@@ -154,7 +151,7 @@ fun AuthScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("auth_screen"),
-        color = Color(0xFFF1F5F9) // Light neutral background
+        color = Color(0xFFF1F5F9)
     ) {
         Column(
             modifier = Modifier
@@ -163,7 +160,7 @@ fun AuthScreen(
                 .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Navigation Bar
+            // Top Navigation Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,7 +179,7 @@ fun AuthScreen(
                 }
             }
 
-            // App Branding Header
+            // App Logo & Header
             Box(
                 modifier = Modifier
                     .size(72.dp)
@@ -221,7 +218,7 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Main Card Container
+            // Main Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -280,7 +277,7 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Role Selection (Registration Mode)
+                        // Role Selection for registration
                         if (isSignUp) {
                             Text(
                                 text = "Account Role:",
@@ -318,8 +315,7 @@ fun AuthScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
-                        // Form Inputs
-                        // 1. Name Field (Sign Up only)
+                        // Form Fields
                         AnimatedVisibility(visible = isSignUp) {
                             Column {
                                 OutlinedTextField(
@@ -346,7 +342,7 @@ fun AuthScreen(
                             }
                         }
 
-                        // 2. Mobile / Phone Field
+                        // Mobile Number
                         OutlinedTextField(
                             value = phoneNumber,
                             onValueChange = { text: String -> phoneNumber = text },
@@ -370,7 +366,7 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // 3. Email Field
+                        // Email Address
                         OutlinedTextField(
                             value = email,
                             onValueChange = { text: String -> email = text },
@@ -394,7 +390,7 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // 4. Password Field
+                        // Password
                         OutlinedTextField(
                             value = password,
                             onValueChange = { text: String -> password = text },
@@ -428,7 +424,6 @@ fun AuthScreen(
                                 .testTag("input_password")
                         )
 
-                        // Error message feedback
                         if (errorMessage != null) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
@@ -441,7 +436,7 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Primary Action Button (Sign In / Create Account)
+                        // Primary Action Button
                         Button(
                             onClick = {
                                 errorMessage = null
@@ -513,7 +508,7 @@ fun AuthScreen(
                             )
                         }
                     } else {
-                        // OTP Verification View (Mock OTP Bypass Supported)
+                        // OTP Verification Screen
                         Box(
                             modifier = Modifier
                                 .size(56.dp)
@@ -549,7 +544,6 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Mock repository helper badge
                         Card(
                             shape = RoundedCornerShape(8.dp),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7))
@@ -591,7 +585,6 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Verify Button
                         Button(
                             onClick = {
                                 handleCompleteAuth(selectedRole)
@@ -615,7 +608,6 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Skip OTP Button
                         TextButton(
                             onClick = {
                                 handleCompleteAuth(selectedRole)
@@ -643,7 +635,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Footer info
             Text(
                 text = "Workora Labor Network • Secure & Verified",
                 fontSize = 12.sp,
