@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * UserRepository interface defining user and worker profile operations.
+ * UserRepository interface defining user profile operations (basic auth and customer accounts).
  */
 interface UserRepository {
     suspend fun updateUserProfile(user: User): Boolean
@@ -18,18 +18,16 @@ interface UserRepository {
  */
 class MockUserRepository(
     initialUser: User = User(
-        id = 1,
-        name = "Sunil Kumar",
-        trade = "Mason",
-        dailyWage = 850,
-        experienceYears = 5,
-        rating = 4.9f,
-        reviewsCount = 42,
-        location = "Delhi Chowk, Delhi",
-        distance = "1.2 km",
-        phone = "+91 98123 45678",
-        isAvailableToday = true,
-        isVerified = true
+        id = 1L,
+        uid = "1",
+        fullName = "Ramesh Verma",
+        mobileNumber = "+91 98765 43210",
+        email = "customer@workora.com",
+        password = "",
+        location = "Sector 14, Gurugram",
+        role = "CUSTOMER",
+        isLoggedIn = true,
+        createdAt = System.currentTimeMillis()
     )
 ) : UserRepository {
 
