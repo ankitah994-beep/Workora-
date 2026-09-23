@@ -1,6 +1,6 @@
 package com.example.data
 
-import com.example.model.User
+import com.example.model.WorkerProfile
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -21,7 +21,7 @@ class FirestoreWorkerRepositoryImpl(
 
     private val fallbackWorkers = MutableStateFlow(
         listOf(
-            User(
+            WorkerProfile(
                 id = 1,
                 name = "Rajesh Sharma",
                 trade = "Mason",
@@ -35,7 +35,7 @@ class FirestoreWorkerRepositoryImpl(
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 2,
                 name = "Sunil Kumar",
                 trade = "Painter",
@@ -49,7 +49,7 @@ class FirestoreWorkerRepositoryImpl(
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 3,
                 name = "Amit Verma",
                 trade = "Carpenter",
@@ -63,7 +63,7 @@ class FirestoreWorkerRepositoryImpl(
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 4,
                 name = "Vikram Singh",
                 trade = "Electrician",
@@ -77,7 +77,7 @@ class FirestoreWorkerRepositoryImpl(
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 5,
                 name = "Manoj Yadav",
                 trade = "Plumber",
@@ -91,7 +91,7 @@ class FirestoreWorkerRepositoryImpl(
                 isAvailableToday = true,
                 isVerified = true
             ),
-            User(
+            WorkerProfile(
                 id = 6,
                 name = "Sonu Prajapati",
                 trade = "Welder",
@@ -108,7 +108,7 @@ class FirestoreWorkerRepositoryImpl(
         )
     )
 
-    override fun getAvailableWorkers(): Flow<List<User>> {
+    override fun getAvailableWorkers(): Flow<List<WorkerProfile>> {
         val db = firestore ?: return fallbackWorkers
 
         return callbackFlow {
@@ -141,7 +141,7 @@ class FirestoreWorkerRepositoryImpl(
     /**
      * Helper method to add or update a worker in Firestore.
      */
-    suspend fun saveWorker(worker: User): Boolean {
+    suspend fun saveWorker(worker: WorkerProfile): Boolean {
         val db = firestore ?: return false
         return try {
             val map = hashMapOf<String, Any>(
@@ -173,7 +173,7 @@ class FirestoreWorkerRepositoryImpl(
     /**
      * Seeds initial default workers if the collection is empty.
      */
-    suspend fun seedInitialWorkers(workers: List<User>): Boolean {
+    suspend fun seedInitialWorkers(workers: List<WorkerProfile>): Boolean {
         val db = firestore ?: return false
         return try {
             val existing = db.collection(workersCollection).limit(1).get().awaitTask()
@@ -188,10 +188,78 @@ class FirestoreWorkerRepositoryImpl(
         }
     }
 
-    private fun DocumentSnapshot.toWorkerProfile(): User? {
+    override suspend fun getWorkersByIds(workerIds: List<String>): List<WorkerProfile> {
+        return getWorkersByUids(workerIds)
+    }
+
+    override suspend fun getWorkersByUids(uids: List<String>): List<WorkerProfile> {
+        if (uids.isEmpty()) return emptyList()
+        val db = firestore
+        val results = mutableListOf<WorkerProfile>()
+        val fallbackList = fallbackWorkers.value
+
+        for (uid in uids) {
+            var worker: WorkerProfile? = null
+            if (db != null) {
+                try {
+                    // Query the users collection for the provided UID
+                    val userDoc = db.collection("users").document(uid).get().awaitTask()
+                    if (userDoc != null && userDoc.exists()) {
+                        val uData = userDoc.data
+                        if (uData != null) {
+                            worker = WorkerProfile(
+                                id = (uData["id"] as? Number)?.toLong() ?: uid.hashCode().toLong(),
+                                name = uData["name"] as? String ?: uData["fullName"] as? String ?: "Worker",
+                                trade = uData["trade"] as? String ?: uData["skill"] as? String ?: "Skilled Labour",
+                                dailyWage = (uData["dailyWage"] as? Number)?.toInt() ?: 750,
+                                experienceYears = (uData["experienceYears"] as? Number)?.toInt() ?: 5,
+                                rating = (uData["rating"] as? Number)?.toFloat() ?: 4.8f,
+                                reviewsCount = (uData["reviewsCount"] as? Number)?.toInt() ?: 24,
+                                location = uData["location"] as? String ?: "Gurugram",
+                                distance = uData["distance"] as? String ?: "1.5 km",
+                                phone = uData["phone"] as? String ?: uData["mobileNumber"] as? String ?: "+91 98000 00000",
+                                isAvailableToday = true,
+                                isVerified = true
+                            )
+                        }
+                    }
+                    if (worker == null) {
+                        // Also check workers collection as fallback
+                        val workerDoc = db.collection(workersCollection).document(uid).get().awaitTask()
+                        if (workerDoc != null && workerDoc.exists()) {
+                            worker = workerDoc.toWorkerProfile()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Fall back to local search
+                }
+            }
+            if (worker == null) {
+                worker = fallbackList.firstOrNull { it.id.toString() == uid }
+                    ?: fallbackList.firstOrNull { it.name.contains(uid, ignoreCase = true) }
+                    ?: WorkerProfile(
+                        id = uid.hashCode().toLong(),
+                        name = if (uid == "1") "Rajesh Sharma" else if (uid == "2") "Sunil Kumar" else if (uid == "3") "Amit Verma" else "Worker $uid",
+                        trade = if (uid == "1") "Mason" else if (uid == "2") "Painter" else if (uid == "3") "Carpenter" else "Skilled Artisan",
+                        dailyWage = 750,
+                        experienceYears = 5,
+                        rating = 4.8f,
+                        reviewsCount = 24,
+                        location = "Delhi NCR",
+                        phone = "+91 98765 00000",
+                        isAvailableToday = true,
+                        isVerified = true
+                    )
+            }
+            results.add(worker)
+        }
+        return results
+    }
+
+    private fun DocumentSnapshot.toWorkerProfile(): WorkerProfile? {
         val data = this.data ?: return null
         return try {
-            User(
+            WorkerProfile(
                 id = (data["id"] as? Number)?.toLong() ?: id.toLongOrNull() ?: 0L,
                 name = data["name"] as? String ?: "Worker",
                 trade = data["trade"] as? String ?: "General Labour",
