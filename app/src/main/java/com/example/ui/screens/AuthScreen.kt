@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
@@ -43,8 +44,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,12 +74,22 @@ import com.example.ui.theme.MyApplicationTheme
 
 /**
  * Workora Authentication Screen.
- * Supports Sign In, Registration, UserRole selection, and Mock OTP bypass.
- * Explicitly forces high-contrast dark text in all OutlinedTextFields to fix visibility issues.
+ * Fully synchronized with MainActivity parameters:
+ * - selectedRole: UserRole
+ * - onRoleChanged: (UserRole) -> Unit
+ * - onBackToRoleSelection: () -> Unit
+ * - onLoginSuccess: (User) -> Unit
+ * - toastMessage: (String) -> Unit
+ *
+ * Forces deep dark slate text (#0F172A) in OutlinedTextFields for high contrast and full visibility.
  */
 @Composable
 fun AuthScreen(
-    onAuthSuccess: (User) -> Unit = {},
+    selectedRole: UserRole = UserRole.WORKER,
+    onRoleChanged: (UserRole) -> Unit = {},
+    onBackToRoleSelection: () -> Unit = {},
+    onLoginSuccess: (User) -> Unit = {},
+    toastMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: Sign In, 1: Register
@@ -92,14 +101,13 @@ fun AuthScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
-    var selectedRole by remember { mutableStateOf(UserRole.WORKER) }
 
     // OTP / Verification states (Mock OTP flow)
     var isOtpVerificationStep by remember { mutableStateOf(false) }
     var otpCode by remember { mutableStateOf("123456") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Consistent high-contrast text styling for visible input (Non-composable TextStyle constructor)
+    // High-contrast text styling for visible input (Non-composable TextStyle constructor)
     val inputTextColor = Color(0xFF0F172A) // Deep Slate / Charcoal Black (#0F172A)
     val inputTextStyle = TextStyle(
         color = inputTextColor,
@@ -107,7 +115,7 @@ fun AuthScreen(
         fontWeight = FontWeight.Normal
     )
 
-    // Material 3 TextField colors forcing visible dark text on crisp background
+    // Material 3 TextField colors forcing dark text on white background
     val workoraTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = inputTextColor,
         unfocusedTextColor = inputTextColor,
@@ -128,7 +136,7 @@ fun AuthScreen(
         unfocusedTrailingIconColor = Color(0xFF94A3B8)
     )
 
-    val handleCompleteAuth: (UserRole) -> Unit = { finalRole ->
+    fun handleCompleteAuth(finalRole: UserRole) {
         val user = User(
             id = "usr_${System.currentTimeMillis()}",
             name = if (name.isNotBlank()) name.trim() else if (isSignUp) "New Worker" else "Demo User",
@@ -138,7 +146,8 @@ fun AuthScreen(
             profileImageUrl = "",
             createdAt = System.currentTimeMillis()
         )
-        onAuthSuccess(user)
+        toastMessage("Authentication successful")
+        onLoginSuccess(user)
     }
 
     Surface(
@@ -151,9 +160,28 @@ fun AuthScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Top Navigation Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { onBackToRoleSelection() },
+                    modifier = Modifier.testTag("btn_back_to_role_selection")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color(0xFF334155)
+                    )
+                }
+            }
+
             // App Branding Header
             Box(
                 modifier = Modifier
@@ -191,7 +219,7 @@ fun AuthScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Main Card Container
             Card(
@@ -214,13 +242,6 @@ fun AuthScreen(
                             selectedTabIndex = selectedTabIndex,
                             containerColor = Color(0xFFF1F5F9),
                             contentColor = Color(0xFF1D4ED8),
-                            indicator = { tabPositions ->
-                                TabRowDefaults.SecondaryIndicator(
-                                    Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                                    color = Color(0xFF1D4ED8),
-                                    height = 3.dp
-                                )
-                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
@@ -259,10 +280,10 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Role Selection (Only shown on Registration)
+                        // Role Selection (Registration Mode)
                         if (isSignUp) {
                             Text(
-                                text = "I want to join as:",
+                                text = "Account Role:",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF334155),
@@ -275,7 +296,7 @@ fun AuthScreen(
                             ) {
                                 FilterChip(
                                     selected = selectedRole == UserRole.WORKER,
-                                    onClick = { selectedRole = UserRole.WORKER },
+                                    onClick = { onRoleChanged(UserRole.WORKER) },
                                     label = { Text("Worker / Labor") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Color(0xFFDBEAFE),
@@ -285,8 +306,8 @@ fun AuthScreen(
                                 )
                                 FilterChip(
                                     selected = selectedRole == UserRole.EMPLOYER,
-                                    onClick = { selectedRole = UserRole.EMPLOYER },
-                                    label = { Text("Employer / Contractor") },
+                                    onClick = { onRoleChanged(UserRole.EMPLOYER) },
+                                    label = { Text("Employer") },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Color(0xFFDBEAFE),
                                         selectedLabelColor = Color(0xFF1D4ED8)
@@ -303,7 +324,7 @@ fun AuthScreen(
                             Column {
                                 OutlinedTextField(
                                     value = name,
-                                    onValueChange = { name = it },
+                                    onValueChange = { text: String -> name = text },
                                     label = { Text("Name") },
                                     placeholder = { Text("e.g. Alex Johnson") },
                                     leadingIcon = {
@@ -328,7 +349,7 @@ fun AuthScreen(
                         // 2. Mobile / Phone Field
                         OutlinedTextField(
                             value = phoneNumber,
-                            onValueChange = { phoneNumber = it },
+                            onValueChange = { text: String -> phoneNumber = text },
                             label = { Text("Mobile Number") },
                             placeholder = { Text("+1 (555) 000-0000") },
                             leadingIcon = {
@@ -352,7 +373,7 @@ fun AuthScreen(
                         // 3. Email Field
                         OutlinedTextField(
                             value = email,
-                            onValueChange = { email = it },
+                            onValueChange = { text: String -> email = text },
                             label = { Text("Email Address") },
                             placeholder = { Text("alex@example.com") },
                             leadingIcon = {
@@ -376,7 +397,7 @@ fun AuthScreen(
                         // 4. Password Field
                         OutlinedTextField(
                             value = password,
-                            onValueChange = { password = it },
+                            onValueChange = { text: String -> password = text },
                             label = { Text("Password") },
                             placeholder = { Text("Enter your password") },
                             leadingIcon = {
@@ -424,7 +445,6 @@ fun AuthScreen(
                         Button(
                             onClick = {
                                 errorMessage = null
-                                // Basic validation
                                 if (isSignUp && name.isBlank()) {
                                     errorMessage = "Please enter your name"
                                     return@Button
@@ -438,7 +458,6 @@ fun AuthScreen(
                                     return@Button
                                 }
 
-                                // Transition to Mock OTP step
                                 isOtpVerificationStep = true
                             },
                             modifier = Modifier
@@ -548,7 +567,7 @@ fun AuthScreen(
 
                         OutlinedTextField(
                             value = otpCode,
-                            onValueChange = { if (it.length <= 6) otpCode = it },
+                            onValueChange = { text: String -> if (text.length <= 6) otpCode = text },
                             label = { Text("6-Digit OTP Code") },
                             placeholder = { Text("123456") },
                             singleLine = true,
@@ -639,7 +658,11 @@ fun AuthScreen(
 fun AuthScreenPreview() {
     MyApplicationTheme {
         AuthScreen(
-            onAuthSuccess = {}
+            selectedRole = UserRole.WORKER,
+            onRoleChanged = {},
+            onBackToRoleSelection = {},
+            onLoginSuccess = {},
+            toastMessage = {}
         )
     }
 }
