@@ -47,6 +47,8 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +72,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.User
 import com.example.model.UserRole
+import com.example.model.UserRole.EMPLOYER
+import com.example.model.UserRole.WORKER
 import com.example.ui.theme.MyApplicationTheme
 
 /**
@@ -90,24 +94,24 @@ fun AuthScreen(
     toastMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: Sign In, 1: Register
-    val isSignUp = selectedTabIndex == 1
+    var selectedTabIndex: Int by remember<MutableIntState> { mutableIntStateOf(0) }
+    val isSignUp: Boolean = selectedTabIndex == 1
 
-    // Form inputs state
-    var name by remember { mutableStateOf("") }
-    var phoneNumber by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isPasswordVisible by remember { mutableStateOf(false) }
+    // Form inputs state with explicit types to eliminate inference issues
+    var name: String by remember<MutableState<String>> { mutableStateOf<String>("") }
+    var phoneNumber: String by remember<MutableState<String>> { mutableStateOf<String>("") }
+    var email: String by remember<MutableState<String>> { mutableStateOf<String>("") }
+    var password: String by remember<MutableState<String>> { mutableStateOf<String>("") }
+    var isPasswordVisible: Boolean by remember<MutableState<Boolean>> { mutableStateOf<Boolean>(false) }
 
     // Mock OTP verification step
-    var isOtpVerificationStep by remember { mutableStateOf(false) }
-    var otpCode by remember { mutableStateOf("123456") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isOtpVerificationStep: Boolean by remember<MutableState<Boolean>> { mutableStateOf<Boolean>(false) }
+    var otpCode: String by remember<MutableState<String>> { mutableStateOf<String>("123456") }
+    var errorMessage: String? by remember<MutableState<String?>> { mutableStateOf<String?>(null) }
 
     // High contrast dark text (#0F172A) to guarantee text visibility on light background
-    val inputTextColor = Color(0xFF0F172A)
-    val inputTextStyle = TextStyle(
+    val inputTextColor: Color = Color(0xFF0F172A)
+    val inputTextStyle: TextStyle = TextStyle(
         color = inputTextColor,
         fontSize = 15.sp,
         fontWeight = FontWeight.Normal
