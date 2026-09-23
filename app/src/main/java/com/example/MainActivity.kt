@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -40,6 +41,8 @@ private const val ROUTE_WORKER_HOME: String = "worker_home"
 private const val ROUTE_EMPLOYER_HOME: String = "employer_home"
 
 private val BrandColor = Color(0xFF1565C0)
+private val DarkText = Color(0xFF111111)
+private val MutedText = Color(0xFF616161)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,8 +53,25 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Roles are plain Strings: "WORKER" or "EMPLOYER" (ROLE_WORKER / ROLE_EMPLOYER live in AuthScreen.kt).
 private fun routeForRole(role: String): String {
     return if (role == ROLE_EMPLOYER) ROUTE_EMPLOYER_HOME else ROUTE_WORKER_HOME
+}
+
+// navigate(...) { popUpTo(...) { inclusive = ... }; launchSingleTop = ... } only resolves inside
+// the navigate lambda (NavOptionsBuilder), so the calls are kept inside these two helpers.
+private fun NavHostController.goToHome(role: String) {
+    navigate(routeForRole(role)) {
+        popUpTo(ROUTE_AUTH) { inclusive = true }
+        launchSingleTop = true
+    }
+}
+
+private fun NavHostController.goToAuthAndClearBackStack() {
+    navigate(ROUTE_AUTH) {
+        popUpTo(graph.id) { inclusive = true }
+        launchSingleTop = true
+    }
 }
 
 @Composable
@@ -66,6 +86,14 @@ private fun WorkoraApp() {
         var sessionPhoneNumber by rememberSaveable { mutableStateOf("") }
         var sessionRole by rememberSaveable { mutableStateOf(ROLE_WORKER) }
 
+        val clearSessionAndLogout: () -> Unit = {
+            sessionName = ""
+            sessionEmail = ""
+            sessionPhoneNumber = ""
+            sessionRole = ROLE_WORKER
+            navController.goToAuthAndClearBackStack()
+        }
+
         NavHost(
             navController = navController,
             startDestination = ROUTE_AUTH
@@ -77,20 +105,14 @@ private fun WorkoraApp() {
                         sessionEmail = email
                         sessionPhoneNumber = ""
                         sessionRole = role
-                        navController.navigate(routeForRole(role)) {
-                            popUpTo(ROUTE_AUTH) { inclusive = true }
-                            launchSingleTop = true
-                        }
+                        navController.goToHome(role)
                     },
                     onRegister = { name: String, email: String, phoneNumber: String, _: String, role: String ->
                         sessionName = name
                         sessionEmail = email
                         sessionPhoneNumber = phoneNumber
                         sessionRole = role
-                        navController.navigate(routeForRole(role)) {
-                            popUpTo(ROUTE_AUTH) { inclusive = true }
-                            launchSingleTop = true
-                        }
+                        navController.goToHome(role)
                     }
                 )
             }
@@ -102,16 +124,7 @@ private fun WorkoraApp() {
                     email = sessionEmail,
                     phoneNumber = sessionPhoneNumber,
                     role = sessionRole,
-                    onLogout = {
-                        sessionName = ""
-                        sessionEmail = ""
-                        sessionPhoneNumber = ""
-                        sessionRole = ROLE_WORKER
-                        navController.navigate(ROUTE_AUTH) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    }
+                    onLogout = clearSessionAndLogout
                 )
             }
 
@@ -122,16 +135,7 @@ private fun WorkoraApp() {
                     email = sessionEmail,
                     phoneNumber = sessionPhoneNumber,
                     role = sessionRole,
-                    onLogout = {
-                        sessionName = ""
-                        sessionEmail = ""
-                        sessionPhoneNumber = ""
-                        sessionRole = ROLE_WORKER
-                        navController.navigate(ROUTE_AUTH) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    }
+                    onLogout = clearSessionAndLogout
                 )
             }
         }
@@ -163,36 +167,19 @@ private fun RoleHomeScreen(
                 text = title,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = BrandColor
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Name: $name",
-                fontSize = 16.sp,
-                color = Color(0xFF111111),
+                color = BrandColor,
                 textAlign = TextAlign.Center
             )
-            Text(
-                text = "Email: $email",
-                fontSize = 16.sp,
-                color = Color(0xFF111111),
-                textAlign = TextAlign.Center
-            )
-            if (phoneNumber.isNotBlank()) {
-                Text(
-                    text = "Phone: $phoneNumber",
-                    fontSize = 16.sp,
-                    color = Color(0xFF111111),
-                    textAlign = TextAlign.Center
-                )
-            }
-            Text(
-                text = "Role: $role",
-                fontSize = 16.sp,
-                color = Color(0xFF111111),
-                textAlign = TextAlign.Center
-            )
+
             Spacer(modifier = Modifier.height(24.dp))
+
+            ProfileLine(label = "Name", value = name)
+            ProfileLine(label = "Email", value = email)
+            ProfileLine(label = "Phone", value = phoneNumber)
+            ProfileLine(label = "Role", value = role)
+
+            Spacer(modifier = Modifier.height(32.dp))
+
             Button(
                 onClick = onLogout,
                 colors = ButtonDefaults.buttonColors(
@@ -200,23 +187,32 @@ private fun RoleHomeScreen(
                     contentColor = Color.White
                 )
             ) {
-                Text(text = "Log Out")
+                Text(text = "Log out")
             }
         }
     }
 }
 
+@Composable
+private fun ProfileLine(label: String, value: String) {
+    Text(
+        text = "$label: ${value.ifEmpty { "-" }}",
+        fontSize = 16.sp,
+        color = if (value.isEmpty()) MutedText else DarkText,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(vertical = 2.dp)
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun RoleHomeScreenPreview() {
-    MaterialTheme(colorScheme = lightColorScheme(primary = BrandColor)) {
-        RoleHomeScreen(
-            title = "Worker Home",
-            name = "Ravi Kumar",
-            email = "ravi@example.com",
-            phoneNumber = "9876543210",
-            role = ROLE_WORKER,
-            onLogout = {}
-        )
-    }
+    RoleHomeScreen(
+        title = "Worker Home",
+        name = "Test User",
+        email = "test@example.com",
+        phoneNumber = "9876543210",
+        role = ROLE_WORKER,
+        onLogout = {}
+    )
 }
