@@ -1,12 +1,13 @@
 package com.example.data
 
 import com.example.model.User
+import com.example.model.UserRole
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * UserRepository interface defining user profile operations (basic auth and customer accounts).
+ * UserRepository interface defining user profile operations using the User model.
  */
 interface UserRepository {
     suspend fun updateUserProfile(user: User): Boolean
@@ -14,19 +15,16 @@ interface UserRepository {
 }
 
 /**
- * MockUserRepository implementation to ensure it compiles and supports local state.
+ * MockUserRepository implementation providing in-memory state and dummy user.
  */
 class MockUserRepository(
     initialUser: User = User(
-        id = 1L,
-        uid = "1",
-        fullName = "Ramesh Verma",
-        mobileNumber = "+91 98765 43210",
+        id = "1",
+        name = "Ramesh Verma",
         email = "customer@workora.com",
-        password = "",
-        location = "Sector 14, Gurugram",
-        role = "CUSTOMER",
-        isLoggedIn = true,
+        phoneNumber = "+91 98765 43210",
+        role = UserRole.CUSTOMER,
+        profileImageUrl = "",
         createdAt = System.currentTimeMillis()
     )
 ) : UserRepository {
