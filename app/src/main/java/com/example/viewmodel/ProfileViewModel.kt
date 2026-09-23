@@ -107,7 +107,7 @@ class ProfileViewModel(
     ) {
         val current = userProfile.value
         val effectiveSkills = skills.trim().ifBlank { services.trim().ifBlank { current?.trade ?: "Mason" } }
-        val updatedUser = User(
+        val updatedUser = WorkerProfile(
             id = current?.id ?: 1L,
             name = name.trim().ifBlank { current?.name ?: "Worker" },
             trade = effectiveSkills,
