@@ -70,8 +70,6 @@ data class WorkerProfile(
 )
 
 typealias Worker = WorkerProfile
-typealias User = WorkerProfile
-
 @Entity(tableName = "applications")
 data class JobApplication(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
