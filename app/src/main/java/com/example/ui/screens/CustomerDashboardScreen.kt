@@ -58,10 +58,13 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,6 +84,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.JobPost
 import com.example.model.UserAccount
 import com.example.model.WorkerProfile
@@ -97,18 +102,24 @@ import com.example.ui.theme.WorkoraSuccess
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
 import com.example.ui.theme.WorkoraWarning
+import com.example.viewmodel.HomeViewModel
+import com.example.viewmodel.JobViewModel
+import com.example.viewmodel.ReviewViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDashboardScreen(
+    homeViewModel: HomeViewModel = viewModel(),
+    jobViewModel: JobViewModel = viewModel(),
+    reviewViewModel: ReviewViewModel = viewModel(),
     currentUser: UserAccount?,
-    searchQuery: String,
-    onSearchQueryChanged: (String) -> Unit,
-    workers: List<WorkerProfile>,
+    searchQuery: String = "",
+    onSearchQueryChanged: (String) -> Unit = {},
+    workers: List<WorkerProfile> = emptyList(),
     jobs: List<JobPost>,
-    selectedCategory: String,
-    onCategorySelected: (String) -> Unit,
+    selectedCategory: String = "All",
+    onCategorySelected: (String) -> Unit = {},
     activeTab: Int,
     onTabSelected: (Int) -> Unit,
     onPostJob: (title: String, category: String, desc: String, rate: Int, loc: String, count: Int, urgency: String, dateTime: String) -> Unit,
@@ -119,11 +130,45 @@ fun CustomerDashboardScreen(
     toastMessage: String?,
     modifier: Modifier = Modifier
 ) {
+    // Observe workers list from HomeViewModel
+    val vmWorkers by homeViewModel.availableWorkers.collectAsStateWithLifecycle()
+    val displayWorkers = if (workers.isNotEmpty()) workers else vmWorkers
+
+    // Observe job requests from JobViewModel
+    val customerJobRequests by jobViewModel.customerJobs.collectAsStateWithLifecycle()
+    val displayJobs = if (jobs.isNotEmpty()) {
+        jobs
+    } else {
+        customerJobRequests.map { req ->
+            JobPost(
+                id = req.id.toLongOrNull() ?: 1L,
+                title = req.title,
+                category = req.workType,
+                description = req.description,
+                dailyRate = req.offeredWage,
+                location = req.location,
+                workersNeeded = req.workersNeeded,
+                urgency = req.urgency,
+                dateTime = req.dateTime,
+                customerName = req.customerName,
+                customerPhone = req.customerPhone,
+                status = req.status.name,
+                timestamp = req.timestamp
+            )
+        }
+    }
+
     val categories = listOf("All", "Mason", "Electrician", "Plumber", "Carpenter", "Painter", "Construction Helper")
     var showPostJobSheet by remember { mutableStateOf(false) }
     var selectedWorkerForHire by remember { mutableStateOf<WorkerProfile?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
+
+    // Observe reviews from ReviewViewModel
+    val workerReviews by reviewViewModel.workerReviews.collectAsStateWithLifecycle()
+    var selectedJobForReview by remember { mutableStateOf<JobPost?>(null) }
+    var reviewRating by remember { mutableFloatStateOf(5.0f) }
+    var reviewComment by remember { mutableStateOf("") }
 
     Box(
         modifier = modifier
@@ -168,7 +213,7 @@ fun CustomerDashboardScreen(
                     onClick = { onTabSelected(0) },
                     text = {
                         Text(
-                            text = "Find Workers (${workers.size})",
+                            text = "Find Workers (${displayWorkers.size})",
                             fontWeight = if (activeTab == 0) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp
                         )
@@ -179,7 +224,7 @@ fun CustomerDashboardScreen(
                     onClick = { onTabSelected(1) },
                     text = {
                         Text(
-                            text = "My Posted Work (${jobs.size})",
+                            text = "My Posted Work (${displayJobs.size})",
                             fontWeight = if (activeTab == 1) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp
                         )
@@ -199,7 +244,7 @@ fun CustomerDashboardScreen(
             // Main Content Area
             if (activeTab == 0) {
                 // Workers List
-                if (workers.isEmpty()) {
+                if (displayWorkers.isEmpty()) {
                     EmptyListState(
                         title = "No workers in $selectedCategory",
                         subtitle = "Try selecting 'All' or another category"
@@ -210,12 +255,26 @@ fun CustomerDashboardScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        items(workers, key = { it.id }) { worker ->
+                        items(displayWorkers, key = { it.id }) { worker ->
                             WorkerCardItem(
                                 worker = worker,
                                 onHire = {
                                     selectedWorkerForHire = worker
                                     showPostJobSheet = true
+                                    jobViewModel.createJobRequest(
+                                        title = "Work Request for ${worker.name}",
+                                        workType = worker.trade,
+                                        description = "Direct booking request for ${worker.name} (${worker.trade}, ${worker.experienceYears} yrs experience).",
+                                        offeredWage = worker.dailyWage,
+                                        location = worker.location,
+                                        workersNeeded = 1,
+                                        urgency = "Today",
+                                        dateTime = "Today, 9:00 AM",
+                                        worker = worker,
+                                        customerId = currentUser?.id?.toString() ?: "customer_1",
+                                        customerName = currentUser?.fullName ?: "Ramesh Verma",
+                                        customerPhone = currentUser?.mobileNumber ?: "+91 98765 43210"
+                                    )
                                 },
                                 onCall = { onHireWorker(worker) }
                             )
@@ -224,7 +283,7 @@ fun CustomerDashboardScreen(
                 }
             } else {
                 // Posted Jobs List
-                if (jobs.isEmpty()) {
+                if (displayJobs.isEmpty()) {
                     EmptyListState(
                         title = "No work posted yet",
                         subtitle = "Tap '+ Post Work' below to find skilled workers"
@@ -235,10 +294,21 @@ fun CustomerDashboardScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        items(jobs, key = { it.id }) { job ->
+                        items(displayJobs, key = { it.id }) { job ->
+                            val existingReview = workerReviews.find { it.jobId == job.id.toString() }
+                            val origJobId = job.id.toString()
                             PostedJobCardItem(
                                 job = job,
-                                onComplete = { onCompleteJob(job.id) }
+                                reviewedRating = existingReview?.rating,
+                                onComplete = {
+                                    jobViewModel.completeJob(origJobId)
+                                    onCompleteJob(job.id)
+                                },
+                                onReview = {
+                                    selectedJobForReview = job
+                                    reviewRating = 5.0f
+                                    reviewComment = ""
+                                }
                             )
                         }
                     }
@@ -285,6 +355,20 @@ fun CustomerDashboardScreen(
                         }
                     },
                     onSubmit = { title, cat, desc, rate, loc, count, urg, dt ->
+                        jobViewModel.createJobRequest(
+                            title = title,
+                            workType = cat,
+                            description = desc,
+                            offeredWage = rate,
+                            location = loc,
+                            workersNeeded = count,
+                            urgency = urg,
+                            dateTime = dt,
+                            worker = selectedWorkerForHire,
+                            customerId = currentUser?.id?.toString() ?: "customer_1",
+                            customerName = currentUser?.fullName ?: "Ramesh Verma",
+                            customerPhone = currentUser?.mobileNumber ?: "+91 98765 43210"
+                        )
                         onPostJob(title, cat, desc, rate, loc, count, urg, dt)
                         coroutineScope.launch {
                             sheetState.hide()
@@ -294,6 +378,119 @@ fun CustomerDashboardScreen(
                     }
                 )
             }
+        }
+
+        // Rating & Review Dialog
+        if (selectedJobForReview != null) {
+            val targetJob = selectedJobForReview!!
+            AlertDialog(
+                onDismissRequest = { selectedJobForReview = null },
+                title = {
+                    Text(
+                        text = "Rate & Review Worker",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = WorkoraTextDark
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "How was the work for '${targetJob.title}'?",
+                            fontSize = 13.sp,
+                            color = WorkoraTextMuted
+                        )
+
+                        // Star rating row (1 to 5)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("rating_stars_container"),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            (1..5).forEach { starIndex ->
+                                val isSelected = starIndex <= reviewRating
+                                IconButton(
+                                    onClick = { reviewRating = starIndex.toFloat() },
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .testTag("rating_star_$starIndex")
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Default.Star else Icons.Default.StarBorder,
+                                        contentDescription = "Star $starIndex",
+                                        tint = if (isSelected) WorkoraWarning else WorkoraBorder,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = when (reviewRating.toInt()) {
+                                5 -> "5.0 ★ Excellent Work!"
+                                4 -> "4.0 ★ Very Good"
+                                3 -> "3.0 ★ Good"
+                                2 -> "2.0 ★ Fair"
+                                else -> "1.0 ★ Needs Improvement"
+                            },
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WorkoraOrange,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+
+                        OutlinedTextField(
+                            value = reviewComment,
+                            onValueChange = { reviewComment = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("input_review_comment"),
+                            label = { Text("Write your review") },
+                            placeholder = { Text("e.g. Completed work on time, very polite and professional") },
+                            minLines = 3,
+                            maxLines = 4,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val commentToSubmit = reviewComment.trim().ifEmpty {
+                                "Completed work professionally with high quality."
+                            }
+                            reviewViewModel.submitReview(
+                                jobId = targetJob.id.toString(),
+                                customerId = currentUser?.id?.toString() ?: "customer_1",
+                                workerId = "1",
+                                rating = reviewRating,
+                                comment = commentToSubmit
+                            )
+                            selectedJobForReview = null
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange),
+                        modifier = Modifier.testTag("btn_submit_review")
+                    ) {
+                        Text("Submit Review", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { selectedJobForReview = null },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+                },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp)
+            )
         }
 
         // Workora Toast Notification
@@ -701,7 +898,9 @@ fun WorkerCardItem(
 
                 Button(
                     onClick = onHire,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_hire_now_${worker.id}"),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = WorkoraNavy,
@@ -722,7 +921,9 @@ fun WorkerCardItem(
 @Composable
 fun PostedJobCardItem(
     job: JobPost,
-    onComplete: () -> Unit = {}
+    reviewedRating: Float? = null,
+    onComplete: () -> Unit = {},
+    onReview: () -> Unit = {}
 ) {
     val statusColor = when (job.status) {
         "ACCEPTED" -> Color(0xFF16A34A)
@@ -896,6 +1097,75 @@ fun PostedJobCardItem(
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
+                }
+            } else if (job.status == "COMPLETED") {
+                Spacer(modifier = Modifier.height(12.dp))
+                if (reviewedRating != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF1F5F9), shape = RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = WorkoraSuccess,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Review Submitted",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = WorkoraSuccess
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = WorkoraWarning,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$reviewedRating ★",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = WorkoraTextDark
+                            )
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onReview,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WorkoraNavy,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("btn_review_job_${job.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Submit Review",
+                            tint = WorkoraWarning,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Rate & Review Worker",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }

@@ -32,10 +32,10 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         repository = WorkoraRepository(database.workoraDao())
     }
 
-    private val _screenState = MutableStateFlow(ScreenState.SPLASH)
+    private val _screenState = MutableStateFlow(ScreenState.AUTH)
     val screenState: StateFlow<ScreenState> = _screenState.asStateFlow()
 
-    private val _selectedRole = MutableStateFlow<UserRole?>(null)
+    private val _selectedRole = MutableStateFlow<UserRole?>(UserRole.CUSTOMER)
     val selectedRole: StateFlow<UserRole?> = _selectedRole.asStateFlow()
 
     private val _toastMessage = MutableStateFlow<String?>(null)
@@ -87,29 +87,23 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Navigation methods
-    fun continueFromSplash() {
-        if (_selectedRole.value == null) {
-            _selectedRole.value = UserRole.CUSTOMER
-        }
-        _screenState.value = if (_selectedRole.value == UserRole.LABOUR) {
-            ScreenState.LABOUR_HOME
-        } else {
-            ScreenState.CUSTOMER_HOME
-        }
-    }
-
     fun selectRole(role: UserRole) {
         _selectedRole.value = role
         val roleLabel = if (role == UserRole.CUSTOMER) "Customer (Hire Workers)" else "Labour (Find Work)"
-        showToast("Welcome to $roleLabel")
+        showToast("Selected: $roleLabel")
+        _screenState.value = ScreenState.AUTH
+    }
 
-        viewModelScope.launch {
-            delay(150)
-            _screenState.value = if (role == UserRole.CUSTOMER) {
-                ScreenState.CUSTOMER_HOME
-            } else {
-                ScreenState.LABOUR_HOME
-            }
+    fun setRole(role: UserRole) {
+        _selectedRole.value = role
+    }
+
+    fun onUserLoggedIn(role: UserRole) {
+        _selectedRole.value = role
+        _screenState.value = if (role == UserRole.CUSTOMER) {
+            ScreenState.CUSTOMER_HOME
+        } else {
+            ScreenState.LABOUR_HOME
         }
     }
 
@@ -123,6 +117,14 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         } else {
             ScreenState.CUSTOMER_HOME
         }
+    }
+
+    fun openPostWork() {
+        _screenState.value = ScreenState.POST_WORK
+    }
+
+    fun closePostWork() {
+        _screenState.value = ScreenState.CUSTOMER_HOME
     }
 
     fun switchRole() {
@@ -140,7 +142,7 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
 
     fun logout() {
         _selectedRole.value = null
-        _screenState.value = ScreenState.ACCOUNT_SELECTION
+        _screenState.value = ScreenState.AUTH
         showToast("Logged out successfully")
     }
 

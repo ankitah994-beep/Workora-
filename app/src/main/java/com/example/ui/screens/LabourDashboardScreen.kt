@@ -45,6 +45,9 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,11 +55,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CurrencyRupee
 import com.example.model.JobApplication
 import com.example.model.JobPost
+import com.example.model.JobStatus
 import com.example.model.UserAccount
 import com.example.ui.components.WorkoraHelmetLogo
 import com.example.ui.components.WorkoraToast
@@ -70,9 +76,11 @@ import com.example.ui.theme.WorkoraSuccess
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
 import com.example.ui.theme.WorkoraWarning
+import com.example.viewmodel.JobViewModel
 
 @Composable
 fun LabourDashboardScreen(
+    jobViewModel: JobViewModel = viewModel(),
     currentUser: UserAccount?,
     jobs: List<JobPost>,
     applications: List<JobApplication>,
@@ -91,6 +99,70 @@ fun LabourDashboardScreen(
     toastMessage: String?,
     modifier: Modifier = Modifier
 ) {
+    val workerJobRequests by jobViewModel.workerJobs.collectAsStateWithLifecycle()
+
+    LaunchedEffect(currentUser?.id) {
+        currentUser?.id?.let {
+            jobViewModel.fetchWorkerJobs(it.toString())
+        }
+    }
+
+    val idLookup = remember(workerJobRequests) {
+        workerJobRequests.associate { req ->
+            (req.id.toLongOrNull() ?: req.hashCode().toLong()) to req.id
+        }
+    }
+
+    val displayJobs = if (workerJobRequests.isNotEmpty()) {
+        workerJobRequests
+            .filter { req ->
+                if (selectedCategory == "All") true
+                else req.workType.equals(selectedCategory, ignoreCase = true)
+            }
+            .map { req ->
+                JobPost(
+                    id = req.id.toLongOrNull() ?: req.hashCode().toLong(),
+                    title = req.title,
+                    category = req.workType,
+                    description = req.description,
+                    dailyRate = req.offeredWage,
+                    location = req.location,
+                    workersNeeded = req.workersNeeded,
+                    urgency = req.urgency,
+                    dateTime = req.dateTime,
+                    customerName = req.customerName,
+                    customerPhone = req.customerPhone,
+                    status = req.status.name,
+                    timestamp = req.timestamp
+                )
+            }
+    } else {
+        jobs
+    }
+
+    val acceptedRequests = workerJobRequests.filter {
+        it.status == JobStatus.ACCEPTED || it.status == JobStatus.COMPLETED
+    }
+    val displayApplications = if (applications.isNotEmpty()) {
+        applications
+    } else {
+        acceptedRequests.map { req ->
+            JobApplication(
+                id = req.id.toLongOrNull() ?: req.hashCode().toLong(),
+                jobId = req.id.toLongOrNull() ?: req.hashCode().toLong(),
+                workerId = currentUser?.id ?: 1L,
+                workerName = currentUser?.fullName ?: "Sunil Kumar",
+                jobTitle = req.title,
+                category = req.workType,
+                dailyRate = req.offeredWage,
+                location = req.location,
+                dateTime = req.dateTime,
+                status = if (req.status == JobStatus.COMPLETED) "COMPLETED" else "ACCEPTED",
+                timestamp = req.timestamp
+            )
+        }
+    }
+
     val categories = listOf("All", "Mason", "Electrician", "Plumber", "Carpenter", "Painter", "Construction Helper")
 
     Box(
@@ -126,7 +198,7 @@ fun LabourDashboardScreen(
 
             // Basic Dashboard Cards
             LabourDashboardCardsRow(
-                jobsCount = jobs.size,
+                jobsCount = displayJobs.size,
                 dailyWage = 850,
                 rating = "4.9 ★"
             )
@@ -149,7 +221,7 @@ fun LabourDashboardScreen(
                     onClick = { onTabSelected(0) },
                     text = {
                         Text(
-                            text = "Work Requests (${jobs.size})",
+                            text = "Work Requests (${displayJobs.size})",
                             fontWeight = if (activeTab == 0) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp
                         )
@@ -160,7 +232,7 @@ fun LabourDashboardScreen(
                     onClick = { onTabSelected(1) },
                     text = {
                         Text(
-                            text = "My Jobs (${applications.size})",
+                            text = "My Jobs (${displayApplications.size})",
                             fontWeight = if (activeTab == 1) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp
                         )
@@ -175,7 +247,7 @@ fun LabourDashboardScreen(
                     onCategorySelected = onCategorySelected
                 )
 
-                if (jobs.isEmpty()) {
+                if (displayJobs.isEmpty()) {
                     EmptyListState(
                         title = "No work requests in $selectedCategory",
                         subtitle = "Select 'All' to see all available local work requests"
@@ -186,19 +258,29 @@ fun LabourDashboardScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 40.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        items(jobs, key = { it.id }) { job ->
+                        items(displayJobs, key = { it.id }) { job ->
+                            val origJobId = idLookup[job.id] ?: job.id.toString()
                             LabourJobCardItem(
                                 job = job,
-                                onAccept = { onAcceptJob(job) },
-                                onReject = { onRejectJob(job) },
-                                onComplete = { onCompleteJob(job.id) }
+                                onAccept = {
+                                    jobViewModel.acceptJob(origJobId)
+                                    onAcceptJob(job)
+                                },
+                                onReject = {
+                                    jobViewModel.rejectJob(origJobId)
+                                    onRejectJob(job)
+                                },
+                                onComplete = {
+                                    jobViewModel.completeJob(origJobId)
+                                    onCompleteJob(job.id)
+                                }
                             )
                         }
                     }
                 }
             } else {
                 // My Jobs Tab
-                if (applications.isEmpty()) {
+                if (displayApplications.isEmpty()) {
                     EmptyListState(
                         title = "No jobs accepted yet",
                         subtitle = "Check 'Work Requests' tab and Accept customer requests to see them here"
@@ -209,10 +291,14 @@ fun LabourDashboardScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 40.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        items(applications, key = { it.id }) { app ->
+                        items(displayApplications, key = { it.id }) { app ->
+                            val origJobId = idLookup[app.jobId] ?: app.jobId.toString()
                             ApplicationCardItem(
                                 application = app,
-                                onComplete = { onCompleteJob(app.jobId) }
+                                onComplete = {
+                                    jobViewModel.completeJob(origJobId)
+                                    onCompleteJob(app.jobId)
+                                }
                             )
                         }
                     }

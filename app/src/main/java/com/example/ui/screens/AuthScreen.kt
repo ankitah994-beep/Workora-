@@ -57,6 +57,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,7 +73,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.AuthMode
+import com.example.model.UserAccount
 import com.example.model.UserRole
 import com.example.ui.components.WorkoraHelmetLogo
 import com.example.ui.components.WorkoraToast
@@ -84,15 +88,17 @@ import com.example.ui.theme.WorkoraOrange
 import com.example.ui.theme.WorkoraOrangeDark
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
+import com.example.viewmodel.AuthViewModel
 
 @Composable
 fun AuthScreen(
-    authMode: AuthMode,
-    selectedRole: UserRole,
-    onAuthModeChanged: (AuthMode) -> Unit,
-    onRoleChanged: (UserRole) -> Unit,
-    onLogin: (email: String, pass: String, onResult: (Boolean, String) -> Unit) -> Unit,
-    onRegister: (
+    authViewModel: AuthViewModel = viewModel(),
+    authMode: AuthMode = AuthMode.LOGIN,
+    selectedRole: UserRole = UserRole.CUSTOMER,
+    onAuthModeChanged: (AuthMode) -> Unit = {},
+    onRoleChanged: (UserRole) -> Unit = {},
+    onLogin: ((email: String, pass: String, onResult: (Boolean, String) -> Unit) -> Unit)? = null,
+    onRegister: ((
         fullName: String,
         mobileNumber: String,
         email: String,
@@ -101,12 +107,29 @@ fun AuthScreen(
         location: String,
         role: UserRole,
         onResult: (Boolean, String) -> Unit
-    ) -> Unit,
-    onForgotPassword: (email: String, onResult: (Boolean, String) -> Unit) -> Unit,
-    onBackToRoleSelection: () -> Unit,
-    toastMessage: String?,
+    ) -> Unit)? = null,
+    onForgotPassword: ((email: String, onResult: (Boolean, String) -> Unit) -> Unit)? = null,
+    onBackToRoleSelection: () -> Unit = {},
+    onLoginSuccess: (UserAccount) -> Unit = {},
+    toastMessage: String? = null,
     modifier: Modifier = Modifier
 ) {
+    // Observe state from AuthViewModel
+    val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
+    val authLoading by authViewModel.isLoading.collectAsStateWithLifecycle()
+    val authError by authViewModel.authError.collectAsStateWithLifecycle()
+    val vmToast by authViewModel.toastMessage.collectAsStateWithLifecycle()
+
+    // Trigger onLoginSuccess callback when currentUser is updated
+    LaunchedEffect(currentUser) {
+        currentUser?.let { user ->
+            onLoginSuccess(user)
+        }
+    }
+
+    var currentAuthMode by remember(authMode) { mutableStateOf(authMode) }
+    var currentRole by remember(selectedRole) { mutableStateOf(selectedRole) }
+
     // Login form states
     var loginEmail by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
@@ -127,6 +150,8 @@ fun AuthScreen(
     var showForgotDialog by remember { mutableStateOf(false) }
     var forgotEmail by remember { mutableStateOf("") }
 
+    val effectiveError = errorMessage ?: authError
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -140,7 +165,7 @@ fun AuthScreen(
         ) {
             // Top Navigation Bar
             AuthTopBar(
-                selectedRole = selectedRole,
+                selectedRole = currentRole,
                 onBack = onBackToRoleSelection
             )
 
@@ -168,7 +193,7 @@ fun AuthScreen(
                             letterSpacing = 2.sp
                         )
                         Text(
-                            text = if (selectedRole == UserRole.CUSTOMER) "Customer Portal • Hire Workers" else "Labour Portal • Find Work",
+                            text = if (currentRole == UserRole.CUSTOMER) "Customer Portal • Hire Workers" else "Labour Portal • Find Work",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = WorkoraOrange
@@ -180,11 +205,11 @@ fun AuthScreen(
 
                 // Mode Tabs: Login vs Register
                 TabRow(
-                    selectedTabIndex = if (authMode == AuthMode.LOGIN) 0 else 1,
+                    selectedTabIndex = if (currentAuthMode == AuthMode.LOGIN) 0 else 1,
                     containerColor = Color.White,
                     contentColor = WorkoraNavy,
                     indicator = { tabPositions ->
-                        val index = if (authMode == AuthMode.LOGIN) 0 else 1
+                        val index = if (currentAuthMode == AuthMode.LOGIN) 0 else 1
                         TabRowDefaults.SecondaryIndicator(
                             modifier = Modifier.tabIndicatorOffset(tabPositions[index]),
                             color = WorkoraOrange,
@@ -196,29 +221,31 @@ fun AuthScreen(
                         .background(Color.White, shape = RoundedCornerShape(16.dp))
                 ) {
                     Tab(
-                        selected = authMode == AuthMode.LOGIN,
+                        selected = currentAuthMode == AuthMode.LOGIN,
                         onClick = {
                             errorMessage = null
+                            currentAuthMode = AuthMode.LOGIN
                             onAuthModeChanged(AuthMode.LOGIN)
                         },
                         text = {
                             Text(
                                 text = "Log In",
-                                fontWeight = if (authMode == AuthMode.LOGIN) FontWeight.Bold else FontWeight.Medium,
+                                fontWeight = if (currentAuthMode == AuthMode.LOGIN) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 15.sp
                             )
                         }
                     )
                     Tab(
-                        selected = authMode == AuthMode.REGISTER,
+                        selected = currentAuthMode == AuthMode.REGISTER,
                         onClick = {
                             errorMessage = null
+                            currentAuthMode = AuthMode.REGISTER
                             onAuthModeChanged(AuthMode.REGISTER)
                         },
                         text = {
                             Text(
                                 text = "Create Account",
-                                fontWeight = if (authMode == AuthMode.REGISTER) FontWeight.Bold else FontWeight.Medium,
+                                fontWeight = if (currentAuthMode == AuthMode.REGISTER) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 15.sp
                             )
                         }
@@ -229,11 +256,11 @@ fun AuthScreen(
 
                 // Error Banner
                 AnimatedVisibility(
-                    visible = !errorMessage.isNullOrBlank(),
+                    visible = !effectiveError.isNullOrBlank(),
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
-                    if (errorMessage != null) {
+                    if (effectiveError != null) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -256,7 +283,7 @@ fun AuthScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = errorMessage!!,
+                                    text = effectiveError,
                                     color = Color(0xFF991B1B),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
@@ -266,7 +293,7 @@ fun AuthScreen(
                     }
                 }
 
-                if (authMode == AuthMode.LOGIN) {
+                if (currentAuthMode == AuthMode.LOGIN) {
                     // ==========================================
                     // 1. LOGIN FORM
                     // ==========================================
@@ -287,19 +314,20 @@ fun AuthScreen(
                                 color = WorkoraTextDark
                             )
                             Text(
-                                text = "Sign in to access your ${if (selectedRole == UserRole.CUSTOMER) "hirer" else "worker"} dashboard",
+                                text = "Sign in to access your ${if (currentRole == UserRole.CUSTOMER) "hirer" else "worker"} dashboard",
                                 fontSize = 13.sp,
                                 color = WorkoraTextMuted
                             )
 
                             Spacer(modifier = Modifier.height(18.dp))
 
-                            // Email
+                            // Email / Phone Input
                             OutlinedTextField(
                                 value = loginEmail,
                                 onValueChange = {
                                     loginEmail = it
                                     errorMessage = null
+                                    authViewModel.clearError()
                                 },
                                 label = { Text("Email Address") },
                                 placeholder = { Text("e.g. name@example.com") },
@@ -333,6 +361,7 @@ fun AuthScreen(
                                 onValueChange = {
                                     loginPassword = it
                                     errorMessage = null
+                                    authViewModel.clearError()
                                 },
                                 label = { Text("Password") },
                                 placeholder = { Text("Enter your password") },
@@ -363,8 +392,26 @@ fun AuthScreen(
                                 ),
                                 keyboardActions = KeyboardActions(
                                     onDone = {
-                                        onLogin(loginEmail, loginPassword) { success, msg ->
-                                            if (!success) errorMessage = msg
+                                        val input = loginEmail.trim()
+                                        if (input.isNotBlank()) {
+                                            val isPhone = !input.contains("@") && input.any { it.isDigit() }
+                                            if (isPhone) {
+                                                authViewModel.loginWithPhone(input, currentRole) { success, msg ->
+                                                    if (!success) {
+                                                        errorMessage = msg
+                                                    } else {
+                                                        onLogin?.invoke(input, loginPassword) { _, _ -> }
+                                                    }
+                                                }
+                                            } else {
+                                                authViewModel.login(input, loginPassword, currentRole) { success, msg ->
+                                                    if (!success) {
+                                                        errorMessage = msg
+                                                    } else {
+                                                        onLogin?.invoke(input, loginPassword) { _, _ -> }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 ),
@@ -404,8 +451,29 @@ fun AuthScreen(
                             // Login Button
                             Button(
                                 onClick = {
-                                    onLogin(loginEmail, loginPassword) { success, msg ->
-                                        if (!success) errorMessage = msg
+                                    val input = loginEmail.trim()
+                                    if (input.isBlank()) {
+                                        errorMessage = "Please enter your phone number or email"
+                                        return@Button
+                                    }
+                                    val isPhone = !input.contains("@") && input.any { it.isDigit() }
+                                    if (isPhone) {
+                                        // Trigger ViewModel's phone login function
+                                        authViewModel.loginWithPhone(input, currentRole) { success, msg ->
+                                            if (!success) {
+                                                errorMessage = msg
+                                            } else {
+                                                onLogin?.invoke(input, loginPassword) { _, _ -> }
+                                            }
+                                        }
+                                    } else {
+                                        authViewModel.login(input, loginPassword, currentRole) { success, msg ->
+                                            if (!success) {
+                                                errorMessage = msg
+                                            } else {
+                                                onLogin?.invoke(input, loginPassword) { _, _ -> }
+                                            }
+                                        }
                                     }
                                 },
                                 modifier = Modifier
@@ -449,6 +517,7 @@ fun AuthScreen(
                                         .testTag("link_switch_to_register")
                                         .clickable {
                                             errorMessage = null
+                                            currentAuthMode = AuthMode.REGISTER
                                             onAuthModeChanged(AuthMode.REGISTER)
                                         }
                                 )
@@ -546,10 +615,13 @@ fun AuthScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                val isCustomer = selectedRole == UserRole.CUSTOMER
+                                val isCustomer = currentRole == UserRole.CUSTOMER
                                 FilterChip(
                                     selected = isCustomer,
-                                    onClick = { onRoleChanged(UserRole.CUSTOMER) },
+                                    onClick = {
+                                        currentRole = UserRole.CUSTOMER
+                                        onRoleChanged(UserRole.CUSTOMER)
+                                    },
                                     label = { Text("I want to Hire (Hirer)", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                                     leadingIcon = {
                                         Icon(
@@ -570,10 +642,13 @@ fun AuthScreen(
                                         .testTag("chip_role_customer")
                                 )
 
-                                val isLabour = selectedRole == UserRole.LABOUR
+                                val isLabour = currentRole == UserRole.LABOUR
                                 FilterChip(
                                     selected = isLabour,
-                                    onClick = { onRoleChanged(UserRole.LABOUR) },
+                                    onClick = {
+                                        currentRole = UserRole.LABOUR
+                                        onRoleChanged(UserRole.LABOUR)
+                                    },
                                     label = { Text("I want to Work (Worker)", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                                     leadingIcon = {
                                         Icon(
@@ -805,16 +880,28 @@ fun AuthScreen(
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                 keyboardActions = KeyboardActions(
                                     onDone = {
-                                        onRegister(
-                                            regFullName,
-                                            regMobile,
-                                            regEmail,
-                                            regPassword,
-                                            regConfirmPassword,
-                                            regLocation,
-                                            selectedRole
+                                        authViewModel.register(
+                                            fullName = regFullName,
+                                            mobileNumber = regMobile,
+                                            email = regEmail,
+                                            pass = regPassword,
+                                            confirmPass = regConfirmPassword,
+                                            location = regLocation,
+                                            role = currentRole
                                         ) { success, msg ->
-                                            if (!success) errorMessage = msg
+                                            if (!success) {
+                                                errorMessage = msg
+                                            } else {
+                                                onRegister?.invoke(
+                                                    regFullName,
+                                                    regMobile,
+                                                    regEmail,
+                                                    regPassword,
+                                                    regConfirmPassword,
+                                                    regLocation,
+                                                    currentRole
+                                                ) { _, _ -> }
+                                            }
                                         }
                                     }
                                 ),
@@ -833,16 +920,28 @@ fun AuthScreen(
                             // Create Account Button
                             Button(
                                 onClick = {
-                                    onRegister(
-                                        regFullName,
-                                        regMobile,
-                                        regEmail,
-                                        regPassword,
-                                        regConfirmPassword,
-                                        regLocation,
-                                        selectedRole
+                                    authViewModel.register(
+                                        fullName = regFullName,
+                                        mobileNumber = regMobile,
+                                        email = regEmail,
+                                        pass = regPassword,
+                                        confirmPass = regConfirmPassword,
+                                        location = regLocation,
+                                        role = currentRole
                                     ) { success, msg ->
-                                        if (!success) errorMessage = msg
+                                        if (!success) {
+                                            errorMessage = msg
+                                        } else {
+                                            onRegister?.invoke(
+                                                regFullName,
+                                                regMobile,
+                                                regEmail,
+                                                regPassword,
+                                                regConfirmPassword,
+                                                regLocation,
+                                                currentRole
+                                            ) { _, _ -> }
+                                        }
                                     }
                                 },
                                 modifier = Modifier
@@ -886,6 +985,7 @@ fun AuthScreen(
                                         .testTag("link_switch_to_login")
                                         .clickable {
                                             errorMessage = null
+                                            currentAuthMode = AuthMode.LOGIN
                                             onAuthModeChanged(AuthMode.LOGIN)
                                         }
                                 )
@@ -932,12 +1032,16 @@ fun AuthScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            onForgotPassword(forgotEmail) { success, msg ->
-                                if (success) {
-                                    showForgotDialog = false
-                                } else {
-                                    errorMessage = msg
+                            if (onForgotPassword != null) {
+                                onForgotPassword(forgotEmail) { success, msg ->
+                                    if (success) {
+                                        showForgotDialog = false
+                                    } else {
+                                        errorMessage = msg
+                                    }
                                 }
+                            } else {
+                                showForgotDialog = false
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange),
@@ -958,7 +1062,7 @@ fun AuthScreen(
 
         // Floating Toast
         WorkoraToast(
-            message = toastMessage,
+            message = toastMessage ?: vmToast,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()

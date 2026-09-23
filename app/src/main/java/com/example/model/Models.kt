@@ -14,10 +14,10 @@ enum class AuthMode {
 }
 
 enum class ScreenState {
-    SPLASH,
-    ACCOUNT_SELECTION,
     AUTH,
+    ACCOUNT_SELECTION,
     CUSTOMER_HOME,
+    POST_WORK,
     LABOUR_HOME,
     PROFILE
 }
@@ -56,18 +56,21 @@ data class JobPost(
 @Entity(tableName = "workers")
 data class WorkerProfile(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String,
-    val trade: String,
-    val dailyWage: Int,
-    val experienceYears: Int,
-    val rating: Float,
-    val reviewsCount: Int,
-    val location: String,
-    val distance: String,
-    val phone: String,
+    val name: String = "",
+    val trade: String = "",
+    val dailyWage: Int = 0,
+    val experienceYears: Int = 0,
+    val rating: Float = 0f,
+    val reviewsCount: Int = 0,
+    val location: String = "",
+    val distance: String = "",
+    val phone: String = "",
     val isAvailableToday: Boolean = true,
     val isVerified: Boolean = true
 )
+
+typealias Worker = WorkerProfile
+typealias User = WorkerProfile
 
 @Entity(tableName = "applications")
 data class JobApplication(
@@ -83,3 +86,41 @@ data class JobApplication(
     val status: String = "ACCEPTED", // PENDING, ACCEPTED, REJECTED, COMPLETED
     val timestamp: Long = System.currentTimeMillis()
 )
+
+enum class JobStatus {
+    PENDING,
+    ACCEPTED,
+    REJECTED,
+    COMPLETED
+}
+
+data class JobRequest(
+    val id: String = System.currentTimeMillis().toString(),
+    val customerId: String = "customer_1",
+    val customerName: String = "Ramesh Verma",
+    val customerPhone: String = "+91 98765 43210",
+    val workerId: String = "",
+    val workerName: String = "",
+    val title: String = "",
+    val workType: String = "",
+    val description: String = "",
+    val location: String = "",
+    val dateTime: String = "Today, 9:00 AM",
+    val offeredWage: Int = 0,
+    val workersNeeded: Int = 1,
+    val urgency: String = "Today",
+    val status: JobStatus = JobStatus.PENDING,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class Review(
+    val id: String = System.currentTimeMillis().toString(),
+    val jobId: String,
+    val customerId: String,
+    val workerId: String,
+    val rating: Float,
+    val comment: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+

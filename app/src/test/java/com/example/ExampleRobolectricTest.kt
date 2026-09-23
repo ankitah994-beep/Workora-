@@ -53,15 +53,17 @@ class ExampleRobolectricTest {
 
     @Test
     fun prototypeScreenNavigationStatesExist() {
-        val splash = ScreenState.SPLASH
+        val auth = ScreenState.AUTH
         val accountSelection = ScreenState.ACCOUNT_SELECTION
         val customerHome = ScreenState.CUSTOMER_HOME
+        val postWork = ScreenState.POST_WORK
         val labourHome = ScreenState.LABOUR_HOME
         val profile = ScreenState.PROFILE
 
-        assertNotNull(splash)
+        assertNotNull(auth)
         assertNotNull(accountSelection)
         assertNotNull(customerHome)
+        assertNotNull(postWork)
         assertNotNull(labourHome)
         assertNotNull(profile)
     }
@@ -91,5 +93,63 @@ class ExampleRobolectricTest {
         assertNotNull(retrieved)
         assertEquals("Ramesh Verma", retrieved?.fullName)
         assertEquals("Sector 14, Gurugram", retrieved?.location)
+    }
+
+    @Test
+    fun postWorkViewModelInputAndValidationTest() {
+        val postWorkVm = com.example.viewmodel.PostWorkViewModel()
+        assertEquals("Mason", postWorkVm.category.value)
+        assertEquals("Sector 14, Gurugram", postWorkVm.location.value)
+
+        // Validation fails if title is blank
+        val initialValidation = postWorkVm.validate()
+        org.junit.Assert.assertFalse(initialValidation)
+
+        // Set inputs
+        postWorkVm.setTitle("Need a plumber for pipe repair")
+        postWorkVm.setCategory("Plumber")
+        postWorkVm.setLocation("Sector 14, Gurugram")
+        postWorkVm.setDateTime("Tomorrow, 10:00 AM")
+        postWorkVm.setDescription("Fix leaking kitchen sink pipe")
+        postWorkVm.setDailyWage("900")
+
+        val valid = postWorkVm.validate()
+        assertTrue(valid)
+        assertEquals("Need a plumber for pipe repair", postWorkVm.title.value)
+        assertEquals("Plumber", postWorkVm.category.value)
+        assertEquals("900", postWorkVm.dailyWage.value)
+    }
+
+    @Test
+    fun postWorkViewModelSubmitJobTest() = runBlocking {
+        val mockJobRepo = com.example.data.MockJobRepository()
+        val postWorkVm = com.example.viewmodel.PostWorkViewModel(jobRepository = mockJobRepo)
+
+        postWorkVm.setTitle("Fix kitchen sink leak")
+        postWorkVm.setCategory("Plumber")
+        postWorkVm.setLocation("Sector 14, Gurugram")
+        postWorkVm.setDateTime("Today, 2:00 PM")
+        postWorkVm.setDescription("Pipe joint leaking water")
+
+        var savedJobResult: com.example.model.Job? = null
+        postWorkVm.submitJob(
+            fallbackCustomerId = "test_customer_uid_123",
+            onSuccess = { job ->
+                savedJobResult = job
+            },
+            onError = { }
+        )
+
+        // Allow coroutine to complete
+        kotlinx.coroutines.delay(100)
+
+        assertNotNull(savedJobResult)
+        assertEquals("Fix kitchen sink leak", savedJobResult?.title)
+        assertEquals("Plumber", savedJobResult?.category)
+        assertEquals("Sector 14, Gurugram", savedJobResult?.location)
+        assertEquals("Today, 2:00 PM", savedJobResult?.date)
+        assertEquals("Pipe joint leaking water", savedJobResult?.description)
+        assertEquals("test_customer_uid_123", savedJobResult?.customerId)
+        assertEquals("open", savedJobResult?.status)
     }
 }
