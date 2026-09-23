@@ -1,16 +1,16 @@
 package com.example.data
 
 import com.example.model.User
+import com.example.model.UserRole
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOf
 
 /**
- * FirestoreUserRepositoryImpl implements UserRepository using Firebase Firestore for basic User profiles.
+ * FirestoreUserRepositoryImpl implements UserRepository using Firebase Firestore.
  */
 class FirestoreUserRepositoryImpl(
     private val firestore: FirebaseFirestore? = runCatching { FirebaseFirestore.getInstance() }.getOrNull()
@@ -20,15 +20,12 @@ class FirestoreUserRepositoryImpl(
 
     private val fallbackUser = MutableStateFlow<User?>(
         User(
-            id = 1L,
-            uid = "1",
-            fullName = "Ramesh Verma",
-            mobileNumber = "+91 98765 43210",
+            id = "1",
+            name = "Ramesh Verma",
             email = "customer@workora.com",
-            password = "",
-            location = "Sector 14, Gurugram",
-            role = "CUSTOMER",
-            isLoggedIn = true,
+            phoneNumber = "+91 98765 43210",
+            role = UserRole.CUSTOMER,
+            profileImageUrl = "",
             createdAt = System.currentTimeMillis()
         )
     )
@@ -39,17 +36,16 @@ class FirestoreUserRepositoryImpl(
         return try {
             val userMap = hashMapOf<String, Any>(
                 "id" to user.id,
-                "uid" to user.uid,
-                "fullName" to user.fullName,
-                "mobileNumber" to user.mobileNumber,
+                "name" to user.name,
                 "email" to user.email,
-                "location" to user.location,
-                "role" to user.role,
-                "isLoggedIn" to user.isLoggedIn,
+                "phoneNumber" to user.phoneNumber,
+                "role" to user.role.name,
+                "profileImageUrl" to user.profileImageUrl,
+                "createdAt" to user.createdAt,
                 "updatedAt" to System.currentTimeMillis()
             )
 
-            val docId = if (user.uid.isNotBlank()) user.uid else user.id.toString()
+            val docId = user.id.ifBlank { "1" }
             db.collection(usersCollection)
                 .document(docId)
                 .set(userMap, SetOptions.merge())
@@ -74,16 +70,20 @@ class FirestoreUserRepositoryImpl(
                 if (snapshot != null && snapshot.exists()) {
                     val data = snapshot.data
                     if (data != null) {
+                        val roleStr = data["role"] as? String ?: "CUSTOMER"
+                        val parsedRole = try {
+                            UserRole.valueOf(roleStr.uppercase())
+                        } catch (e: Exception) {
+                            UserRole.CUSTOMER
+                        }
+
                         val parsedUser = User(
-                            id = (data["id"] as? Number)?.toLong() ?: userId.toLongOrNull() ?: 1L,
-                            uid = data["uid"] as? String ?: userId,
-                            fullName = data["fullName"] as? String ?: data["name"] as? String ?: "Customer",
-                            mobileNumber = data["mobileNumber"] as? String ?: data["phone"] as? String ?: "+91 98765 43210",
-                            email = data["email"] as? String ?: "customer@workora.com",
-                            password = data["password"] as? String ?: "",
-                            location = data["location"] as? String ?: "Gurugram",
-                            role = data["role"] as? String ?: "CUSTOMER",
-                            isLoggedIn = data["isLoggedIn"] as? Boolean ?: true,
+                            id = data["id"] as? String ?: userId,
+                            name = data["name"] as? String ?: "Customer",
+                            email = data["email"] as? String ?: "",
+                            phoneNumber = data["phoneNumber"] as? String ?: "",
+                            role = parsedRole,
+                            profileImageUrl = data["profileImageUrl"] as? String ?: "",
                             createdAt = (data["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
                         )
                         fallbackUser.value = parsedUser
