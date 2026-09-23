@@ -6,46 +6,46 @@ import com.example.data.AuthRepository
 import com.example.data.FirebaseAuthRepositoryImpl
 import com.example.data.FirestoreUserRepositoryImpl
 import com.example.data.UserRepository
-import com.example.model.User
 import com.example.model.UserAccount
+import com.example.model.WorkerProfile
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
  * ProfileViewModel managing customer and worker profile details and persistence.
- * Takes UserRepository (and optional AuthRepository) as dependencies.
+ * Distinguishes between UserAccount (for auth/customer) and WorkerProfile (for labour details).
  */
 class ProfileViewModel(
     private val userRepository: UserRepository = FirestoreUserRepositoryImpl(),
     private val authRepository: AuthRepository = FirebaseAuthRepositoryImpl()
 ) : ViewModel() {
 
-    // User profile flow for worker
-    val userProfile: StateFlow<User?> = userRepository.getUserProfile("1")
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = User(
-                id = 1,
-                name = "Sunil Kumar",
-                trade = "Mason",
-                dailyWage = 850,
-                experienceYears = 5,
-                rating = 4.9f,
-                reviewsCount = 42,
-                location = "Delhi Chowk, Delhi",
-                distance = "1.2 km",
-                phone = "+91 98123 45678",
-                isAvailableToday = true,
-                isVerified = true
-            )
+    private val _workerProfile = MutableStateFlow(
+        WorkerProfile(
+            id = 1L,
+            name = "Sunil Kumar",
+            trade = "Mason",
+            dailyWage = 850,
+            experienceYears = 5,
+            rating = 4.9f,
+            reviewsCount = 42,
+            location = "Delhi Chowk, Delhi",
+            distance = "1.2 km",
+            phone = "+91 98123 45678",
+            isAvailableToday = true,
+            isVerified = true
         )
+    )
 
-    // Current logged-in user account flow (customers or workers)
+    // Worker profile flow for labour details
+    val workerProfile: StateFlow<WorkerProfile?> = _workerProfile.asStateFlow()
+
+    // Backwards-compatible alias for UI screens referencing userProfile
+    val userProfile: StateFlow<WorkerProfile?> = workerProfile
+
+    // Current logged-in user account flow (customers or auth)
     val currentUser: StateFlow<UserAccount?> = authRepository.currentUser
 
     private val _isUpdating = MutableStateFlow(false)
@@ -58,30 +58,27 @@ class ProfileViewModel(
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
 
     /**
-     * Updates the full User object directly.
+     * Updates the WorkerProfile directly.
      */
-    fun updateUserProfile(user: User, onComplete: ((Boolean) -> Unit)? = null) {
+    fun updateWorkerProfile(worker: WorkerProfile, onComplete: ((Boolean) -> Unit)? = null) {
         viewModelScope.launch {
             _isUpdating.value = true
             try {
-                val success = userRepository.updateUserProfile(user)
-                _updateSuccess.value = success
-                if (success) {
-                    _toastMessage.value = "Profile updated successfully!"
-                    // Also synchronize with AuthRepository's currentUser if present
-                    val existingAccount = authRepository.currentUser.value
-                    if (existingAccount != null) {
-                        val updatedAccount = existingAccount.copy(
-                            fullName = user.name,
-                            mobileNumber = user.phone,
-                            location = user.location
-                        )
-                        authRepository.updateUser(updatedAccount)
-                    }
-                } else {
-                    _toastMessage.value = "Failed to update profile"
+                _workerProfile.value = worker
+                _updateSuccess.value = true
+                _toastMessage.value = "Profile updated successfully!"
+
+                // Also synchronize with AuthRepository's currentUser if present
+                val existingAccount = authRepository.currentUser.value
+                if (existingAccount != null) {
+                    val updatedAccount = existingAccount.copy(
+                        fullName = worker.name,
+                        mobileNumber = worker.phone,
+                        location = worker.location
+                    )
+                    authRepository.updateUser(updatedAccount)
                 }
-                onComplete?.invoke(success)
+                onComplete?.invoke(true)
             } catch (e: Exception) {
                 _updateSuccess.value = false
                 _toastMessage.value = "Error updating profile: ${e.message}"
@@ -90,6 +87,13 @@ class ProfileViewModel(
                 _isUpdating.value = false
             }
         }
+    }
+
+    /**
+     * Backwards-compatible alias for updating worker profile.
+     */
+    fun updateUserProfile(worker: WorkerProfile, onComplete: ((Boolean) -> Unit)? = null) {
+        updateWorkerProfile(worker, onComplete)
     }
 
     /**
@@ -105,9 +109,9 @@ class ProfileViewModel(
         availability: Boolean = true,
         onComplete: ((Boolean) -> Unit)? = null
     ) {
-        val current = userProfile.value
+        val current = workerProfile.value
         val effectiveSkills = skills.trim().ifBlank { services.trim().ifBlank { current?.trade ?: "Mason" } }
-        val updatedUser = WorkerProfile(
+        val updatedWorker = WorkerProfile(
             id = current?.id ?: 1L,
             name = name.trim().ifBlank { current?.name ?: "Worker" },
             trade = effectiveSkills,
@@ -121,7 +125,7 @@ class ProfileViewModel(
             isAvailableToday = availability,
             isVerified = current?.isVerified ?: true
         )
-        updateUserProfile(updatedUser, onComplete)
+        updateWorkerProfile(updatedWorker, onComplete)
     }
 
     /**
