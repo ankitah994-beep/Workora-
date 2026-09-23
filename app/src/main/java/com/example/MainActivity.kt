@@ -52,9 +52,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.User
-import com.example.model.UserRole
-import com.example.model.UserRole.EMPLOYER
-import com.example.model.UserRole.WORKER
 import com.example.ui.theme.MyApplicationTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -76,8 +73,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkoraMainApp() {
   val context = LocalContext.current
-  var selectedRole: UserRole by remember<MutableState<UserRole>> {
-    mutableStateOf<UserRole>(UserRole.WORKER)
+  var selectedRole: String by remember<MutableState<String>> {
+    mutableStateOf<String>("WORKER")
   }
   var currentUser: User? by remember<MutableState<User?>> {
     mutableStateOf<User?>(null)
@@ -86,7 +83,7 @@ fun WorkoraMainApp() {
   if (currentUser == null) {
     AuthScreen(
       selectedRole = selectedRole,
-      onRoleChanged = { role: UserRole ->
+      onRoleChanged = { role: String ->
         selectedRole = role
       },
       onBackToRoleSelection = {
@@ -178,7 +175,7 @@ fun WorkoraMainApp() {
               )
 
               Text(
-                text = "Role: ${user.role.name}",
+                text = "Role: ${user.role}",
                 fontSize = 14.sp,
                 color = Color(0xFF1D4ED8),
                 fontWeight = FontWeight.SemiBold
