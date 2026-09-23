@@ -1,4 +1,4 @@
-herename: Build Android APK
+name: Build Android APK
 
 on:
   workflow_dispatch: # Allows you to run this manually from the Actions tab
