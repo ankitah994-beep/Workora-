@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -72,7 +73,6 @@ fun SearchFilterScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // Top Header Bar
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -110,7 +110,6 @@ fun SearchFilterScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
         ) {
-            // 1. Filter by Skill / Category
             Text(
                 text = "Skill / Work Category",
                 fontSize = 15.sp,
@@ -144,7 +143,6 @@ fun SearchFilterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 2. Filter by Location / Area
             Text(
                 text = "Location / Area",
                 fontSize = 15.sp,
@@ -188,7 +186,6 @@ fun SearchFilterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 3. Maximum Wage Filter
             Text(
                 text = "Maximum Daily Wage (₹)",
                 fontSize = 15.sp,
@@ -222,7 +219,8 @@ fun SearchFilterScreen(
                     OutlinedButton(
                         onClick = { maxWageInput = limit.replace("+", "") },
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, WorkoraBorder)
                     ) {
                         Text("₹$limit", fontSize = 12.sp, color = WorkoraNavy, fontWeight = FontWeight.SemiBold)
                     }
@@ -231,7 +229,6 @@ fun SearchFilterScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Action Buttons (Apply & Reset)
             Button(
                 onClick = {
                     onApplyFilters(selectedCategory, selectedLocation, maxWageInput)
