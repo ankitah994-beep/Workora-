@@ -51,6 +51,67 @@ object FirebaseManager {
         }
     }
 
+    private fun parseAdminJsonStatus(adminText: String): Pair<Boolean, String> {
+        if (adminText.isBlank() || adminText == "null") return Pair(false, "SUPER_ADMIN")
+        return try {
+            val adminJson = JSONObject(adminText)
+            val rawActive = adminJson.opt("isActive")
+            val isActive = when (rawActive) {
+                is Boolean -> rawActive
+                is String -> rawActive.trim().equals("true", ignoreCase = true)
+                else -> true
+            }
+            val rawRole = adminJson.optString("role", "").trim()
+            val tier = if (rawRole.isEmpty()) "SUPER_ADMIN" else rawRole
+            Pair(isActive, tier)
+        } catch (e: Exception) {
+            Pair(false, "SUPER_ADMIN")
+        }
+    }
+
+    /**
+     * Direct Live Check: Checks if the logged-in email is registered inside /admins/{safeEmailKey}
+     */
+    fun checkIfEmailIsAdminOnCloud(
+        email: String,
+        onResult: (isAdmin: Boolean, adminTier: String) -> Unit
+    ) {
+        if (email.isBlank()) {
+            onResult(false, "SUPER_ADMIN")
+            return
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val safeEmailKey = toSafeKey(email)
+                val adminUrl = URL("$FIREBASE_DB_URL/admins/$safeEmailKey.json")
+                val adminConn = (adminUrl.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 6000
+                    readTimeout = 6000
+                }
+
+                var isBackendAdmin = false
+                var detectedTier = "SUPER_ADMIN"
+
+                if (adminConn.responseCode in 200..299) {
+                    val adminText = BufferedReader(InputStreamReader(adminConn.inputStream)).use { it.readText() }
+                    val parsed = parseAdminJsonStatus(adminText)
+                    isBackendAdmin = parsed.first
+                    detectedTier = parsed.second
+                }
+                adminConn.disconnect()
+
+                withContext(Dispatchers.Main) {
+                    onResult(isBackendAdmin, detectedTier)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onResult(false, "SUPER_ADMIN")
+                }
+            }
+        }
+    }
+
     fun syncUserToFirebase(
         context: Context,
         name: String,
@@ -188,11 +249,9 @@ object FirebaseManager {
 
                     if (adminConn.responseCode in 200..299) {
                         val adminText = BufferedReader(InputStreamReader(adminConn.inputStream)).use { it.readText() }
-                        if (adminText.isNotBlank() && adminText != "null") {
-                            val adminJson = JSONObject(adminText)
-                            isBackendAdmin = adminJson.optBoolean("isActive", false)
-                            detectedAdminTier = adminJson.optString("role", "SUPER_ADMIN")
-                        }
+                        val parsed = parseAdminJsonStatus(adminText)
+                        isBackendAdmin = parsed.first
+                        detectedAdminTier = parsed.second
                     }
                     adminConn.disconnect()
 
