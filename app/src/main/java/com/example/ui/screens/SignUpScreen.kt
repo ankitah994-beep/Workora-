@@ -27,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,21 +51,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.WorkoraTheme
 
-/** The two ways a person can use Workora. Used by the role toggle on the sign-up screen. */
 enum class SignUpRole {
     CUSTOMER,
     WORKER
 }
 
-/**
- * Sign-up screen (UI only).
- *
- * @param onSignUp             called with the trimmed name, trimmed email, password and chosen role
- *                             after local validation passes
- * @param onNavigateToLogin    called when the user taps "Log in"
- * @param isLoading            shows a progress indicator on the button and disables the form
- * @param errorMessage         an error from outside (for example "email already in use") shown under the fields
- */
 @Composable
 fun SignUpScreen(
     onSignUp: (name: String, email: String, password: String, role: SignUpRole) -> Unit,
@@ -78,7 +69,6 @@ fun SignUpScreen(
 
     var name by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
-    // Passwords are kept in plain remember (not saved state) on purpose.
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
@@ -134,7 +124,6 @@ fun SignUpScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Role toggle
         Text(
             text = "I am here to",
             style = MaterialTheme.typography.labelLarge,
@@ -360,6 +349,8 @@ private fun SignUpField(
     supportingText: String? = null,
     onDone: (() -> Unit)? = null
 ) {
+    val colors = MaterialTheme.colorScheme
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -382,7 +373,14 @@ private fun SignUpField(
             onDone = { onDone?.invoke() }
         ),
         trailingIcon = trailing,
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = colors.onBackground,
+            unfocusedTextColor = colors.onBackground,
+            errorTextColor = colors.onBackground,
+            disabledTextColor = colors.onBackground.copy(alpha = 0.6f),
+            cursorColor = colors.primary
+        )
     )
 }
 
