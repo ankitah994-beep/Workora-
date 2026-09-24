@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,151 +20,192 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.Divider
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.ui.theme.WorkoraTheme
+import androidx.compose.ui.unit.sp
+import com.example.ui.theme.WorkoraBgLight
+import com.example.ui.theme.WorkoraBorder
+import com.example.ui.theme.WorkoraNavy
+import com.example.ui.theme.WorkoraOrange
+import com.example.ui.theme.WorkoraTextDark
+import com.example.ui.theme.WorkoraTextMuted
 
-data class ChatMessage(val text: String, val isFromMe: Boolean, val time: String)
+// Chat Message Data Class
+data class ChatMessage(
+    val id: String,
+    val text: String,
+    val isFromMe: Boolean,
+    val time: String
+)
 
 @Composable
 fun ChatScreen(
-    onBack: () -> Unit = {},
-    chatUserName: String = "Sunil Kumar",
-    chatUserRole: String = "Mason"
+    modifier: Modifier = Modifier,
+    workerName: String = "Sunil Kumar",
+    workerTrade: String = "Mason",
+    onBack: () -> Unit = {}
 ) {
-    val colors = MaterialTheme.colorScheme
-    var messageText by remember { mutableStateOf("") }
+    // Initial dummy chat messages
+    val messages = remember {
+        mutableStateListOf(
+            ChatMessage("1", "Hello! I am available for the wall plastering work today.", false, "9:00 AM"),
+            ChatMessage("2", "Great! Can you reach Sector 12 by 9:30 AM?", true, "9:02 AM"),
+            ChatMessage("3", "Yes, I am on my way.", false, "9:05 AM")
+        )
+    }
 
-    // Dummy messages for UI preview
-    val messages = listOf(
-        ChatMessage("Hello, I need some plastering work done.", true, "10:00 AM"),
-        ChatMessage("Hi! Yes, I am available. Where is the site?", false, "10:05 AM"),
-        ChatMessage("It's in Sector 14, near the main market.", true, "10:06 AM"),
-        ChatMessage("Okay, I can come tomorrow morning at 9 AM. My daily wage is ₹850.", false, "10:10 AM"),
-        ChatMessage("That works for me. See you tomorrow.", true, "10:12 AM")
-    )
+    var inputMessage by remember { mutableStateOf("") }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .background(colors.background)
+            .background(WorkoraBgLight)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // Top Bar
+        // Top Header Bar
         Row(
-            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.surface)
-                .padding(16.dp)
+                .background(Color.White)
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = colors.onSurface)
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = WorkoraNavy
+                )
             }
+
+            // Worker Avatar
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.primaryContainer),
+                    .background(WorkoraOrange.copy(alpha = 0.15f), shape = CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = null, tint = colors.onPrimaryContainer)
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = chatUserName, 
-                    style = MaterialTheme.typography.titleMedium, 
-                    fontWeight = FontWeight.Bold, 
-                    color = colors.onSurface
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = WorkoraOrange,
+                    modifier = Modifier.size(22.dp)
                 )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = workerName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WorkoraTextDark
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Verified",
+                        tint = Color(0xFF16A34A),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
                 Text(
-                    text = chatUserRole, 
-                    style = MaterialTheme.typography.bodySmall, 
-                    color = colors.onSurfaceVariant
+                    text = "$workerTrade • Online",
+                    fontSize = 12.sp,
+                    color = WorkoraTextMuted
                 )
             }
         }
 
-        Divider(color = colors.outlineVariant)
-
-        // Chat Messages
+        // Messages List Area
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(messages) { msg ->
+            items(messages, key = { it.id }) { msg ->
                 ChatBubble(message = msg)
             }
         }
 
-        // Message Input Bar
-        Surface(
-            color = colors.surface,
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
+        // Bottom Input Bar for typing messages
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            OutlinedTextField(
+                value = inputMessage,
+                onValueChange = { inputMessage = it },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .imePadding(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = messageText,
-                    onValueChange = { messageText = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Type a message...") },
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = colors.primary,
-                        unfocusedBorderColor = colors.outline
-                    ),
-                    maxLines = 3
+                    .weight(1f),
+                placeholder = { Text("Type a message...", fontSize = 14.sp, color = WorkoraTextMuted) },
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = WorkoraBgLight,
+                    unfocusedContainerColor = WorkoraBgLight,
+                    focusedBorderColor = WorkoraNavy,
+                    unfocusedBorderColor = WorkoraBorder
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = { 
-                        // Message send logic will go here
-                        messageText = "" 
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(colors.primary, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Default.Send, 
-                        contentDescription = "Send", 
-                        tint = colors.onPrimary, 
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Send Button
+            IconButton(
+                onClick = {
+                    if (inputMessage.isNotBlank()) {
+                        messages.add(
+                            ChatMessage(
+                                id = System.currentTimeMillis().toString(),
+                                text = inputMessage.trim(),
+                                isFromMe = true,
+                                time = "Just now"
+                            )
+                        )
+                        inputMessage = ""
+                    }
+                },
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(WorkoraOrange, shape = CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -173,48 +213,41 @@ fun ChatScreen(
 
 @Composable
 fun ChatBubble(message: ChatMessage) {
-    val colors = MaterialTheme.colorScheme
-    val alignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
-    val bubbleColor = if (message.isFromMe) colors.primary else colors.secondaryContainer
-    val textColor = if (message.isFromMe) colors.onPrimary else colors.onSecondaryContainer
-    
-    // Changing corner radius based on sender
-    val shape = if (message.isFromMe) {
-        RoundedCornerShape(16.dp, 16.dp, 0.dp, 16.dp)
-    } else {
-        RoundedCornerShape(16.dp, 16.dp, 16.dp, 0.dp)
-    }
+    val backgroundColor = if (message.isFromMe) WorkoraNavy else Color.White
+    val textColor = if (message.isFromMe) Color.White else WorkoraTextDark
+    val alignment = if (message.isFromMe) Arrangement.End else Arrangement.Start
 
-    Box(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        contentAlignment = alignment
+        horizontalArrangement = alignment
     ) {
-        Column(horizontalAlignment = if (message.isFromMe) Alignment.End else Alignment.Start) {
-            Box(
-                modifier = Modifier
-                    .background(bubbleColor, shape)
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+        Card(
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = if (message.isFromMe) 16.dp else 4.dp,
+                bottomEnd = if (message.isFromMe) 4.dp else 16.dp
+            ),
+            colors = CardDefaults.cardColors(containerColor = backgroundColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            modifier = Modifier.padding(horizontal = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Text(
                     text = message.text,
-                    color = textColor,
-                    style = MaterialTheme.typography.bodyMedium
+                    fontSize = 14.sp,
+                    color = textColor
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = message.time,
+                    fontSize = 10.sp,
+                    color = if (message.isFromMe) Color.White.copy(alpha = 0.7f) else WorkoraTextMuted,
+                    modifier = Modifier.align(Alignment.End)
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = message.time,
-                color = colors.onSurfaceVariant,
-                style = MaterialTheme.typography.labelSmall
-            )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ChatScreenPreview() {
-    WorkoraTheme {
-        ChatScreen()
     }
 }
