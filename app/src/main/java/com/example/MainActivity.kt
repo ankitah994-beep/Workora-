@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,30 +26,15 @@ import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // VERY FIRST: look for a crash report saved by WorkoraApplication.
-        val pendingReport: String? = CrashStore.read(applicationContext)
-
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            var crashReport by rememberSaveable { mutableStateOf<String?>(pendingReport) }
-            val report: String? = crashReport
-
-            if (report != null) {
-                CrashReportScreen(
-                    report = report,
-                    onContinue = {
-                        CrashStore.clear(applicationContext)
-                        crashReport = null
-                    }
-                )
-            } else {
-                WorkoraTheme {
-                    Surface(modifier = Modifier.fillMaxSize()) {
-                        WorkoraApp()
-                    }
+            WorkoraTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    WorkoraApp()
                 }
             }
         }
