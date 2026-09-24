@@ -3,18 +3,27 @@
 // Requires the androidx.navigation:navigation-compose dependency.
 package com.workora.app
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.os.Process
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
@@ -26,6 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,23 +48,230 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import java.io.PrintWriter
+import java.io.StringWriter
+import kotlin.system.exitProcess
 
 private const val ROUTE_AUTH: String = "auth"
 private const val ROUTE_WORKER_HOME: String = "worker_home"
 private const val ROUTE_EMPLOYER_HOME: String = "employer_home"
 
+private const val CRASH_PREFS: String = "workora_crash_prefs"
+private const val KEY_CRASH_REPORT: String = "last_crash_report"
+private const val KEY_LAST_CRASH_MS: String = "last_crash_time_ms"
+private const val MAX_REPORT_CHARS: Int = 20000
+private const val MIN_RELAUNCH_GAP_MS: Long = 5000L
+
 private val BrandColor = Color(0xFF1565C0)
 private val DarkText = Color(0xFF111111)
 private val MutedText = Color(0xFF616161)
+private val ErrorRed = Color(0xFFB00020)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Install first so that anything that goes wrong afterwards is captured.
+        installCrashHandler(applicationContext)
         super.onCreate(savedInstanceState)
+
+        // If the previous run crashed, show the report instead of the app.
+        val pendingReport: String? = readCrashReport(applicationContext)
+
         setContent {
-            WorkoraApp()
+            var crashReport by rememberSaveable { mutableStateOf<String?>(pendingReport) }
+            val report: String? = crashReport
+
+            if (report != null) {
+                CrashReportScreen(
+                    report = report,
+                    onContinue = {
+                        clearCrashReport(applicationContext)
+                        crashReport = null
+                    }
+                )
+            } else {
+                WorkoraApp()
+            }
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Crash capture (runs outside Compose, so plain try/catch is fine here)
+// ---------------------------------------------------------------------------
+
+private fun installCrashHandler(context: Context) {
+    val appContext: Context = context.applicationContext
+
+    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+        var shouldRelaunch = false
+        try {
+            val prefs = appContext.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
+            val now = System.currentTimeMillis()
+            // Avoid an endless crash/relaunch loop: only relaunch if the last crash was a while ago.
+            shouldRelaunch = now - prefs.getLong(KEY_LAST_CRASH_MS, 0L) > MIN_RELAUNCH_GAP_MS
+            prefs.edit()
+                .putString(KEY_CRASH_REPORT, buildCrashReport(thread, throwable))
+                .putLong(KEY_LAST_CRASH_MS, now)
+                .commit()
+        } catch (t: Throwable) {
+            // Never throw from inside the crash handler.
+        }
+
+        if (shouldRelaunch) {
+            try {
+                val intent = Intent(appContext, MainActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                appContext.startActivity(intent)
+            } catch (t: Throwable) {
+                // If relaunch fails, the report is still saved and shows on the next manual open.
+            }
+        }
+
+        Process.killProcess(Process.myPid())
+        exitProcess(10)
+    }
+}
+
+private fun buildCrashReport(thread: Thread, throwable: Throwable): String {
+    var root: Throwable = throwable
+    var depth = 0
+    while (root.cause != null && root.cause !== root && depth < 20) {
+        root = root.cause ?: break
+        depth++
+    }
+
+    val stackTrace = StringWriter()
+    throwable.printStackTrace(PrintWriter(stackTrace))
+
+    val report = buildString {
+        append("Message: ").append(throwable.localizedMessage ?: "(no message)").append("\n")
+        append("Type: ").append(throwable.javaClass.name).append("\n")
+        if (root !== throwable) {
+            append("Root cause: ").append(root.javaClass.name)
+                .append(": ").append(root.localizedMessage ?: "(no message)").append("\n")
+        }
+        append("Thread: ").append(thread.name).append("\n\n")
+        append(stackTrace.toString())
+    }
+    return report.take(MAX_REPORT_CHARS)
+}
+
+private fun readCrashReport(context: Context): String? {
+    return try {
+        context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_CRASH_REPORT, null)
+    } catch (t: Throwable) {
+        null
+    }
+}
+
+private fun clearCrashReport(context: Context) {
+    try {
+        context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_CRASH_REPORT)
+            .apply()
+    } catch (t: Throwable) {
+        // Nothing else to do.
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Crash report screen
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun CrashReportScreen(
+    report: String,
+    onContinue: () -> Unit
+) {
+    MaterialTheme(colorScheme = lightColorScheme(primary = BrandColor)) {
+        val context = LocalContext.current
+        val clipboard = LocalClipboardManager.current
+
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Workora hit an error",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ErrorRed
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "The app did not close. Use Copy or Share and send the full text below.",
+                    fontSize = 14.sp,
+                    color = MutedText
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { clipboard.setText(AnnotatedString(report)) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(text = "Copy")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val sendIntent = Intent(Intent.ACTION_SEND)
+                            sendIntent.type = "text/plain"
+                            sendIntent.putExtra(Intent.EXTRA_TEXT, report)
+                            context.startActivity(Intent.createChooser(sendIntent, "Share crash report"))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(text = "Share")
+                    }
+                    Button(
+                        onClick = onContinue,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = BrandColor,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(text = "Continue")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = report,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = DarkText
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// App navigation
+// ---------------------------------------------------------------------------
 
 // Roles are plain Strings: "WORKER" or "EMPLOYER" (ROLE_WORKER / ROLE_EMPLOYER live in AuthScreen.kt).
 private fun routeForRole(role: String): String {
