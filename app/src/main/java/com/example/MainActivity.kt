@@ -242,7 +242,6 @@ fun WorkoraApp(
                                 .apply()
                             viewModel.navigateTo(ScreenState.LOGIN)
                         },
-                        onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) },
                         onUpdateProfile = { _, _, _ -> }
                     )
                 }
@@ -291,8 +290,8 @@ fun WorkoraApp(
             }
         }
 
-        // ALWAYS-VISIBLE ONLINE LIVE CHAT FLOATING BUTTON ON HOME SCREENS
-        if (screenState == ScreenState.CUSTOMER_HOME || screenState == ScreenState.LABOUR_HOME) {
+        // ALWAYS-VISIBLE ONLINE LIVE CHAT FLOATING BUTTON ON HOME & PROFILE SCREENS
+        if (screenState == ScreenState.CUSTOMER_HOME || screenState == ScreenState.LABOUR_HOME || screenState == ScreenState.PROFILE) {
             ExtendedFloatingActionButton(
                 onClick = { viewModel.navigateTo(ScreenState.CHAT) },
                 containerColor = WorkoraNavy,
