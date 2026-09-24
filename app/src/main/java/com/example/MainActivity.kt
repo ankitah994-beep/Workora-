@@ -23,6 +23,7 @@ import com.example.model.UserRole
 import com.example.ui.screens.AccountSelectScreen
 import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.CustomerDashboardScreen
+import com.example.ui.screens.JobHistoryScreen
 import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.LanguageSelectionScreen
 import com.example.ui.screens.LoginScreen
@@ -153,13 +154,16 @@ fun WorkoraApp(
             ScreenState.PROFILE -> {
                 ProfileScreen(
                     role = selectedRole ?: UserRole.CUSTOMER,
+                    userName = "Ankit Ahirwar",
+                    userPhone = "+91 98765 43210",
+                    userLocation = "Silwani, Raisen",
                     onBack = { 
-                        if(selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
+                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
                         else viewModel.navigateTo(ScreenState.LABOUR_HOME)
                     },
                     onSwitchRole = { viewModel.switchRole() },
                     onLogout = { viewModel.navigateTo(ScreenState.LOGIN) },
-                    toastMessage = toastMessage
+                    onUpdateProfile = { _, _, _ -> }
                 )
             }
             ScreenState.POST_JOB -> {
@@ -179,14 +183,26 @@ fun WorkoraApp(
             ScreenState.CHAT -> {
                 ChatScreen(
                     onBack = { 
-                        if(selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
+                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
                         else viewModel.navigateTo(ScreenState.LABOUR_HOME) 
                     }
                 )
             }
             ScreenState.NOTIFICATIONS -> {
                 NotificationScreen(
-                    onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
+                    onBack = { 
+                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
+                        else viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                    }
+                )
+            }
+            ScreenState.JOB_HISTORY -> {
+                JobHistoryScreen(
+                    jobs = jobs,
+                    onBack = { 
+                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+                        else viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                    }
                 )
             }
             else -> {
