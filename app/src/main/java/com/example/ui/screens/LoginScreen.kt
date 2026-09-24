@@ -1,5 +1,5 @@
 package com.example.ui.screens
-import androidx.compose.material3.OutlinedTextFieldDefaults
+
 import android.util.Patterns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,15 +46,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.WorkoraTheme
 
-/**
- * Login screen (UI only).
- *
- * @param onLogin              called with the trimmed email and the password after local validation passes
- * @param onNavigateToSignUp   called when the user taps "Create account"
- * @param onForgotPassword     called when the user taps "Forgot password?"
- * @param isLoading            shows a progress indicator on the button and disables the form
- * @param errorMessage         an error from outside (for example a failed login) shown under the fields
- */
 @Composable
 fun LoginScreen(
     onLogin: (email: String, password: String) -> Unit,
@@ -67,7 +59,6 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
 
     var email by rememberSaveable { mutableStateOf("") }
-    // Passwords are kept in plain remember (not saved state) on purpose.
     var password by remember { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -253,6 +244,8 @@ private fun LoginField(
     trailing: (@Composable () -> Unit)? = null,
     onDone: (() -> Unit)? = null
 ) {
+    val colors = MaterialTheme.colorScheme
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -270,7 +263,14 @@ private fun LoginField(
             onDone = { onDone?.invoke() }
         ),
         trailingIcon = trailing,
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = colors.onBackground,
+            unfocusedTextColor = colors.onBackground,
+            errorTextColor = colors.onBackground,
+            disabledTextColor = colors.onBackground.copy(alpha = 0.6f),
+            cursorColor = colors.primary
+        )
     )
 }
 
