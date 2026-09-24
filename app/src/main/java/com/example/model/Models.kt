@@ -26,7 +26,8 @@ enum class ScreenState {
     PROFILE,
     SEARCH_FILTER,
     CHAT,
-    NOTIFICATIONS
+    NOTIFICATIONS,
+    JOB_HISTORY
 }
 
 @Entity(tableName = "users")
