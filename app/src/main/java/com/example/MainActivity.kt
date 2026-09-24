@@ -171,7 +171,9 @@ fun WorkoraApp(
             ScreenState.SEARCH_FILTER -> {
                 SearchFilterScreen(
                     onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) },
-                    onApplyFilters = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
+                    onApplyFilters = { _, _, _ -> 
+                        viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
+                    }
                 )
             }
             ScreenState.CHAT -> {
