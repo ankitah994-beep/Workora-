@@ -91,7 +91,11 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         _selectedRole.value = role
         val roleLabel = if (role == UserRole.CUSTOMER) "Customer (Hire Workers)" else "Labour (Find Work)"
         showToast("Selected: $roleLabel")
-        _screenState.value = ScreenState.AUTH
+        _screenState.value = if (role == UserRole.CUSTOMER) {
+            ScreenState.CUSTOMER_HOME
+        } else {
+            ScreenState.LABOUR_HOME
+        }
     }
 
     fun setRole(role: UserRole) {
