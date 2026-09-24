@@ -26,17 +26,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Handyman
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
@@ -74,14 +71,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.AccountCircle
@@ -98,7 +94,6 @@ import com.example.ui.theme.WorkoraNavy
 import com.example.ui.theme.WorkoraNavyDark
 import com.example.ui.theme.WorkoraNavySoft
 import com.example.ui.theme.WorkoraOrange
-import com.example.ui.theme.WorkoraOrangeSoft
 import com.example.ui.theme.WorkoraSuccess
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
@@ -128,16 +123,15 @@ fun CustomerDashboardScreen(
     onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit,
     onOpenProfile: () -> Unit,
-    onOpenNotifications: () -> Unit = {}, // NEW
-    onOpenFilters: () -> Unit = {}, // NEW
+    onOpenNotifications: () -> Unit = {},
+    onOpenFilters: () -> Unit = {},
     toastMessage: String?,
     modifier: Modifier = Modifier
 ) {
-    // Observe workers list from HomeViewModel
+    val context = LocalContext.current
     val vmWorkers by homeViewModel.availableWorkers.collectAsStateWithLifecycle()
     val displayWorkers = if (workers.isNotEmpty()) workers else vmWorkers
 
-    // Observe job requests from JobViewModel
     val customerJobRequests by jobViewModel.customerJobs.collectAsStateWithLifecycle()
 
     val displayJobs = if (jobs.isNotEmpty()) {
@@ -169,7 +163,6 @@ fun CustomerDashboardScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
 
-    // Observe reviews from ReviewViewModel
     val workerReviews by reviewViewModel.workerReviews.collectAsStateWithLifecycle()
     var selectedJobForReview by remember { mutableStateOf<JobPost?>(null) }
     var reviewRating by remember { mutableFloatStateOf(5.0f) }
@@ -185,24 +178,21 @@ fun CustomerDashboardScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Header Bar
             CustomerHeaderBar(
                 currentUser = currentUser,
                 onSwitchRole = onSwitchRole,
-                onOpenNotifications = onOpenNotifications, // NEW
+                onOpenNotifications = onOpenNotifications,
                 onOpenProfile = onOpenProfile
             )
 
-            // Hello, User & Location Banner
             CustomerWelcomeSection(
                 userName = currentUser?.fullName ?: "User",
                 location = currentUser?.location ?: "Sector 14, Gurugram",
                 searchQuery = searchQuery,
                 onSearchQueryChanged = onSearchQueryChanged,
-                onOpenFilters = onOpenFilters // NEW
+                onOpenFilters = onOpenFilters
             )
 
-            // Tabs: Explore Workers vs My Posted Jobs
             TabRow(
                 selectedTabIndex = activeTab,
                 containerColor = Color.White,
@@ -239,7 +229,6 @@ fun CustomerDashboardScreen(
                 )
             }
 
-            // Category Chips Row (applicable to both or workers)
             if (activeTab == 0) {
                 CategoryChipsRow(
                     categories = categories,
@@ -248,9 +237,7 @@ fun CustomerDashboardScreen(
                 )
             }
 
-            // Main Content Area
             if (activeTab == 0) {
-                // Workers List
                 if (displayWorkers.isEmpty()) {
                     EmptyListState(
                         title = "No workers in $selectedCategory",
@@ -271,7 +258,7 @@ fun CustomerDashboardScreen(
                                     jobViewModel.createJobRequest(
                                         title = "Work Request for ${worker.name}",
                                         workType = worker.trade,
-                                        description = "Direct booking request for ${worker.name} (${worker.trade}, ${worker.experienceYears} yrs experience).",
+                                        description = "Direct booking request for ${worker.name}.",
                                         offeredWage = worker.dailyWage,
                                         location = worker.location,
                                         workersNeeded = 1,
@@ -283,13 +270,13 @@ fun CustomerDashboardScreen(
                                         customerPhone = currentUser?.mobileNumber ?: "+91 98765 43210"
                                     )
                                 },
-                                onCall = { onHireWorker(worker) }
+                                onCall = { onHireWorker(worker) },
+                                context = context
                             )
                         }
                     }
                 }
             } else {
-                // Posted Jobs List
                 if (displayJobs.isEmpty()) {
                     EmptyListState(
                         title = "No work posted yet",
@@ -324,7 +311,6 @@ fun CustomerDashboardScreen(
             }
         }
 
-        // Floating Action Button to Post Work
         ExtendedFloatingActionButton(
             onClick = {
                 selectedWorkerForHire = null
@@ -342,7 +328,6 @@ fun CustomerDashboardScreen(
             text = { Text("Post Work", fontWeight = FontWeight.Bold, fontSize = 15.sp) }
         )
 
-        // Bottom Sheet for Posting Work
         if (showPostJobSheet) {
             ModalBottomSheet(
                 onDismissRequest = {
@@ -388,7 +373,6 @@ fun CustomerDashboardScreen(
             }
         }
 
-        // Rating & Review Dialog
         if (selectedJobForReview != null) {
             val targetJob = selectedJobForReview!!
             AlertDialog(
@@ -412,7 +396,6 @@ fun CustomerDashboardScreen(
                             color = WorkoraTextMuted
                         )
 
-                        // Star rating row (1 to 5)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -459,7 +442,7 @@ fun CustomerDashboardScreen(
                                 .fillMaxWidth()
                                 .testTag("input_review_comment"),
                             label = { Text("Write your review") },
-                            placeholder = { Text("e.g. Completed work on time, very polite and professional") },
+                            placeholder = { Text("e.g. Completed work on time, very polite") },
                             minLines = 3,
                             maxLines = 4,
                             shape = RoundedCornerShape(12.dp)
@@ -469,7 +452,7 @@ fun CustomerDashboardScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val commentToSubmit = reviewComment.trim().ifEmpty { "Completed work professionally with high quality." }
+                            val commentToSubmit = reviewComment.trim().ifEmpty { "Completed work professionally." }
                             reviewViewModel.submitReview(
                                 jobId = targetJob.id.toString(),
                                 customerId = currentUser?.id?.toString() ?: "customer_1",
@@ -499,7 +482,6 @@ fun CustomerDashboardScreen(
             )
         }
 
-        // Workora Toast Notification
         WorkoraToast(
             message = toastMessage,
             modifier = Modifier
@@ -514,7 +496,7 @@ fun CustomerDashboardScreen(
 private fun CustomerHeaderBar(
     currentUser: UserAccount?,
     onSwitchRole: () -> Unit,
-    onOpenNotifications: () -> Unit, // NEW
+    onOpenNotifications: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
     Row(
@@ -560,7 +542,6 @@ private fun CustomerHeaderBar(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Switch Role Button
             OutlinedButton(
                 onClick = onSwitchRole,
                 shape = RoundedCornerShape(12.dp),
@@ -584,7 +565,6 @@ private fun CustomerHeaderBar(
             }
             Spacer(modifier = Modifier.width(4.dp))
             
-            // Notification Button (NEW)
             IconButton(
                 onClick = onOpenNotifications,
                 modifier = Modifier.size(38.dp)
@@ -597,7 +577,6 @@ private fun CustomerHeaderBar(
                 )
             }
             
-            // Profile Button
             IconButton(
                 onClick = onOpenProfile,
                 modifier = Modifier
@@ -621,7 +600,7 @@ private fun CustomerWelcomeSection(
     location: String,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
-    onOpenFilters: () -> Unit // NEW
+    onOpenFilters: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -662,7 +641,6 @@ private fun CustomerWelcomeSection(
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Search Bar & Filter Button Row (UPDATED)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -711,7 +689,6 @@ private fun CustomerWelcomeSection(
                 )
             )
             
-            // Filter Button (NEW)
             Box(
                 modifier = Modifier
                     .size(54.dp)
@@ -729,9 +706,6 @@ private fun CustomerWelcomeSection(
         }
     }
 }
-
-// BAAKI SAARA CODE NEECHE SAME HAI (CategoryChipsRow, WorkerCardItem, etc...)
-// ... (Include the rest of the code exactly as it was)
 
 @Composable
 fun CategoryChipsRow(
@@ -779,7 +753,8 @@ fun CategoryChipsRow(
 fun WorkerCardItem(
     worker: WorkerProfile,
     onHire: () -> Unit,
-    onCall: () -> Unit = onHire
+    onCall: () -> Unit = {},
+    context: android.content.Context
 ) {
     Card(
         modifier = Modifier
@@ -795,7 +770,6 @@ fun WorkerCardItem(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar Badge
                 Box(
                     modifier = Modifier
                         .size(50.dp)
@@ -836,7 +810,6 @@ fun WorkerCardItem(
                         color = WorkoraNavy
                     )
                 }
-                // Daily Wage Tag
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "₹${worker.dailyWage}",
@@ -854,7 +827,6 @@ fun WorkerCardItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Sub info row: Rating + Distance + Availability
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -888,7 +860,6 @@ fun WorkerCardItem(
                         color = WorkoraTextMuted
                     )
                 }
-                // Availability tag
                 Box(
                     modifier = Modifier
                         .background(
@@ -909,13 +880,21 @@ fun WorkerCardItem(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedButton(
-                    onClick = onCall,
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
+                                data = android.net.Uri.parse("tel:${worker.phone}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, WorkoraBorder)
@@ -967,7 +946,7 @@ fun PostedJobCardItem(
         "ACCEPTED" -> Color(0xFF16A34A)
         "COMPLETED" -> Color(0xFF0284C7)
         "REJECTED" -> Color(0xFFDC2626)
-        else -> Color(0xFFD97706) // PENDING / OPEN
+        else -> Color(0xFFD97706)
     }
     val statusBg = when (job.status) {
         "ACCEPTED" -> Color(0xFFDCFCE7)
@@ -992,7 +971,6 @@ fun PostedJobCardItem(
         border = BorderStroke(1.dp, WorkoraBorder)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
-            // Category, Status badge & Urgency
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1042,7 +1020,6 @@ fun PostedJobCardItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Date/Time & Location
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1081,7 +1058,6 @@ fun PostedJobCardItem(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Wage & Urgency
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1104,7 +1080,6 @@ fun PostedJobCardItem(
                 )
             }
 
-            // If ACCEPTED, show Action Button to Complete
             if (job.status == "ACCEPTED") {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
@@ -1223,7 +1198,7 @@ fun PostJobSheetContent(
     ) }
     var expandedCategoryDropdown by remember { mutableStateOf(false) }
     var description by remember(initialWorker) { mutableStateOf(
-        initialWorker?.let { "Work request for ${it.name} (${it.trade}, ${it.experienceYears} yrs experience)." } ?: ""
+        initialWorker?.let { "Work request for ${it.name} (${it.trade})." } ?: ""
     ) }
     var dailyRate by remember(initialWorker) { mutableStateOf(initialWorker?.dailyWage?.toString() ?: "850") }
     var location by remember { mutableStateOf("Main Road, Sector 12") }
@@ -1232,7 +1207,6 @@ fun PostJobSheetContent(
     var urgency by remember { mutableStateOf("Today") }
 
     val dateTimePresets = listOf("Today, 9:00 AM", "Today, 2:00 PM", "Tomorrow, 8:30 AM", "Urgent / Now")
-    val locationPresets = listOf("Sector 12", "Labour Chowk", "Model Town", "Defence Colony")
     val wagePresets = listOf("700", "850", "1000", "1200")
 
     Column(
@@ -1248,32 +1222,25 @@ fun PostJobSheetContent(
             color = WorkoraTextDark
         )
         Text(
-            text = if (initialWorker != null) "Send direct work details to this skilled worker" else "Local workers will see your request and respond immediately",
+            text = if (initialWorker != null) "Send direct work details to this worker" else "Local workers will see your request",
             fontSize = 13.sp,
             color = WorkoraTextMuted
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Title
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },
             label = { Text("Work Title (e.g. Wall Plastering)") },
-            placeholder = { Text("What work do you need done?") },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("input_job_title"),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = WorkoraNavy,
-                focusedLabelColor = WorkoraNavy
-            )
+            shape = RoundedCornerShape(12.dp)
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Category Selector Dropdown (Work Type)
         ExposedDropdownMenuBox(
             expanded = expandedCategoryDropdown,
             onExpandedChange = { expandedCategoryDropdown = !expandedCategoryDropdown }
@@ -1307,7 +1274,6 @@ fun PostJobSheetContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Date & Time
         Column {
             OutlinedTextField(
                 value = dateTime,
@@ -1327,7 +1293,6 @@ fun PostJobSheetContent(
                 shape = RoundedCornerShape(12.dp)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            // Quick Date/Time chips
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1349,7 +1314,6 @@ fun PostJobSheetContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Offered Wage (Daily Rate) & Location
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1384,7 +1348,6 @@ fun PostJobSheetContent(
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
-            // Wage quick chips
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1408,7 +1371,6 @@ fun PostJobSheetContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Description
         OutlinedTextField(
             value = description,
             onValueChange = { description = it },
@@ -1426,7 +1388,7 @@ fun PostJobSheetContent(
             onClick = {
                 val rateVal = dailyRate.toIntOrNull() ?: 850
                 val validTitle = if (title.isBlank()) "$selectedCategory Needed" else title
-                val validDesc = if (description.isBlank()) "Required skilled $selectedCategory for work at $location." else description
+                val validDesc = if (description.isBlank()) "Required skilled $selectedCategory." else description
                 val validLoc = if (location.isBlank()) "Sector 12, Main Road" else location
                 val validDateTime = if (dateTime.isBlank()) "Today, 9:00 AM" else dateTime
 
