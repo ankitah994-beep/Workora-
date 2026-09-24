@@ -15,34 +15,47 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.ScreenState
 import com.example.model.UserRole
 import com.example.ui.screens.AccountSelectScreen
-import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.CustomerDashboardScreen
-import com.example.ui.screens.JobHistoryScreen
 import com.example.ui.screens.LabourDashboardScreen
-import com.example.ui.screens.LanguageSelectionScreen
-import com.example.ui.screens.LoginScreen
-import com.example.ui.screens.NotificationScreen
-import com.example.ui.screens.PostJobScreen
 import com.example.ui.screens.ProfileScreen
-import com.example.ui.screens.SearchFilterScreen
-import com.example.ui.screens.SignUpScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
+import com.workora.app.CrashReportScreen
+import com.workora.app.CrashStore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // VERY FIRST: look for a crash report saved by WorkoraApplication.
+        val pendingReport: String? = CrashStore.read(applicationContext)
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            WorkoraTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    WorkoraApp()
+            var crashReport by rememberSaveable { mutableStateOf<String?>(pendingReport) }
+            val report: String? = crashReport
+
+            if (report != null) {
+                CrashReportScreen(
+                    report = report,
+                    onContinue = {
+                        CrashStore.clear(applicationContext)
+                        crashReport = null
+                    }
+                )
+            } else {
+                WorkoraTheme {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        WorkoraApp()
+                    }
                 }
             }
         }
@@ -68,39 +81,28 @@ fun WorkoraApp(
     AnimatedContent(
         targetState = screenState,
         transitionSpec = {
-            (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
-                    (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
+            when {
+                initialState == ScreenState.ACCOUNT_SELECTION &&
+                        (targetState == ScreenState.CUSTOMER_HOME || targetState == ScreenState.LABOUR_HOME) -> {
+                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
+                            (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
+                }
+                targetState == ScreenState.PROFILE -> {
+                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
+                            (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
+                }
+                else -> {
+                    (slideInHorizontally(initialOffsetX = { -it }) + fadeIn()) togetherWith
+                            (slideOutHorizontally(targetOffsetX = { it }) + fadeOut())
+                }
+            }
         },
         label = "screen_transition"
     ) { currentScreen ->
         when (currentScreen) {
-            ScreenState.LANGUAGE -> {
-                LanguageSelectionScreen(
-                    onLanguageSelected = { viewModel.navigateTo(ScreenState.LOGIN) }
-                )
-            }
-            ScreenState.LOGIN -> {
-                LoginScreen(
-                    onLogin = { _, _ -> viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
-                    onNavigateToSignUp = { viewModel.navigateTo(ScreenState.SIGN_UP) }
-                )
-            }
-            ScreenState.SIGN_UP -> {
-                SignUpScreen(
-                    onSignUp = { _, _, _, _ -> viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
-                    onNavigateToLogin = { viewModel.navigateTo(ScreenState.LOGIN) }
-                )
-            }
             ScreenState.ACCOUNT_SELECTION -> {
                 AccountSelectScreen(
-                    onSelectRole = { role -> 
-                        viewModel.selectRole(role)
-                        if (role == UserRole.CUSTOMER) {
-                            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
-                        } else {
-                            viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                        }
-                    },
+                    onSelectRole = { role -> viewModel.selectRole(role) },
                     toastMessage = toastMessage
                 )
             }
@@ -115,19 +117,17 @@ fun WorkoraApp(
                     onCategorySelected = { viewModel.setCategoryFilter(it) },
                     activeTab = customerTab,
                     onTabSelected = { viewModel.setCustomerTab(it) },
-                    onPostJob = { _, _, _, _, _, _, _, _ ->
-                        viewModel.navigateTo(ScreenState.POST_JOB)
+                    onPostJob = { title, cat, desc, rate, loc, count, urg, dt ->
+                        viewModel.postNewJob(title, cat, desc, rate, loc, count, urg, dt)
                     },
                     onHireWorker = { worker ->
-                        viewModel.navigateTo(ScreenState.CHAT)
+                        viewModel.hireWorkerDirectly(worker)
                     },
                     onCompleteJob = { jobId ->
                         viewModel.completeJob(jobId)
                     },
                     onSwitchRole = { viewModel.switchRole() },
                     onOpenProfile = { viewModel.openProfile() },
-                    onOpenNotifications = { viewModel.navigateTo(ScreenState.NOTIFICATIONS) },
-                    onOpenFilters = { viewModel.navigateTo(ScreenState.SEARCH_FILTER) },
                     toastMessage = toastMessage
                 )
             }
@@ -154,58 +154,18 @@ fun WorkoraApp(
             ScreenState.PROFILE -> {
                 ProfileScreen(
                     role = selectedRole ?: UserRole.CUSTOMER,
-                    userName = "Ankit Ahirwar",
-                    userPhone = "+91 98765 43210",
-                    userLocation = "Silwani, Raisen",
-                    onBack = { 
-                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
-                        else viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                    },
+                    onBack = { viewModel.closeProfile() },
                     onSwitchRole = { viewModel.switchRole() },
-                    onLogout = { viewModel.navigateTo(ScreenState.LOGIN) },
-                    onUpdateProfile = { _, _, _ -> }
+                    onLogout = { viewModel.logout() }
                 )
             }
-            ScreenState.POST_JOB -> {
-                PostJobScreen(
-                    onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) },
-                    onSubmit = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
+            ScreenState.AUTH -> {
+                AccountSelectScreen(
+                    onSelectRole = { role -> viewModel.selectRole(role) },
+                    toastMessage = toastMessage
                 )
             }
-            ScreenState.SEARCH_FILTER -> {
-                SearchFilterScreen(
-                    onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) },
-                    onApplyFilters = { _, _, _ -> 
-                        viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
-                    }
-                )
-            }
-            ScreenState.CHAT -> {
-                ChatScreen(
-                    onBack = { 
-                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
-                        else viewModel.navigateTo(ScreenState.LABOUR_HOME) 
-                    }
-                )
-            }
-            ScreenState.NOTIFICATIONS -> {
-                NotificationScreen(
-                    onBack = { 
-                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
-                        else viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                    }
-                )
-            }
-            ScreenState.JOB_HISTORY -> {
-                JobHistoryScreen(
-                    jobs = jobs,
-                    onBack = { 
-                        if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
-                        else viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                    }
-                )
-            }
-            else -> {
+            ScreenState.POST_WORK -> {
                 Box(modifier = Modifier.fillMaxSize())
             }
         }
