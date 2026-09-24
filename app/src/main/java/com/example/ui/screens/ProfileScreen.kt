@@ -49,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -81,9 +80,7 @@ fun ProfileScreen(
     var currentLocation by remember { mutableStateOf(userLocation) }
     var profilePhotoUploaded by remember { mutableStateOf(false) }
 
-    // Worker portfolio work photos (3 slots)
     val workPhotos = remember { mutableStateListOf("Sample Work 1", "Sample Work 2", "Sample Work 3") }
-
     val roleTitle = if (role == UserRole.CUSTOMER) "Hirer / Customer Profile" else "Worker / Labour Profile"
 
     Column(
@@ -94,7 +91,6 @@ fun ProfileScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // Top Header Bar
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -105,19 +101,10 @@ fun ProfileScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = WorkoraNavy
-                    )
+                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = WorkoraNavy)
                 }
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "My Profile & Settings",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraTextDark
-                )
+                Text(text = "My Profile & Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraTextDark)
             }
             OutlinedButton(
                 onClick = { showEditDialog = true },
@@ -133,12 +120,11 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Profile Photo & Header Section
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.Horizontal.Companion.let { Alignment.CenterHorizontally }
         ) {
             Box(
                 modifier = Modifier
@@ -147,13 +133,7 @@ fun ProfileScreen(
                     .clickable { profilePhotoUploaded = !profilePhotoUploaded },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = WorkoraOrange,
-                    modifier = Modifier.size(56.dp)
-                )
-                // Upload badge overlay icon
+                Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(56.dp))
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -161,12 +141,7 @@ fun ProfileScreen(
                         .background(WorkoraNavy, shape = CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AddAPhoto,
-                        contentDescription = "Upload Photo",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Icon(imageVector = Icons.Default.AddAPhoto, contentDescription = "Upload Photo", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
             }
 
@@ -178,84 +153,37 @@ fun ProfileScreen(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = currentName,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = WorkoraTextDark
-            )
+            Text(text = currentName, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
 
             Spacer(modifier = Modifier.height(4.dp))
-
             Box(
                 modifier = Modifier
                     .background(WorkoraNavy.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text(
-                    text = roleTitle,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraNavy
-                )
+                Text(text = roleTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Account Information Details Card
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Account Information",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkoraTextMuted
-            )
+            Text(text = "Account Information", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WorkoraTextMuted)
 
-            ProfileInfoCard(
-                icon = Icons.Default.Person,
-                title = "Full Name",
-                value = currentName
-            )
+            ProfileInfoCard(icon = Icons.Default.Person, title = "Full Name", value = currentName)
+            ProfileInfoCard(icon = Icons.Default.Phone, title = "Mobile Number", value = currentPhone)
+            ProfileInfoCard(icon = Icons.Default.LocationOn, title = "Location / Address", value = currentLocation)
+            ProfileInfoCard(icon = Icons.Default.VerifiedUser, title = "Account Status", value = "Verified & Active")
 
-            ProfileInfoCard(
-                icon = Icons.Default.Phone,
-                title = "Mobile Number",
-                value = currentPhone
-            )
-
-            ProfileInfoCard(
-                icon = Icons.Default.LocationOn,
-                title = "Location / Address",
-                value = currentLocation
-            )
-
-            ProfileInfoCard(
-                icon = Icons.Default.VerifiedUser,
-                title = "Account Status",
-                value = "Verified & Active"
-            )
-
-            // If user is Labour, show Work Portfolio Gallery Section
             if (role == UserRole.LABOUR) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "My Work Portfolio (Proof of Good Work)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraTextMuted
-                )
-                Text(
-                    text = "Upload 3 photos of your completed projects so hirers trust your skill.",
-                    fontSize = 12.sp,
-                    color = WorkoraTextMuted
-                )
+                Text(text = "My Work Portfolio (Proof of Good Work)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WorkoraTextMuted)
+                Text(text = "Upload 3 photos of your completed projects so hirers trust your skill.", fontSize = 12.sp, color = WorkoraTextMuted)
 
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -268,9 +196,7 @@ fun ProfileScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(90.dp)
-                                .clickable {
-                                    workPhotos[index] = "Photo ${index + 1} Uploaded"
-                                },
+                                .clickable { workPhotos[index] = "Photo ${index + 1} Uploaded" },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             border = BorderStroke(1.dp, WorkoraBorder)
@@ -282,19 +208,9 @@ fun ProfileScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = null,
-                                    tint = WorkoraOrange,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(24.dp))
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Work ${index + 1}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = WorkoraTextDark
-                                )
+                                Text(text = "Work ${index + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraTextDark)
                             }
                         }
                     }
@@ -302,80 +218,41 @@ fun ProfileScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Preferences & Actions",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkoraTextMuted
-            )
+            Text(text = "Preferences & Actions", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WorkoraTextMuted)
 
             OutlinedButton(
                 onClick = onSwitchRole,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.dp, WorkoraBorder)
             ) {
                 Icon(imageVector = Icons.Default.SwapHoriz, tint = WorkoraNavy, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Switch to ${if (role == UserRole.CUSTOMER) "Labour Mode" else "Hirer Mode"}",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraNavy
-                )
+                Text(text = "Switch to ${if (role == UserRole.CUSTOMER) "Labour Mode" else "Hirer Mode"}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
             }
 
             Button(
                 onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Logout, tint = Color.White, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Logout",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Text(text = "Logout", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
 
-    // Comprehensive Edit Profile Dialog
     if (showEditDialog) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
             title = { Text(text = "Edit Profile Details", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = currentName,
-                        onValueChange = { currentName = it },
-                        label = { Text("Full Name") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    OutlinedTextField(
-                        value = currentPhone,
-                        onValueChange = { currentPhone = it },
-                        label = { Text("Mobile Number") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    OutlinedTextField(
-                        value = currentLocation,
-                        onValueChange = { currentLocation = it },
-                        label = { Text("Location / Address") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
+                    OutlinedTextField(value = currentName, onValueChange = { currentName = it }, label = { Text("Full Name") }, singleLine = true, shape = RoundedCornerShape(10.dp))
+                    OutlinedTextField(value = currentPhone, onValueChange = { currentPhone = it }, label = { Text("Mobile Number") }, singleLine = true, shape = RoundedCornerShape(10.dp))
+                    OutlinedTextField(value = currentLocation, onValueChange = { currentLocation = it }, label = { Text("Location / Address") }, singleLine = true, shape = RoundedCornerShape(10.dp))
                 }
             },
             confirmButton = {
@@ -399,11 +276,7 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileInfoCard(
-    icon: ImageVector,
-    title: String,
-    value: String
-) {
+fun ProfileInfoCard(icon: ImageVector, title: String, value: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -412,27 +285,16 @@ fun ProfileInfoCard(
         border = BorderStroke(1.dp, WorkoraBorder)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(WorkoraBgLight, shape = CircleShape),
+                modifier = Modifier.size(40.dp).background(WorkoraBgLight, shape = CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = WorkoraNavy,
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(imageVector = icon, contentDescription = null, tint = WorkoraNavy, modifier = Modifier.size(20.dp))
             }
-
             Spacer(modifier = Modifier.width(14.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 12.sp, color = WorkoraTextMuted)
                 Spacer(modifier = Modifier.height(2.dp))
