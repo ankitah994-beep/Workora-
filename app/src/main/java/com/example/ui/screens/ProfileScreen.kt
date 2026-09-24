@@ -43,7 +43,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,7 +63,6 @@ import com.example.ui.theme.WorkoraTextMuted
 
 @Composable
 fun ProfileScreen(
-    modifier: Modifier = Modifier,
     role: UserRole = UserRole.CUSTOMER,
     userName: String = "Ankit Ahirwar",
     userPhone: String = "+91 98765 43210",
@@ -80,11 +78,10 @@ fun ProfileScreen(
     var currentLocation by remember { mutableStateOf(userLocation) }
     var profilePhotoUploaded by remember { mutableStateOf(false) }
 
-    val workPhotos = remember { mutableStateListOf("Sample Work 1", "Sample Work 2", "Sample Work 3") }
     val roleTitle = if (role == UserRole.CUSTOMER) "Hirer / Customer Profile" else "Worker / Labour Profile"
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(WorkoraBgLight)
             .statusBarsPadding()
@@ -124,7 +121,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.Horizontal.Companion.let { Alignment.CenterHorizontally }
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
@@ -191,12 +188,11 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    workPhotos.forEachIndexed { index, _ ->
+                    repeat(3) { index ->
                         Card(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(90.dp)
-                                .clickable { workPhotos[index] = "Photo ${index + 1} Uploaded" },
+                                .height(90.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             border = BorderStroke(1.dp, WorkoraBorder)
