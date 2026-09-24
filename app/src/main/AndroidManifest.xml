@@ -12,7 +12,7 @@
 
         <!-- Launcher activity: must match the package line in MainActivity.kt. -->
         <activity
-            android:name="com.workora.app.MainActivity"
+            android:name="com.example.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
