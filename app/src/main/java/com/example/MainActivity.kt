@@ -10,10 +10,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -23,18 +27,35 @@ import com.example.ui.screens.AccountSelectScreen
 import com.example.ui.screens.CustomerDashboardScreen
 import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.ProfileScreen
-import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
+import com.workora.app.CrashReportScreen
+import com.workora.app.CrashStore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // VERY FIRST: look for a crash report saved by WorkoraApplication.
+        val pendingReport: String? = CrashStore.read(applicationContext)
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            WorkoraTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    WorkoraApp()
+            var crashReport by rememberSaveable { mutableStateOf<String?>(pendingReport) }
+            val report: String? = crashReport
+
+            if (report != null) {
+                CrashReportScreen(
+                    report = report,
+                    onContinue = {
+                        CrashStore.clear(applicationContext)
+                        crashReport = null
+                    }
+                )
+            } else {
+                WorkoraTheme {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        WorkoraApp()
+                    }
                 }
             }
         }
@@ -61,11 +82,6 @@ fun WorkoraApp(
         targetState = screenState,
         transitionSpec = {
             when {
-                initialState == ScreenState.SPLASH &&
-                        (targetState == ScreenState.CUSTOMER_HOME || targetState == ScreenState.LABOUR_HOME || targetState == ScreenState.ACCOUNT_SELECTION) -> {
-                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
-                            (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
-                }
                 initialState == ScreenState.ACCOUNT_SELECTION &&
                         (targetState == ScreenState.CUSTOMER_HOME || targetState == ScreenState.LABOUR_HOME) -> {
                     (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
@@ -84,11 +100,6 @@ fun WorkoraApp(
         label = "screen_transition"
     ) { currentScreen ->
         when (currentScreen) {
-            ScreenState.SPLASH -> {
-                SplashScreen(
-                    onContinue = { viewModel.continueFromSplash() }
-                )
-            }
             ScreenState.ACCOUNT_SELECTION -> {
                 AccountSelectScreen(
                     onSelectRole = { role -> viewModel.selectRole(role) },
@@ -150,11 +161,13 @@ fun WorkoraApp(
                 )
             }
             ScreenState.AUTH -> {
-                // Fallback direct redirect to Account Type for basic prototype
                 AccountSelectScreen(
                     onSelectRole = { role -> viewModel.selectRole(role) },
                     toastMessage = toastMessage
                 )
+            }
+            ScreenState.POST_WORK -> {
+                Box(modifier = Modifier.fillMaxSize())
             }
         }
     }
