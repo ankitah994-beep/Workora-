@@ -80,14 +80,14 @@ fun WorkoraApp(
             }
             ScreenState.LOGIN -> {
                 LoginScreen(
-                    onLoginClick = { viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
-                    onSignUpClick = { viewModel.navigateTo(ScreenState.SIGN_UP) }
+                    onLogin = { viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
+                    onNavigateToSignUp = { viewModel.navigateTo(ScreenState.SIGN_UP) }
                 )
             }
             ScreenState.SIGN_UP -> {
                 SignUpScreen(
-                    onSignUpClick = { viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
-                    onLoginClick = { viewModel.navigateTo(ScreenState.LOGIN) }
+                    onSignUp = { viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
+                    onNavigateToLogin = { viewModel.navigateTo(ScreenState.LOGIN) }
                 )
             }
             ScreenState.ACCOUNT_SELECTION -> {
