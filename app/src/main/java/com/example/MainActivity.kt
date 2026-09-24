@@ -125,6 +125,8 @@ fun WorkoraApp(
                     },
                     onSwitchRole = { viewModel.switchRole() },
                     onOpenProfile = { viewModel.openProfile() },
+                    onOpenNotifications = { viewModel.navigateTo(ScreenState.NOTIFICATIONS) },
+                    onOpenFilters = { viewModel.navigateTo(ScreenState.SEARCH_FILTER) },
                     toastMessage = toastMessage
                 )
             }
