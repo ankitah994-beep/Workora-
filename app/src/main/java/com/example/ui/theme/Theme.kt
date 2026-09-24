@@ -27,7 +27,7 @@ private val LightColorScheme = lightColorScheme(
     secondary = WorkoraNavy,
     background = WorkoraBgLight,
     surface = WorkoraCardBg,
-    onSurface = WorkoraTextDark, // Isse typing text hamesha dark aur visible rahega
+    onSurface = WorkoraTextDark,
     onBackground = WorkoraTextDark
 )
 
