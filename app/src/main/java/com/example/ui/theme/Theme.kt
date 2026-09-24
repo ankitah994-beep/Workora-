@@ -4,15 +4,13 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-
-// Note: Yahan koi 'val WorkoraOrange = Color(...)' nahi likhna hai 
-// kyunki wo pehle se aapki Color.kt file mein maujood hain.
+import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
     primary = WorkoraOrange,
     secondary = WorkoraNavy,
     background = WorkoraBgLight,
-    surface = WorkoraCardBg,
+    surface = Color.White, // Yahan WorkoraCardBg ki jagah Color.White kar diya hai
     onSurface = WorkoraTextDark,
     onBackground = WorkoraTextDark
 )
