@@ -5,7 +5,14 @@ import androidx.room.PrimaryKey
 
 enum class UserRole {
     CUSTOMER,
-    LABOUR
+    LABOUR,
+    ADMIN
+}
+
+enum class AdminTier {
+    SUPER_ADMIN,
+    SUPPORT_ADMIN,
+    MODERATOR
 }
 
 enum class AuthMode {
@@ -27,8 +34,19 @@ enum class ScreenState {
     SEARCH_FILTER,
     CHAT,
     NOTIFICATIONS,
-    JOB_HISTORY
+    JOB_HISTORY,
+    ADMIN_DASHBOARD
 }
+
+data class AdminAuditLog(
+    val logId: String = System.currentTimeMillis().toString(),
+    val adminEmail: String = "",
+    val adminTier: String = "SUPER_ADMIN",
+    val actionType: String = "",
+    val targetEntity: String = "",
+    val details: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 @Entity(tableName = "users")
 data class UserAccount(
@@ -37,8 +55,9 @@ data class UserAccount(
     val mobileNumber: String,
     val email: String,
     val password: String,
-    val location: String, // Area / Village / City
-    val role: String, // "CUSTOMER" or "LABOUR"
+    val location: String,
+    val role: String,
+    val accountStatus: String = "ACTIVE",
     val isLoggedIn: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -56,7 +75,7 @@ data class JobPost(
     val dateTime: String = "Today, 9:00 AM",
     val customerName: String = "Ramesh Verma",
     val customerPhone: String = "+91 98765 43210",
-    val status: String = "PENDING", // PENDING, ACCEPTED, REJECTED, COMPLETED
+    val status: String = "PENDING",
     val applicantsCount: Int = 0,
     val timestamp: Long = System.currentTimeMillis()
 )
@@ -90,7 +109,7 @@ data class JobApplication(
     val dailyRate: Int,
     val location: String = "Delhi Chowk",
     val dateTime: String = "Today, 9:00 AM",
-    val status: String = "ACCEPTED", // PENDING, ACCEPTED, REJECTED, COMPLETED
+    val status: String = "ACCEPTED",
     val timestamp: Long = System.currentTimeMillis()
 )
 
