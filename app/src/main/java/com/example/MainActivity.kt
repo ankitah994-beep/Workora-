@@ -21,9 +21,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.ScreenState
 import com.example.model.UserRole
 import com.example.ui.screens.AccountSelectScreen
+import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.CustomerDashboardScreen
 import com.example.ui.screens.LabourDashboardScreen
+import com.example.ui.screens.LanguageSelectionScreen
+import com.example.ui.screens.LoginScreen
+import com.example.ui.screens.NotificationScreen
+import com.example.ui.screens.PostJobScreen
 import com.example.ui.screens.ProfileScreen
+import com.example.ui.screens.SearchFilterScreen
+import com.example.ui.screens.SignUpScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
 
@@ -60,28 +67,39 @@ fun WorkoraApp(
     AnimatedContent(
         targetState = screenState,
         transitionSpec = {
-            when {
-                initialState == ScreenState.ACCOUNT_SELECTION &&
-                        (targetState == ScreenState.CUSTOMER_HOME || targetState == ScreenState.LABOUR_HOME) -> {
-                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
-                            (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
-                }
-                targetState == ScreenState.PROFILE -> {
-                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
-                            (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
-                }
-                else -> {
-                    (slideInHorizontally(initialOffsetX = { -it }) + fadeIn()) togetherWith
-                            (slideOutHorizontally(targetOffsetX = { it }) + fadeOut())
-                }
-            }
+            (slideInHorizontally(initialOffsetX = { it }) + fadeIn()) togetherWith
+                    (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut())
         },
         label = "screen_transition"
     ) { currentScreen ->
         when (currentScreen) {
+            ScreenState.LANGUAGE -> {
+                LanguageSelectionScreen(
+                    onLanguageSelected = { viewModel.navigateTo(ScreenState.LOGIN) }
+                )
+            }
+            ScreenState.LOGIN -> {
+                LoginScreen(
+                    onLoginClick = { viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
+                    onSignUpClick = { viewModel.navigateTo(ScreenState.SIGN_UP) }
+                )
+            }
+            ScreenState.SIGN_UP -> {
+                SignUpScreen(
+                    onSignUpClick = { viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION) },
+                    onLoginClick = { viewModel.navigateTo(ScreenState.LOGIN) }
+                )
+            }
             ScreenState.ACCOUNT_SELECTION -> {
                 AccountSelectScreen(
-                    onSelectRole = { role -> viewModel.selectRole(role) },
+                    onSelectRole = { role -> 
+                        viewModel.selectRole(role)
+                        if (role == UserRole.CUSTOMER) {
+                            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+                        } else {
+                            viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                        }
+                    },
                     toastMessage = toastMessage
                 )
             }
@@ -96,11 +114,11 @@ fun WorkoraApp(
                     onCategorySelected = { viewModel.setCategoryFilter(it) },
                     activeTab = customerTab,
                     onTabSelected = { viewModel.setCustomerTab(it) },
-                    onPostJob = { title, cat, desc, rate, loc, count, urg, dt ->
-                        viewModel.postNewJob(title, cat, desc, rate, loc, count, urg, dt)
+                    onPostJob = { _, _, _, _, _, _, _, _ ->
+                        viewModel.navigateTo(ScreenState.POST_JOB)
                     },
                     onHireWorker = { worker ->
-                        viewModel.hireWorkerDirectly(worker)
+                        viewModel.navigateTo(ScreenState.CHAT)
                     },
                     onCompleteJob = { jobId ->
                         viewModel.completeJob(jobId)
@@ -133,19 +151,41 @@ fun WorkoraApp(
             ScreenState.PROFILE -> {
                 ProfileScreen(
                     role = selectedRole ?: UserRole.CUSTOMER,
-                    onBack = { viewModel.closeProfile() },
+                    onBack = { 
+                        if(selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
+                        else viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                    },
                     onSwitchRole = { viewModel.switchRole() },
-                    onLogout = { viewModel.logout() },
+                    onLogout = { viewModel.navigateTo(ScreenState.LOGIN) },
                     toastMessage = toastMessage
                 )
             }
-            ScreenState.AUTH -> {
-                AccountSelectScreen(
-                    onSelectRole = { role -> viewModel.selectRole(role) },
-                    toastMessage = toastMessage
+            ScreenState.POST_JOB -> {
+                PostJobScreen(
+                    onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) },
+                    onSubmit = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
                 )
             }
-            ScreenState.POST_WORK -> {
+            ScreenState.SEARCH_FILTER -> {
+                SearchFilterScreen(
+                    onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) },
+                    onApplyFilters = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
+                )
+            }
+            ScreenState.CHAT -> {
+                ChatScreen(
+                    onBack = { 
+                        if(selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME) 
+                        else viewModel.navigateTo(ScreenState.LABOUR_HOME) 
+                    }
+                )
+            }
+            ScreenState.NOTIFICATIONS -> {
+                NotificationScreen(
+                    onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
+                )
+            }
+            else -> {
                 Box(modifier = Modifier.fillMaxSize())
             }
         }
