@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,7 +60,8 @@ enum class NotificationType {
 @Composable
 fun NotificationScreen(
     modifier: Modifier = Modifier,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onNotificationClick: (NotificationItemData) -> Unit = {} // NEW: Click listener add kiya
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -129,14 +131,20 @@ fun NotificationScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(dummyNotifications) { notification ->
-                NotificationCard(notification = notification)
+                NotificationCard(
+                    notification = notification,
+                    onClick = { onNotificationClick(notification) } // Click pass kar diya
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NotificationCard(notification: NotificationItemData) {
+private fun NotificationCard(
+    notification: NotificationItemData,
+    onClick: () -> Unit
+) {
     val colors = MaterialTheme.colorScheme
 
     val (icon: ImageVector, iconTint: Color, iconBg: Color) = when (notification.type) {
@@ -146,7 +154,9 @@ private fun NotificationCard(notification: NotificationItemData) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick), // Card par click enable kar diya
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (notification.isUnread) colors.surfaceVariant.copy(alpha = 0.5f) else colors.surface
