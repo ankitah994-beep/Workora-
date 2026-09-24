@@ -4,8 +4,6 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,13 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
@@ -33,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,9 +61,65 @@ fun LoginScreen(
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
 
+    val pendingAction = remember { authPrefs.getString("welcome_next_action", null) }
+    var showWelcomeFirst by remember { mutableStateOf(pendingAction == null) }
+
+    LaunchedEffect(Unit) {
+        if (pendingAction == "SIGNUP") {
+            authPrefs.edit().remove("welcome_next_action").apply()
+            onNavigateToSignUp()
+        } else if (pendingAction == "LOGIN") {
+            authPrefs.edit().remove("welcome_next_action").apply()
+            showWelcomeFirst = false
+        }
+    }
+
+    if (showWelcomeFirst) {
+        WorkoraWelcomeContent(
+            onGetStartedClick = { onNavigateToSignUp() },
+            onLoginClick = { showWelcomeFirst = false }
+        )
+        return
+    }
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+    var isCheckingCloud by remember { mutableStateOf(false) }
+
+    fun completeLoginSuccess(
+        cleanEmail: String,
+        cleanPass: String,
+        userName: String,
+        userPhone: String,
+        isAdmin: Boolean,
+        adminTier: String?
+    ) {
+        val editor = authPrefs.edit()
+            .putString("user_name_$cleanEmail", userName)
+            .putString("user_phone_$cleanEmail", userPhone)
+            .putString("user_pass_$cleanEmail", cleanPass)
+            .putString("last_logged_in_email", cleanEmail)
+            .putBoolean("is_logged_in", true)
+
+        if (isAdmin) {
+            editor.putString("saved_user_role", "ADMIN")
+            editor.putString("saved_admin_tier", adminTier ?: "SUPER_ADMIN")
+        } else if (authPrefs.getString("saved_user_role", null) == "ADMIN") {
+            editor.remove("saved_user_role")
+        }
+        editor.apply()
+
+        val profilePrefs = context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE)
+        profilePrefs.edit()
+            .putString("user_name", userName)
+            .putString("user_phone", userPhone)
+            .apply()
+
+        val welcomeMsg = if (isAdmin) "Welcome Workora Admin ($userName) ✓" else "Login Safal Raha! Swagatam $userName ✓"
+        Toast.makeText(context, welcomeMsg, Toast.LENGTH_SHORT).show()
+        onLogin(cleanEmail, cleanPass)
+    }
 
     fun performRealLogin() {
         val cleanEmail = email.trim().lowercase()
@@ -75,38 +130,27 @@ fun LoginScreen(
             return
         }
 
-        // Check if user is registered
-        val savedPassword = authPrefs.getString("user_pass_$cleanEmail", null)
-        val savedName = authPrefs.getString("user_name_$cleanEmail", null)
-        val savedPhone = authPrefs.getString("user_phone_$cleanEmail", null)
+        isCheckingCloud = true
+        FirebaseManager.verifyUserAndRoleFromFirebase(cleanEmail, cleanPass) { isSuccess, cloudName, cloudPhone, isAdmin, adminTier, errorMsg ->
+            isCheckingCloud = false
+            if (isSuccess && cloudName != null) {
+                completeLoginSuccess(cleanEmail, cleanPass, cloudName, cloudPhone ?: "", isAdmin, adminTier)
+            } else if (errorMsg != null) {
+                Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+            } else {
+                val savedPassword = authPrefs.getString("user_pass_$cleanEmail", null)
+                val savedName = authPrefs.getString("user_name_$cleanEmail", "Workora User") ?: "Workora User"
+                val savedPhone = authPrefs.getString("user_phone_$cleanEmail", "") ?: ""
 
-        if (savedPassword == null) {
-            Toast.makeText(context, "Account nahi mila! Kripya pehle Sign Up karein.", Toast.LENGTH_LONG).show()
-            return
+                if (savedPassword == null) {
+                    Toast.makeText(context, "Account nahi mila! Kripya pehle Sign Up karein.", Toast.LENGTH_LONG).show()
+                } else if (savedPassword != cleanPass) {
+                    Toast.makeText(context, "Galat Password! Kripya sahi password dalein.", Toast.LENGTH_SHORT).show()
+                } else {
+                    completeLoginSuccess(cleanEmail, cleanPass, savedName, savedPhone, false, null)
+                }
+            }
         }
-
-        if (savedPassword != cleanPass) {
-            Toast.makeText(context, "Galat Password! Kripya sahi password dalein.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // Login Success -> Save Session
-        authPrefs.edit()
-            .putString("last_logged_in_email", cleanEmail)
-            .putBoolean("is_logged_in", true)
-            .apply()
-
-        // Sync Profile Data
-        if (savedName != null && savedPhone != null) {
-            val profilePrefs = context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE)
-            profilePrefs.edit()
-                .putString("user_name", savedName)
-                .putString("user_phone", savedPhone)
-                .apply()
-        }
-
-        Toast.makeText(context, "Login Safal Raha! Swagatam $savedName ✓", Toast.LENGTH_SHORT).show()
-        onLogin(cleanEmail, cleanPass)
     }
 
     Column(
@@ -117,10 +161,25 @@ fun LoginScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { showWelcomeFirst = true }) {
+                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = WorkoraNavy)
+            }
+            Text(
+                text = "Back to Welcome",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = WorkoraNavy,
+                modifier = Modifier.clickable { showWelcomeFirst = true }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Welcome Back!",
@@ -132,7 +191,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Sign in to access your Workora account",
+            text = "Sign in with your Workora account",
             fontSize = 14.sp,
             color = WorkoraTextMuted
         )
@@ -187,21 +246,24 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(28.dp))
 
         Button(
-            onClick = { performRealLogin() },
+            onClick = { if (!isCheckingCloud) performRealLogin() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
         ) {
-            Text(text = "Log In", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                text = if (isCheckingCloud) "Verifying Account & Role..." else "Log In",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = "Naya account banana hai? ", color = WorkoraTextMuted, fontSize = 14.sp)
             Text(
                 text = "Sign Up",
