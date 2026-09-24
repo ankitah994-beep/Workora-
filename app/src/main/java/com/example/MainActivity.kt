@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -43,6 +44,7 @@ import com.example.ui.screens.AccountSelectScreen
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.CustomerDashboardScreen
+import com.example.ui.screens.FirebaseManager
 import com.example.ui.screens.JobHistoryScreen
 import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.LanguageSelectionScreen
@@ -88,6 +90,26 @@ fun WorkoraApp(
     val isWorkerAvailable by viewModel.isWorkerAvailable.collectAsStateWithLifecycle()
     val customerTab by viewModel.customerTab.collectAsStateWithLifecycle()
     val labourTab by viewModel.labourTab.collectAsStateWithLifecycle()
+
+    // Live Cloud Admin Guard: Whenever screen changes or app starts, verify if current user is Admin on Firebase
+    LaunchedEffect(screenState) {
+        val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)
+        val loggedInEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
+
+        if (isLoggedIn && loggedInEmail.isNotBlank() && screenState != ScreenState.ADMIN_DASHBOARD) {
+            FirebaseManager.checkIfEmailIsAdminOnCloud(loggedInEmail) { isAdmin, adminTier ->
+                if (isAdmin) {
+                    authPrefs.edit()
+                        .putString("saved_user_role", "ADMIN")
+                        .putString("saved_admin_tier", adminTier)
+                        .apply()
+                    viewModel.selectRole(UserRole.ADMIN)
+                    Toast.makeText(context, "Verified Workora Admin ($loggedInEmail) ✓", Toast.LENGTH_SHORT).show()
+                    viewModel.navigateTo(ScreenState.ADMIN_DASHBOARD)
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)
@@ -139,7 +161,8 @@ fun WorkoraApp(
                 }
                 ScreenState.LOGIN -> {
                     LoginScreen(
-                        onLogin = { _, _ ->
+                        onLogin = { emailInput, _ ->
+                            authPrefs.edit().putString("last_logged_in_email", emailInput.trim().lowercase()).apply()
                             val savedRole = authPrefs.getString("saved_user_role", null)
                             when (savedRole) {
                                 "ADMIN" -> {
@@ -164,9 +187,24 @@ fun WorkoraApp(
                 }
                 ScreenState.SIGN_UP -> {
                     SignUpScreen(
-                        onSignUp = { _, _, _, _ ->
-                            authPrefs.edit().putBoolean("is_logged_in", true).apply()
-                            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                        onSignUp = { _, emailInput, _, _ ->
+                            val cleanEmail = emailInput.trim().lowercase()
+                            authPrefs.edit()
+                                .putBoolean("is_logged_in", true)
+                                .putString("last_logged_in_email", cleanEmail)
+                                .apply()
+                            FirebaseManager.checkIfEmailIsAdminOnCloud(cleanEmail) { isAdmin, adminTier ->
+                                if (isAdmin) {
+                                    authPrefs.edit()
+                                        .putString("saved_user_role", "ADMIN")
+                                        .putString("saved_admin_tier", adminTier)
+                                        .apply()
+                                    viewModel.selectRole(UserRole.ADMIN)
+                                    viewModel.navigateTo(ScreenState.ADMIN_DASHBOARD)
+                                } else {
+                                    viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                                }
+                            }
                         },
                         onNavigateToLogin = { viewModel.navigateTo(ScreenState.LOGIN) }
                     )
@@ -187,7 +225,7 @@ fun WorkoraApp(
                 }
                 ScreenState.ADMIN_DASHBOARD -> {
                     AdminDashboardScreen(
-                        adminEmail = authPrefs.getString("last_logged_in_email", "admin@workora.com") ?: "admin@workora.com",
+                        adminEmail = authPrefs.getString("last_logged_in_email", "ankitah994@gmail.com") ?: "ankitah994@gmail.com",
                         adminTier = authPrefs.getString("saved_admin_tier", "SUPER_ADMIN") ?: "SUPER_ADMIN",
                         onLogoutAdmin = {
                             viewModel.navigateTo(ScreenState.LOGIN)
