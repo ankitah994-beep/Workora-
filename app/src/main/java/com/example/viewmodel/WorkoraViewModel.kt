@@ -32,7 +32,8 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         repository = WorkoraRepository(database.workoraDao())
     }
 
-    private val _screenState = MutableStateFlow(ScreenState.AUTH)
+    // ऐप अब सीधे LANGUAGE पेज से शुरू होगा
+    private val _screenState = MutableStateFlow(ScreenState.LANGUAGE)
     val screenState: StateFlow<ScreenState> = _screenState.asStateFlow()
 
     private val _selectedRole = MutableStateFlow<UserRole?>(UserRole.CUSTOMER)
@@ -87,15 +88,14 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Navigation methods
+    fun navigateTo(newState: ScreenState) {
+        _screenState.value = newState
+    }
+
     fun selectRole(role: UserRole) {
         _selectedRole.value = role
         val roleLabel = if (role == UserRole.CUSTOMER) "Customer (Hire Workers)" else "Labour (Find Work)"
         showToast("Selected: $roleLabel")
-        _screenState.value = if (role == UserRole.CUSTOMER) {
-            ScreenState.CUSTOMER_HOME
-        } else {
-            ScreenState.LABOUR_HOME
-        }
     }
 
     fun setRole(role: UserRole) {
@@ -146,7 +146,7 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
 
     fun logout() {
         _selectedRole.value = null
-        _screenState.value = ScreenState.AUTH
+        _screenState.value = ScreenState.LOGIN
         showToast("Logged out successfully")
     }
 
