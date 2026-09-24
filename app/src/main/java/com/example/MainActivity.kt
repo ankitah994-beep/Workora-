@@ -3,10 +3,8 @@
 // Requires the androidx.navigation:navigation-compose dependency.
 package com.workora.app
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Process
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -48,19 +46,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import java.io.PrintWriter
-import java.io.StringWriter
-import kotlin.system.exitProcess
 
 private const val ROUTE_AUTH: String = "auth"
 private const val ROUTE_WORKER_HOME: String = "worker_home"
 private const val ROUTE_EMPLOYER_HOME: String = "employer_home"
-
-private const val CRASH_PREFS: String = "workora_crash_prefs"
-private const val KEY_CRASH_REPORT: String = "last_crash_report"
-private const val KEY_LAST_CRASH_MS: String = "last_crash_time_ms"
-private const val MAX_REPORT_CHARS: Int = 20000
-private const val MIN_RELAUNCH_GAP_MS: Long = 5000L
 
 private val BrandColor = Color(0xFF1565C0)
 private val DarkText = Color(0xFF111111)
@@ -69,12 +58,10 @@ private val ErrorRed = Color(0xFFB00020)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Install first so that anything that goes wrong afterwards is captured.
-        installCrashHandler(applicationContext)
-        super.onCreate(savedInstanceState)
+        // VERY FIRST: look for a crash report saved by WorkoraApplication (plain SharedPreferences).
+        val pendingReport: String? = CrashStore.read(applicationContext)
 
-        // If the previous run crashed, show the report instead of the app.
-        val pendingReport: String? = readCrashReport(applicationContext)
+        super.onCreate(savedInstanceState)
 
         setContent {
             var crashReport by rememberSaveable { mutableStateOf<String?>(pendingReport) }
@@ -84,7 +71,8 @@ class MainActivity : ComponentActivity() {
                 CrashReportScreen(
                     report = report,
                     onContinue = {
-                        clearCrashReport(applicationContext)
+                        // Clear the saved report, then continue into the normal app.
+                        CrashStore.clear(applicationContext)
                         crashReport = null
                     }
                 )
@@ -96,88 +84,7 @@ class MainActivity : ComponentActivity() {
 }
 
 // ---------------------------------------------------------------------------
-// Crash capture (runs outside Compose, so plain try/catch is fine here)
-// ---------------------------------------------------------------------------
-
-private fun installCrashHandler(context: Context) {
-    val appContext: Context = context.applicationContext
-
-    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-        var shouldRelaunch = false
-        try {
-            val prefs = appContext.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
-            val now = System.currentTimeMillis()
-            // Avoid an endless crash/relaunch loop: only relaunch if the last crash was a while ago.
-            shouldRelaunch = now - prefs.getLong(KEY_LAST_CRASH_MS, 0L) > MIN_RELAUNCH_GAP_MS
-            prefs.edit()
-                .putString(KEY_CRASH_REPORT, buildCrashReport(thread, throwable))
-                .putLong(KEY_LAST_CRASH_MS, now)
-                .commit()
-        } catch (t: Throwable) {
-            // Never throw from inside the crash handler.
-        }
-
-        if (shouldRelaunch) {
-            try {
-                val intent = Intent(appContext, MainActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                appContext.startActivity(intent)
-            } catch (t: Throwable) {
-                // If relaunch fails, the report is still saved and shows on the next manual open.
-            }
-        }
-
-        Process.killProcess(Process.myPid())
-        exitProcess(10)
-    }
-}
-
-private fun buildCrashReport(thread: Thread, throwable: Throwable): String {
-    var root: Throwable = throwable
-    var depth = 0
-    while (root.cause != null && root.cause !== root && depth < 20) {
-        root = root.cause ?: break
-        depth++
-    }
-
-    val stackTrace = StringWriter()
-    throwable.printStackTrace(PrintWriter(stackTrace))
-
-    val report = buildString {
-        append("Message: ").append(throwable.localizedMessage ?: "(no message)").append("\n")
-        append("Type: ").append(throwable.javaClass.name).append("\n")
-        if (root !== throwable) {
-            append("Root cause: ").append(root.javaClass.name)
-                .append(": ").append(root.localizedMessage ?: "(no message)").append("\n")
-        }
-        append("Thread: ").append(thread.name).append("\n\n")
-        append(stackTrace.toString())
-    }
-    return report.take(MAX_REPORT_CHARS)
-}
-
-private fun readCrashReport(context: Context): String? {
-    return try {
-        context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_CRASH_REPORT, null)
-    } catch (t: Throwable) {
-        null
-    }
-}
-
-private fun clearCrashReport(context: Context) {
-    try {
-        context.getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_CRASH_REPORT)
-            .apply()
-    } catch (t: Throwable) {
-        // Nothing else to do.
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Crash report screen
+// Crash report screen (plain white screen)
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -200,7 +107,7 @@ private fun CrashReportScreen(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Workora hit an error",
+                    text = "Workora crashed last time",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = ErrorRed
@@ -209,7 +116,7 @@ private fun CrashReportScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "The app did not close. Use Copy or Share and send the full text below.",
+                    text = "Use Copy or Share and send the full text below. Tap Continue to clear it and open the app.",
                     fontSize = 14.sp,
                     color = MutedText
                 )
