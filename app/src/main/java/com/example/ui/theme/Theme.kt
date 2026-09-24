@@ -1,81 +1,53 @@
-package com.example.ui.theme
+package com.workora.app.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme =
-  darkColorScheme(
-    primary = WorkoraNavyLight,
-    onPrimary = Color.White,
-    primaryContainer = WorkoraNavyDark,
-    onPrimaryContainer = WorkoraTaglineBlue,
-    secondary = WorkoraOrange,
-    onSecondary = Color.White,
-    secondaryContainer = WorkoraOrangeDark,
-    onSecondaryContainer = WorkoraOrangeSoft,
-    background = Color(0xFF0B1324),
-    surface = Color(0xFF131D33),
-    onBackground = Color.White,
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF1E293B),
-    onSurfaceVariant = Color(0xFF94A3B8),
-    outline = Color(0xFF334155),
-  )
-
-private val LightColorScheme =
-  lightColorScheme(
-    primary = WorkoraNavy,
-    onPrimary = Color.White,
-    primaryContainer = WorkoraNavySoft,
-    onPrimaryContainer = WorkoraNavyDark,
-    secondary = WorkoraOrange,
-    onSecondary = Color.White,
-    secondaryContainer = WorkoraOrangeSoft,
-    onSecondaryContainer = WorkoraOrangeDark,
-    background = WorkoraBgLight,
+private val WorkoraLightColors = lightColorScheme(
+    primary = WorkoraBlue,
+    onPrimary = WorkoraSurface,
+    primaryContainer = WorkoraBlueContainer,
+    onPrimaryContainer = OnWorkoraBlueContainer,
+    secondary = WorkoraBlueDark,
+    onSecondary = WorkoraSurface,
+    secondaryContainer = WorkoraSky,
+    onSecondaryContainer = OnWorkoraSky,
+    background = WorkoraBackground,
+    onBackground = WorkoraOnSurface,
     surface = WorkoraSurface,
-    onBackground = WorkoraTextDark,
-    onSurface = WorkoraTextDark,
-    surfaceVariant = Color(0xFFF1F5F9),
-    onSurfaceVariant = WorkoraTextMuted,
-    outline = WorkoraBorder,
-  )
+    onSurface = WorkoraOnSurface,
+    surfaceVariant = WorkoraSurfaceVariant,
+    onSurfaceVariant = WorkoraOnSurfaceVariant,
+    outline = WorkoraOutline,
+    error = WorkoraError,
+    onError = WorkoraOnError
+)
 
+private val WorkoraShapes = Shapes(
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp)
+)
+
+/**
+ * Blue and white theme for Workora.
+ *
+ * The theme is light-only on purpose (a consistent blue/white look). The darkTheme parameter is
+ * kept, and ignored, so that calls such as WorkoraTheme(darkTheme = ...) still compile.
+ */
 @Composable
 fun WorkoraTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Prefer our brand colors for strong brand identity
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
+    content: @Composable () -> Unit
 ) {
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
-    }
-
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    MaterialTheme(
+        colorScheme = WorkoraLightColors,
+        typography = WorkoraTypography,
+        shapes = WorkoraShapes,
+        content = content
+    )
 }
-
-// Keep alias for backwards compatibility
-@Composable
-fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
-) {
-  WorkoraTheme(darkTheme = darkTheme, dynamicColor = dynamicColor, content = content)
-}
-
