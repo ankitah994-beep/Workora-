@@ -1,6 +1,8 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.WorkoraDatabase
@@ -32,7 +34,6 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         repository = WorkoraRepository(database.workoraDao())
     }
 
-    // ऐप अब सीधे LANGUAGE पेज से शुरू होगा
     private val _screenState = MutableStateFlow(ScreenState.LANGUAGE)
     val screenState: StateFlow<ScreenState> = _screenState.asStateFlow()
 
@@ -236,9 +237,19 @@ class WorkoraViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun hireWorkerDirectly(worker: WorkerProfile) {
+    // Direct Phone Call Feature
+    fun hireWorkerDirectly(worker: WorkerProfile, context: android.content.Context) {
         viewModelScope.launch {
             showToast("Calling ${worker.name} (${worker.phone})...")
+            try {
+                val intent = Intent(Intent.ACTION_DIAL).apply {
+                    data = Uri.parse("tel:${worker.phone}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                showToast("Could not launch dialer")
+            }
         }
     }
 
