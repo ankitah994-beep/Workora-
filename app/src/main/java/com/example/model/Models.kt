@@ -14,12 +14,19 @@ enum class AuthMode {
 }
 
 enum class ScreenState {
+    LANGUAGE,
+    LOGIN,
+    SIGN_UP,
     AUTH,
     ACCOUNT_SELECTION,
     CUSTOMER_HOME,
     POST_WORK,
+    POST_JOB,
     LABOUR_HOME,
-    PROFILE
+    PROFILE,
+    SEARCH_FILTER,
+    CHAT,
+    NOTIFICATIONS
 }
 
 @Entity(tableName = "users")
@@ -70,6 +77,7 @@ data class WorkerProfile(
 )
 
 typealias Worker = WorkerProfile
+
 @Entity(tableName = "applications")
 data class JobApplication(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -120,5 +128,3 @@ data class Review(
     val comment: String,
     val createdAt: Long = System.currentTimeMillis()
 )
-
-
