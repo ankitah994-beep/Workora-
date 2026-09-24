@@ -1,5 +1,4 @@
-package com.workora.app
-
+package com.example
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
