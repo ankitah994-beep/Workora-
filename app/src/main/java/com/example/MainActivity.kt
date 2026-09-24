@@ -29,9 +29,6 @@ import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
-import ​com.example.CrashReportScreen
-import com.example.CrashStore
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // VERY FIRST: look for a crash report saved by WorkoraApplication.
