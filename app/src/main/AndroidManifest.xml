@@ -10,9 +10,9 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
-        <!-- Your real launcher activity (package com.example). -->
+        <!-- Launcher activity: must match the package line in MainActivity.kt. -->
         <activity
-            android:name="com.example.MainActivity"
+            android:name="com.workora.app.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
