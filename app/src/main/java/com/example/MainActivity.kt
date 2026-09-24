@@ -269,7 +269,6 @@ fun WorkoraApp(
                                 .apply()
                             viewModel.navigateTo(ScreenState.LOGIN)
                         },
-                        onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) },
                         onUpdateProfile = { _, _, _ -> }
                     )
                 }
