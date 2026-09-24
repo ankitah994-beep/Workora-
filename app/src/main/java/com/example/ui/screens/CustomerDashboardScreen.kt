@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -80,7 +82,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.AccountCircle
@@ -127,6 +128,8 @@ fun CustomerDashboardScreen(
     onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenNotifications: () -> Unit = {}, // NEW
+    onOpenFilters: () -> Unit = {}, // NEW
     toastMessage: String?,
     modifier: Modifier = Modifier
 ) {
@@ -136,6 +139,7 @@ fun CustomerDashboardScreen(
 
     // Observe job requests from JobViewModel
     val customerJobRequests by jobViewModel.customerJobs.collectAsStateWithLifecycle()
+
     val displayJobs = if (jobs.isNotEmpty()) {
         jobs
     } else {
@@ -159,6 +163,7 @@ fun CustomerDashboardScreen(
     }
 
     val categories = listOf("All", "Mason", "Electrician", "Plumber", "Carpenter", "Painter", "Construction Helper")
+
     var showPostJobSheet by remember { mutableStateOf(false) }
     var selectedWorkerForHire by remember { mutableStateOf<WorkerProfile?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -184,6 +189,7 @@ fun CustomerDashboardScreen(
             CustomerHeaderBar(
                 currentUser = currentUser,
                 onSwitchRole = onSwitchRole,
+                onOpenNotifications = onOpenNotifications, // NEW
                 onOpenProfile = onOpenProfile
             )
 
@@ -192,7 +198,8 @@ fun CustomerDashboardScreen(
                 userName = currentUser?.fullName ?: "User",
                 location = currentUser?.location ?: "Sector 14, Gurugram",
                 searchQuery = searchQuery,
-                onSearchQueryChanged = onSearchQueryChanged
+                onSearchQueryChanged = onSearchQueryChanged,
+                onOpenFilters = onOpenFilters // NEW
             )
 
             // Tabs: Explore Workers vs My Posted Jobs
@@ -297,6 +304,7 @@ fun CustomerDashboardScreen(
                         items(displayJobs, key = { it.id }) { job ->
                             val existingReview = workerReviews.find { it.jobId == job.id.toString() }
                             val origJobId = job.id.toString()
+
                             PostedJobCardItem(
                                 job = job,
                                 reviewedRating = existingReview?.rating,
@@ -461,9 +469,7 @@ fun CustomerDashboardScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val commentToSubmit = reviewComment.trim().ifEmpty {
-                                "Completed work professionally with high quality."
-                            }
+                            val commentToSubmit = reviewComment.trim().ifEmpty { "Completed work professionally with high quality." }
                             reviewViewModel.submitReview(
                                 jobId = targetJob.id.toString(),
                                 customerId = currentUser?.id?.toString() ?: "customer_1",
@@ -508,6 +514,7 @@ fun CustomerDashboardScreen(
 private fun CustomerHeaderBar(
     currentUser: UserAccount?,
     onSwitchRole: () -> Unit,
+    onOpenNotifications: () -> Unit, // NEW
     onOpenProfile: () -> Unit
 ) {
     Row(
@@ -575,9 +582,21 @@ private fun CustomerHeaderBar(
                     color = WorkoraNavy
                 )
             }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
+            Spacer(modifier = Modifier.width(4.dp))
+            
+            // Notification Button (NEW)
+            IconButton(
+                onClick = onOpenNotifications,
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Notifications",
+                    tint = WorkoraNavy,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
             // Profile Button
             IconButton(
                 onClick = onOpenProfile,
@@ -601,7 +620,8 @@ private fun CustomerWelcomeSection(
     userName: String,
     location: String,
     searchQuery: String,
-    onSearchQueryChanged: (String) -> Unit
+    onSearchQueryChanged: (String) -> Unit,
+    onOpenFilters: () -> Unit // NEW
 ) {
     Column(
         modifier = Modifier
@@ -639,54 +659,79 @@ private fun CustomerWelcomeSection(
                 }
             }
         }
-
+        
         Spacer(modifier = Modifier.height(12.dp))
-
-        // Search Bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("input_customer_search"),
-            placeholder = {
-                Text(
-                    text = "Search mason, plumber, electrician...",
-                    fontSize = 14.sp,
-                    color = WorkoraTextMuted
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = WorkoraNavy,
-                    modifier = Modifier.size(20.dp)
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChanged("") }) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear search",
-                            tint = WorkoraTextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
+        
+        // Search Bar & Filter Button Row (UPDATED)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChanged,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("input_customer_search"),
+                placeholder = {
+                    Text(
+                        text = "Search mason, plumber...",
+                        fontSize = 14.sp,
+                        color = WorkoraTextMuted
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = WorkoraNavy,
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { onSearchQueryChanged("") }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear search",
+                                tint = WorkoraTextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = WorkoraBgLight,
-                unfocusedContainerColor = WorkoraBgLight,
-                focusedBorderColor = WorkoraNavy,
-                unfocusedBorderColor = WorkoraBorder
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = WorkoraBgLight,
+                    unfocusedContainerColor = WorkoraBgLight,
+                    focusedBorderColor = WorkoraNavy,
+                    unfocusedBorderColor = WorkoraBorder
+                )
             )
-        )
+            
+            // Filter Button (NEW)
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(WorkoraNavy, shape = RoundedCornerShape(14.dp))
+                    .clickable { onOpenFilters() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = "Filter",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
     }
 }
+
+// BAAKI SAARA CODE NEECHE SAME HAI (CategoryChipsRow, WorkerCardItem, etc...)
+// ... (Include the rest of the code exactly as it was)
 
 @Composable
 fun CategoryChipsRow(
@@ -764,9 +809,7 @@ fun WorkerCardItem(
                         modifier = Modifier.size(28.dp)
                     )
                 }
-
                 Spacer(modifier = Modifier.width(14.dp))
-
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -785,9 +828,7 @@ fun WorkerCardItem(
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.height(2.dp))
-
                     Text(
                         text = "${worker.trade} • ${worker.experienceYears} yrs exp",
                         fontSize = 13.sp,
@@ -795,7 +836,6 @@ fun WorkerCardItem(
                         color = WorkoraNavy
                     )
                 }
-
                 // Daily Wage Tag
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
@@ -848,7 +888,6 @@ fun WorkerCardItem(
                         color = WorkoraTextMuted
                     )
                 }
-
                 // Availability tag
                 Box(
                     modifier = Modifier
@@ -895,7 +934,6 @@ fun WorkerCardItem(
                         color = WorkoraNavy
                     )
                 }
-
                 Button(
                     onClick = onHire,
                     modifier = Modifier
@@ -972,7 +1010,6 @@ fun PostedJobCardItem(
                         color = WorkoraNavyDark
                     )
                 }
-
                 Box(
                     modifier = Modifier
                         .background(statusBg, shape = RoundedCornerShape(8.dp))
@@ -995,9 +1032,7 @@ fun PostedJobCardItem(
                 fontWeight = FontWeight.Bold,
                 color = WorkoraTextDark
             )
-
             Spacer(modifier = Modifier.height(4.dp))
-
             Text(
                 text = job.description,
                 fontSize = 13.sp,
@@ -1028,7 +1063,6 @@ fun PostedJobCardItem(
                         color = WorkoraNavy
                     )
                 }
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
@@ -1062,7 +1096,6 @@ fun PostedJobCardItem(
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraOrange
                 )
-
                 Text(
                     text = "Workers: ${job.workersNeeded} • ${job.urgency}",
                     fontSize = 12.sp,
@@ -1180,27 +1213,19 @@ fun PostJobSheetContent(
     onSubmit: (title: String, category: String, desc: String, rate: Int, loc: String, count: Int, urgency: String, dateTime: String) -> Unit
 ) {
     val categories = listOf("Mason", "Electrician", "Plumber", "Carpenter", "Painter", "Construction Helper")
-    var title by remember(initialWorker) {
-        mutableStateOf(initialWorker?.let { "Hire ${it.name} - ${it.trade}" } ?: "")
-    }
-    var selectedCategory by remember(initialWorker) {
-        mutableStateOf(
-            if (initialWorker != null && categories.contains(initialWorker.trade)) {
-                initialWorker.trade
-            } else {
-                categories[0]
-            }
-        )
-    }
+    var title by remember(initialWorker) { mutableStateOf(initialWorker?.let { "Hire ${it.name} - ${it.trade}" } ?: "") }
+    var selectedCategory by remember(initialWorker) { mutableStateOf(
+        if (initialWorker != null && categories.contains(initialWorker.trade)) {
+            initialWorker.trade
+        } else {
+            categories[0]
+        }
+    ) }
     var expandedCategoryDropdown by remember { mutableStateOf(false) }
-    var description by remember(initialWorker) {
-        mutableStateOf(
-            initialWorker?.let { "Work request for ${it.name} (${it.trade}, ${it.experienceYears} yrs experience)." } ?: ""
-        )
-    }
-    var dailyRate by remember(initialWorker) {
-        mutableStateOf(initialWorker?.dailyWage?.toString() ?: "850")
-    }
+    var description by remember(initialWorker) { mutableStateOf(
+        initialWorker?.let { "Work request for ${it.name} (${it.trade}, ${it.experienceYears} yrs experience)." } ?: ""
+    ) }
+    var dailyRate by remember(initialWorker) { mutableStateOf(initialWorker?.dailyWage?.toString() ?: "850") }
     var location by remember { mutableStateOf("Main Road, Sector 12") }
     var dateTime by remember { mutableStateOf("Today, 9:00 AM") }
     var workersNeeded by remember { mutableIntStateOf(1) }
@@ -1264,7 +1289,6 @@ fun PostJobSheetContent(
                     .menuAnchor(),
                 shape = RoundedCornerShape(12.dp)
             )
-
             ExposedDropdownMenu(
                 expanded = expandedCategoryDropdown,
                 onDismissRequest = { expandedCategoryDropdown = false }
@@ -1302,9 +1326,7 @@ fun PostJobSheetContent(
                     .testTag("input_job_datetime"),
                 shape = RoundedCornerShape(12.dp)
             )
-
             Spacer(modifier = Modifier.height(6.dp))
-
             // Quick Date/Time chips
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -1343,7 +1365,6 @@ fun PostJobSheetContent(
                         .testTag("input_job_wage"),
                     shape = RoundedCornerShape(12.dp)
                 )
-
                 OutlinedTextField(
                     value = location,
                     onValueChange = { location = it },
@@ -1362,9 +1383,7 @@ fun PostJobSheetContent(
                     shape = RoundedCornerShape(12.dp)
                 )
             }
-
             Spacer(modifier = Modifier.height(6.dp))
-
             // Wage quick chips
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -1410,6 +1429,7 @@ fun PostJobSheetContent(
                 val validDesc = if (description.isBlank()) "Required skilled $selectedCategory for work at $location." else description
                 val validLoc = if (location.isBlank()) "Sector 12, Main Road" else location
                 val validDateTime = if (dateTime.isBlank()) "Today, 9:00 AM" else dateTime
+
                 onSubmit(validTitle, selectedCategory, validDesc, rateVal, validLoc, workersNeeded, urgency, validDateTime)
             },
             modifier = Modifier
