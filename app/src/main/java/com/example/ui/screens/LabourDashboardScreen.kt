@@ -90,7 +90,7 @@ fun LabourDashboardScreen(
     onApplyJob: (JobPost) -> Unit = {},
     onAcceptJob: (JobPost) -> Unit = {},
     onRejectJob: (JobPost) -> Unit = {},
-    onCompleteJob: (String) -> Unit = {},
+    onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     toastMessage: String? = null,
@@ -658,8 +658,9 @@ fun LabourDashboardScreen(
                         }
                     } else {
                         items(jobs.take(10)) { job ->
-                            val jobId = extractSafeField(job, "id", fallback = "")
-                            val isApplied = jobId.isNotEmpty() && appliedJobIds.contains(jobId)
+                            val jobIdStr = extractSafeField(job, "id", fallback = "")
+                            val jobIdLong = jobIdStr.toLongOrNull() ?: 0L
+                            val isApplied = jobIdStr.isNotEmpty() && appliedJobIds.contains(jobIdStr)
                             LabourJobCard(
                                 job = job,
                                 isApplied = isApplied,
@@ -667,7 +668,7 @@ fun LabourDashboardScreen(
                                 onAcceptClick = { onAcceptJob(job) },
                                 onRejectClick = { onRejectJob(job) },
                                 onCompleteClick = {
-                                    if (jobId.isNotEmpty()) onCompleteJob(jobId)
+                                    if (jobIdLong != 0L) onCompleteJob(jobIdLong)
                                 },
                                 context = context
                             )
@@ -842,8 +843,9 @@ fun LabourDashboardScreen(
                             }
                         } else {
                             items(filteredJobs) { job ->
-                                val jobId = extractSafeField(job, "id", fallback = "")
-                                val isApplied = jobId.isNotEmpty() && appliedJobIds.contains(jobId)
+                                val jobIdStr = extractSafeField(job, "id", fallback = "")
+                                val jobIdLong = jobIdStr.toLongOrNull() ?: 0L
+                                val isApplied = jobIdStr.isNotEmpty() && appliedJobIds.contains(jobIdStr)
                                 LabourJobCard(
                                     job = job,
                                     isApplied = isApplied,
@@ -851,7 +853,7 @@ fun LabourDashboardScreen(
                                     onAcceptClick = { onAcceptJob(job) },
                                     onRejectClick = { onRejectJob(job) },
                                     onCompleteClick = {
-                                        if (jobId.isNotEmpty()) onCompleteJob(jobId)
+                                        if (jobIdLong != 0L) onCompleteJob(jobIdLong)
                                     },
                                     context = context
                                 )
@@ -932,7 +934,8 @@ fun LabourDashboardScreen(
                             }
                         } else {
                             items(appliedJobPosts) { job ->
-                                val jobId = extractSafeField(job, "id", fallback = "")
+                                val jobIdStr = extractSafeField(job, "id", fallback = "")
+                                val jobIdLong = jobIdStr.toLongOrNull() ?: 0L
                                 LabourJobCard(
                                     job = job,
                                     isApplied = true,
@@ -940,7 +943,7 @@ fun LabourDashboardScreen(
                                     onAcceptClick = { onAcceptJob(job) },
                                     onRejectClick = { onRejectJob(job) },
                                     onCompleteClick = {
-                                        if (jobId.isNotEmpty()) onCompleteJob(jobId)
+                                        if (jobIdLong != 0L) onCompleteJob(jobIdLong)
                                     },
                                     context = context
                                 )
@@ -1303,7 +1306,8 @@ private fun LabourJobCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clickable { onCompleteClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
