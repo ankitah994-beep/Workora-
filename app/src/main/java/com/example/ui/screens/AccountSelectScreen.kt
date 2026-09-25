@@ -69,7 +69,8 @@ fun AccountSelectScreen(
     val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
     var isAdminPanelVisible by remember { mutableStateOf(false) }
-    var isBackendAdminVerified by remember { mutableStateOf(true) }
+    // Default is strictly FALSE so normal users never see the Admin Panel card!
+    var isBackendAdminVerified by remember { mutableStateOf(false) }
     var adminRoleTier by remember { mutableStateOf("SUPER_ADMIN") }
 
     var appName by remember { mutableStateOf(brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
@@ -95,8 +96,7 @@ fun AccountSelectScreen(
     }
 
     val activeEmail = remember {
-        val saved = authPrefs.getString("last_logged_in_email", "") ?: ""
-        if (saved.isNotBlank()) saved else "ankitah994@gmail.com"
+        authPrefs.getString("last_logged_in_email", "") ?: ""
     }
 
     LaunchedEffect(isAdminPanelVisible) {
@@ -105,20 +105,20 @@ fun AccountSelectScreen(
 
     LaunchedEffect(Unit) {
         refreshLocalBranding()
-        FirebaseManager.checkIfEmailIsAdminOnCloud(activeEmail) { isAdmin, tier ->
-            if (isAdmin) {
-                isBackendAdminVerified = true
-                adminRoleTier = tier
-                authPrefs.edit()
-                    .putString("saved_user_role", "ADMIN")
-                    .putString("saved_admin_tier", tier)
-                    .apply()
-                isAdminPanelVisible = true
+        val isLogged = authPrefs.getBoolean("is_logged_in", false)
+        if (isLogged && activeEmail.isNotBlank()) {
+            FirebaseManager.checkIfEmailIsAdminOnCloud(activeEmail) { isAdmin, tier ->
+                isBackendAdminVerified = isAdmin
+                if (isAdmin) {
+                    adminRoleTier = tier
+                }
             }
+        } else {
+            isBackendAdminVerified = false
         }
     }
 
-    if (isAdminPanelVisible) {
+    if (isAdminPanelVisible && isBackendAdminVerified) {
         AdminDashboardScreen(
             adminEmail = activeEmail,
             adminTier = adminRoleTier,
@@ -151,13 +151,12 @@ fun AccountSelectScreen(
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Custom App Logo (or Default Helmet Logo)
                 if (customLogoBitmap != null) {
                     Box(
                         modifier = Modifier
                             .size(76.dp)
                             .clip(CircleShape)
-                            .background( Color.White),
+                            .background(Color.White),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
@@ -248,6 +247,7 @@ fun AccountSelectScreen(
                         onClick = { onSelectRole(UserRole.LABOUR) }
                     )
 
+                    // Only visible if the logged-in user is verified as Admin on Firebase
                     if (isBackendAdminVerified) {
                         Card(
                             modifier = Modifier
