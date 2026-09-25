@@ -787,7 +787,7 @@ fun CustomerDashboardScreen(
                                         color = Color(0xFF1B5E20)
                                     )
                                     Text(
-                                        text = "Background checked • Direct Call & WhatsApp • 0% Commission",
+                                        text = "Background checked • Direct Call & Live Chat • 0% Commission",
                                         fontSize = 12.sp,
                                         color = Color(0xFF2E7D32)
                                     )
@@ -1554,63 +1554,27 @@ private fun WorkoraPrototypeWorkerCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
+            Button(
+                onClick = {
+                    onHireClick()
+                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
+                    context.startActivity(intent)
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F))
             ) {
-                Button(
-                    onClick = {
-                        onHireClick()
-                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Call,
-                        contentDescription = "Call",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Call Now",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val rawPhone = worker.phone.filter { it.isDigit() }
-                        val formattedPhone = if (rawPhone.length == 10) "91$rawPhone" else rawPhone
-                        val msg = Uri.encode("नमस्ते ${worker.name}, मैंने Workora App पर आपकी प्रोफाइल (${worker.skill}) देखी। मुझे काम के लिए आपकी आवश्यकता है।")
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$formattedPhone?text=$msg"))
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "WhatsApp उपलब्ध नहीं है", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFF2E7D32))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Chat,
-                        contentDescription = "WhatsApp",
-                        tint = Color(0xFF2E7D32),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "WhatsApp",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2E7D32)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Call,
+                    contentDescription = "Call",
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Call Now",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
