@@ -1,134 +1,185 @@
 package com.example.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.ui.theme.WorkoraNavy
 import com.example.ui.theme.WorkoraOrange
-import com.example.ui.theme.WorkoraOrangeDark
-import com.example.ui.theme.WorkoraOrangeLight
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 
 @Composable
 fun WorkoraHelmetLogo(
-    modifier: Modifier = Modifier,
-    size: Dp = 100.dp,
-    showHalo: Boolean = true
+    size: Dp = 84.dp,
+    showHalo: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "halo_pulse")
-    val haloScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "halo_scale"
-    )
+    val context = LocalContext.current
+    val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
+    var customLogoBitmap by remember {
+        val savedBase64 = brandPrefs.getString("logo_base64", "") ?: ""
+        val bmp = if (savedBase64.isNotBlank()) {
+            try {
+                val bytes = Base64.decode(savedBase64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+        mutableStateOf<ImageBitmap?>(bmp)
+    }
+
+    // Live Sync with Firebase Admin Panel Branding
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val conn = (URL("https://workora-d8b51-default-rtdb.firebaseio.com/app_branding.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 6000
+                    readTimeout = 6000
+                }
+                if (conn.responseCode in 200..299) {
+                    val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                    if (text.isNotBlank() && text != "null") {
+                        val obj = JSONObject(text)
+                        val cloudLogo = obj.optString("logoBase64", "")
+                        val cloudName = obj.optString("appName", "WORKORA")
+                        val cloudTagline = obj.optString("appTagline", "FIND. HIRE. WORK.")
+                        val cloudHeading = obj.optString("welcomeHeading", "What do you want to do?")
+                        val cloudBanner = obj.optString("bannerText", "")
+
+                        brandPrefs.edit()
+                            .putString("logo_base64", cloudLogo)
+                            .putString("app_name", cloudName)
+                            .putString("app_tagline", cloudTagline)
+                            .putString("welcome_heading", cloudHeading)
+                            .putString("banner_text", cloudBanner)
+                            .apply()
+
+                        if (cloudLogo.isNotBlank()) {
+                            val bytes = Base64.decode(cloudLogo, Base64.DEFAULT)
+                            val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                            withContext(Dispatchers.Main) {
+                                customLogoBitmap = decoded
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                customLogoBitmap = null
+                            }
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Agar Admin Panel se naya Logo lagaya gaya hai, toh har screen par wahi dikhao
+    if (customLogoBitmap != null) {
+        Box(
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(2.dp, WorkoraOrange, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                bitmap = customLogoBitmap!!,
+                contentDescription = "Workora Custom Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        return
+    }
+
+    // Default Workora Helmet Logo
     Box(
-        modifier = modifier.size(size),
+        modifier = modifier.size(if (showHalo) size * 1.25f else size),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(size)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val w = this.size.width
             val h = this.size.height
-            val scaleX = w / 100f
-            val scaleY = h / 100f
+            val center = Offset(w / 2f, h / 2f)
 
-            // Halo glow behind helmet
             if (showHalo) {
                 drawCircle(
-                    color = Color(0x33FF8C00),
-                    radius = 48f * scaleX * haloScale,
-                    center = Offset(53f * scaleX, 42f * scaleY)
+                    color = WorkoraOrange.copy(alpha = 0.12f),
+                    radius = w * 0.48f,
+                    center = center
                 )
                 drawCircle(
-                    color = Color(0x18FF8C00),
-                    radius = 62f * scaleX * haloScale,
-                    center = Offset(53f * scaleX, 42f * scaleY)
+                    color = WorkoraOrange.copy(alpha = 0.22f),
+                    radius = w * 0.38f,
+                    center = center
                 )
             }
 
-            // 1. Helmet Dome (Main body)
+            val domeRadius = if (showHalo) w * 0.28f else w * 0.40f
+            val domeCenterY = h * 0.54f
+
             val domePath = Path().apply {
-                moveTo(18f * scaleX, 56f * scaleY)
+                moveTo(center.x - domeRadius, domeCenterY)
                 cubicTo(
-                    18f * scaleX, 36.67f * scaleY,
-                    33.67f * scaleX, 21f * scaleY,
-                    53f * scaleX, 21f * scaleY
-                )
-                cubicTo(
-                    72.33f * scaleX, 21f * scaleY,
-                    88f * scaleX, 36.67f * scaleY,
-                    88f * scaleX, 56f * scaleY
+                    center.x - domeRadius, domeCenterY - domeRadius * 1.15f,
+                    center.x + domeRadius, domeCenterY - domeRadius * 1.15f,
+                    center.x + domeRadius, domeCenterY
                 )
                 close()
             }
             drawPath(path = domePath, color = WorkoraOrange)
 
-            // 2. Helmet Top Ridge
-            val ridgePath = Path().apply {
-                moveTo(47f * scaleX, 16f * scaleY)
-                lineTo(59f * scaleX, 16f * scaleY)
-                lineTo(59f * scaleX, 32f * scaleY)
-                cubicTo(
-                    59f * scaleX, 32f * scaleY,
-                    55.5f * scaleX, 33.2f * scaleY,
-                    53f * scaleX, 33.2f * scaleY
-                )
-                cubicTo(
-                    50.5f * scaleX, 33.2f * scaleY,
-                    47f * scaleX, 32f * scaleY,
-                    47f * scaleX, 32f * scaleY
-                )
-                close()
-            }
-            drawPath(path = ridgePath, color = WorkoraOrangeLight)
+            drawRoundRect(
+                color = WorkoraNavy,
+                topLeft = Offset(center.x - domeRadius * 0.22f, domeCenterY - domeRadius * 0.98f),
+                size = Size(domeRadius * 0.44f, domeRadius * 0.55f),
+                cornerRadius = CornerRadius(8f, 8f)
+            )
 
-            // 3. Front Brim / Visor Base
-            val visorPath = Path().apply {
-                addRoundRect(
-                    RoundRect(
-                        left = 12f * scaleX,
-                        top = 52f * scaleY,
-                        right = 94f * scaleX,
-                        bottom = 60f * scaleY,
-                        cornerRadius = CornerRadius(4f * scaleX, 4f * scaleY)
-                    )
-                )
-            }
-            drawPath(path = visorPath, color = WorkoraOrangeDark)
-
-            // 4. Reflector Badge
-            val badgePath = Path().apply {
-                addRoundRect(
-                    RoundRect(
-                        left = 46f * scaleX,
-                        top = 38f * scaleY,
-                        right = 60f * scaleX,
-                        bottom = 45f * scaleY,
-                        cornerRadius = CornerRadius(3.5f * scaleX, 3.5f * scaleY)
-                    )
-                )
-            }
-            drawPath(path = badgePath, color = Color.White.copy(alpha = 0.95f))
+            drawRoundRect(
+                color = WorkoraOrange,
+                topLeft = Offset(center.x - domeRadius * 1.18f, domeCenterY - domeRadius * 0.05f),
+                size = Size(domeRadius * 2.36f, domeRadius * 0.24f),
+                cornerRadius = CornerRadius(12f, 12f)
+            )
         }
     }
 }
