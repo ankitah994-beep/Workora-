@@ -69,31 +69,36 @@ private fun extractSafeObjectField(obj: Any, vararg fieldNames: String, fallback
 }
 
 private fun extractSafeJobPay(job: JobPost): String {
-    val raw = extractSafeObjectField(job, "dailyWage", "budget", "wage", "pay", "salary", "amount", "rate", fallback = "600")
+    val raw = extractSafeObjectField(job, "dailyRate", "dailyWage", "budget", "wage", "pay", "salary", "amount", "rate", fallback = "600")
     return when {
         raw.isEmpty() || raw == "0" -> "₹600/दिन"
         raw.startsWith("₹") -> raw
-        else -> "₹$raw"
+        else -> "₹$raw/दिन"
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDashboardScreen(
+    currentUser: Any? = null,
+    searchQuery: String = "",
+    onSearchQueryChanged: (String) -> Unit = {},
     workers: List<Worker> = emptyList(),
     jobs: List<JobPost> = emptyList(),
     selectedCategory: String? = null,
     onCategorySelected: (String) -> Unit = {},
-    onPostJobClick: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {},
-    onSwitchRole: () -> Unit = {},
-    onPostJob: (String, String, String, String, String, String, String) -> Unit = { _, _, _, _, _, _, _ -> },
+    activeTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
+    onPostJob: (String, String, String, Int, String, Int, String, Long) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onHireWorker: (Worker) -> Unit = {},
     onCompleteJob: (String) -> Unit = {},
+    onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
     onOpenFilters: () -> Unit = {},
-    toastMessage: String? = null
+    toastMessage: String? = null,
+    onPostJobClick: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
@@ -108,16 +113,23 @@ fun CustomerDashboardScreen(
     var showLocationDialog by remember { mutableStateOf(false) }
     var tempLocationInput by remember { mutableStateOf(currentLocation) }
 
+    var showPostJobDialog by remember { mutableStateOf(false) }
+    var jobTitleInput by remember { mutableStateOf("") }
+    var jobCategoryInput by remember { mutableStateOf("Mason") }
+    var jobDescInput by remember { mutableStateOf("") }
+    var jobRateInput by remember { mutableStateOf("600") }
+    var jobWorkersCountInput by remember { mutableStateOf("1") }
+    var jobUrgencyInput by remember { mutableStateOf("Immediate") }
+
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
             Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 0 = Home View, 1 = Available Workers Search View
-    var currentTab by remember { mutableStateOf(0) }
-    var searchQuery by remember { mutableStateOf("") }
-    var activeCategoryFilter by remember { mutableStateOf(selectedCategory ?: "All") }
+    var localTab by remember(activeTab) { mutableStateOf(if (activeTab in 0..1) activeTab else 0) }
+    var localSearchQuery by remember(searchQuery) { mutableStateOf(searchQuery) }
+    var activeCategoryFilter by remember(selectedCategory) { mutableStateOf(selectedCategory ?: "All") }
 
     val allDisplayWorkers = remember(workers) {
         val defaultList = listOf(
@@ -172,7 +184,7 @@ fun CustomerDashboardScreen(
             val rawName = extractSafeObjectField(w, "name", "fullName", "workerName", fallback = "कुशल कारीगर")
             val rawSkill = extractSafeObjectField(w, "category", "skill", "role", "profession", "trade", fallback = "General Worker")
             val rawLoc = extractSafeObjectField(w, "location", "city", "area", "address", fallback = "Silwani, Raisen (MP)")
-            val rawWage = extractSafeObjectField(w, "dailyWage", "wage", "rate", "pay", "price", fallback = "500")
+            val rawWage = extractSafeObjectField(w, "dailyWage", "dailyRate", "wage", "rate", "pay", "price", fallback = "500")
             val rawPhone = extractSafeObjectField(w, "phone", "mobile", "contactPhone", "phoneNumber", fallback = "6265798340")
             val rawRating = extractSafeObjectField(w, "rating", fallback = "4.8")
 
@@ -208,7 +220,7 @@ fun CustomerDashboardScreen(
         "Labour / मजदूर"
     )
 
-    val filteredWorkers = remember(allDisplayWorkers, searchQuery, activeCategoryFilter) {
+    val filteredWorkers = remember(allDisplayWorkers, localSearchQuery, activeCategoryFilter) {
         allDisplayWorkers.filter { worker ->
             val matchesCategory = if (activeCategoryFilter.isBlank() || activeCategoryFilter == "All") {
                 true
@@ -216,20 +228,25 @@ fun CustomerDashboardScreen(
                 val cleanFilter = activeCategoryFilter.substringBefore("/").trim()
                 worker.skill.contains(cleanFilter, ignoreCase = true)
             }
-            val matchesSearch = if (searchQuery.isBlank()) {
+            val matchesSearch = if (localSearchQuery.isBlank()) {
                 true
             } else {
-                worker.name.contains(searchQuery, ignoreCase = true) ||
-                    worker.skill.contains(searchQuery, ignoreCase = true) ||
-                    worker.location.contains(searchQuery, ignoreCase = true)
+                worker.name.contains(localSearchQuery, ignoreCase = true) ||
+                    worker.skill.contains(localSearchQuery, ignoreCase = true) ||
+                    worker.location.contains(localSearchQuery, ignoreCase = true)
             }
             matchesCategory && matchesSearch
         }
     }
 
-    val handleProfileClick: () -> Unit = {
+    val handleProfileNavigation: () -> Unit = {
         onOpenProfile()
         onNavigateToProfile()
+    }
+
+    val handleOpenPostJob: () -> Unit = {
+        showPostJobDialog = true
+        onPostJobClick()
     }
 
     Scaffold(
@@ -250,26 +267,32 @@ fun CustomerDashboardScreen(
                     WorkoraBottomNavButton(
                         icon = Icons.Default.Home,
                         label = "Home",
-                        selected = currentTab == 0,
-                        onClick = { currentTab = 0 }
+                        selected = localTab == 0,
+                        onClick = {
+                            localTab = 0
+                            onTabSelected(0)
+                        }
                     )
                     WorkoraBottomNavButton(
                         icon = Icons.Default.Search,
                         label = "Search",
-                        selected = currentTab == 1,
-                        onClick = { currentTab = 1 }
+                        selected = localTab == 1,
+                        onClick = {
+                            localTab = 1
+                            onTabSelected(1)
+                        }
                     )
                     WorkoraBottomNavButton(
                         icon = Icons.Default.AddCircle,
                         label = "Post",
                         selected = false,
-                        onClick = onPostJobClick
+                        onClick = handleOpenPostJob
                     )
                     WorkoraBottomNavButton(
                         icon = Icons.Default.Person,
                         label = "Profile",
                         selected = false,
-                        onClick = handleProfileClick
+                        onClick = handleProfileNavigation
                     )
                 }
             }
@@ -280,7 +303,7 @@ fun CustomerDashboardScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (currentTab == 0) {
+            if (localTab == 0) {
                 // ==================== VIEW 0: HOME SCREEN ====================
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -466,7 +489,10 @@ fun CustomerDashboardScreen(
                                         Spacer(modifier = Modifier.height(14.dp))
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Button(
-                                                onClick = { currentTab = 1 },
+                                                onClick = {
+                                                    localTab = 1
+                                                    onTabSelected(1)
+                                                },
                                                 colors = ButtonDefaults.buttonColors(
                                                     containerColor = Color(0xFFFF6F00),
                                                     contentColor = Color.White
@@ -481,7 +507,7 @@ fun CustomerDashboardScreen(
                                                 )
                                             }
                                             OutlinedButton(
-                                                onClick = onPostJobClick,
+                                                onClick = handleOpenPostJob,
                                                 border = BorderStroke(1.dp, Color.White),
                                                 shape = RoundedCornerShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -530,7 +556,8 @@ fun CustomerDashboardScreen(
                                     modifier = Modifier.clickable {
                                         activeCategoryFilter = "All"
                                         onCategorySelected("All")
-                                        currentTab = 1
+                                        localTab = 1
+                                        onTabSelected(1)
                                     }
                                 )
                             }
@@ -549,7 +576,8 @@ fun CustomerDashboardScreen(
                                             val shortCat = cat.substringBefore("/").trim()
                                             activeCategoryFilter = shortCat
                                             onCategorySelected(shortCat)
-                                            currentTab = 1
+                                            localTab = 1
+                                            onTabSelected(1)
                                         }
                                     )
                                 }
@@ -569,7 +597,8 @@ fun CustomerDashboardScreen(
                                             val shortCat = cat.substringBefore("/").trim()
                                             activeCategoryFilter = shortCat
                                             onCategorySelected(shortCat)
-                                            currentTab = 1
+                                            localTab = 1
+                                            onTabSelected(1)
                                         }
                                     )
                                 }
@@ -640,7 +669,10 @@ fun CustomerDashboardScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF0D253F)
                             )
-                            TextButton(onClick = { currentTab = 1 }) {
+                            TextButton(onClick = {
+                                localTab = 1
+                                onTabSelected(1)
+                            }) {
                                 Text(
                                     text = "See All >",
                                     fontWeight = FontWeight.Bold,
@@ -676,7 +708,7 @@ fun CustomerDashboardScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF0D253F)
                             )
-                            TextButton(onClick = onPostJobClick) {
+                            TextButton(onClick = handleOpenPostJob) {
                                 Text(
                                     text = "+ Post New Job",
                                     fontWeight = FontWeight.Bold,
@@ -709,7 +741,7 @@ fun CustomerDashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Button(
-                                        onClick = onPostJobClick,
+                                        onClick = handleOpenPostJob,
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F)),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
@@ -749,7 +781,10 @@ fun CustomerDashboardScreen(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
-                                        onClick = { currentTab = 0 },
+                                        onClick = {
+                                            localTab = 0
+                                            onTabSelected(0)
+                                        },
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
@@ -806,8 +841,11 @@ fun CustomerDashboardScreen(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                                value = localSearchQuery,
+                                onValueChange = {
+                                    localSearchQuery = it
+                                    onSearchQueryChanged(it)
+                                },
                                 placeholder = {
                                     Text(
                                         text = "Search Ramesh, Mohan, Mason, Plumber...",
@@ -822,8 +860,11 @@ fun CustomerDashboardScreen(
                                     )
                                 },
                                 trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }) {
+                                    if (localSearchQuery.isNotEmpty()) {
+                                        IconButton(onClick = {
+                                            localSearchQuery = ""
+                                            onSearchQueryChanged("")
+                                        }) {
                                             Icon(
                                                 imageVector = Icons.Default.Clear,
                                                 contentDescription = "Clear"
@@ -919,6 +960,7 @@ fun CustomerDashboardScreen(
         }
     }
 
+    // Location Update Dialog
     if (showLocationDialog) {
         AlertDialog(
             onDismissRequest = { showLocationDialog = false },
@@ -952,6 +994,91 @@ fun CustomerDashboardScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showLocationDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Post New Job Dialog (Calls onPostJob with exact 8 parameters expected by MainActivity)
+    if (showPostJobDialog) {
+        AlertDialog(
+            onDismissRequest = { showPostJobDialog = false },
+            title = {
+                Text(
+                    text = "नया काम पोस्ट करें (Post Job)",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF0D253F)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = jobTitleInput,
+                        onValueChange = { jobTitleInput = it },
+                        label = { Text("काम का नाम (जैसे: मकान की जुड़ाई / प्लंबिंग)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = jobCategoryInput,
+                        onValueChange = { jobCategoryInput = it },
+                        label = { Text("कैटेगरी (Mason / Plumber / Electrician / Labour)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = jobRateInput,
+                        onValueChange = { jobRateInput = it },
+                        label = { Text("दिहाड़ी / बजट ₹ (जैसे: 600)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = jobWorkersCountInput,
+                        onValueChange = { jobWorkersCountInput = it },
+                        label = { Text("कितने कारीगर चाहिए? (जैसे: 2)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = jobDescInput,
+                        onValueChange = { jobDescInput = it },
+                        label = { Text("काम का विवरण (Description)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val finalTitle = jobTitleInput.trim().ifEmpty { "$jobCategoryInput का काम" }
+                        val finalCat = jobCategoryInput.trim().ifEmpty { "General" }
+                        val finalDesc = jobDescInput.trim().ifEmpty { "तुरंत काम के लिए संपर्क करें" }
+                        val finalRate = jobRateInput.filter { it.isDigit() }.toIntOrNull() ?: 600
+                        val finalWorkers = jobWorkersCountInput.filter { it.isDigit() }.toIntOrNull() ?: 1
+
+                        onPostJob(
+                            finalTitle,
+                            finalCat,
+                            finalDesc,
+                            finalRate,
+                            currentLocation,
+                            finalWorkers,
+                            jobUrgencyInput,
+                            System.currentTimeMillis()
+                        )
+                        jobTitleInput = ""
+                        jobDescInput = ""
+                        showPostJobDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00))
+                ) {
+                    Text("Post Job ✓", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPostJobDialog = false }) {
                     Text("Cancel")
                 }
             }
