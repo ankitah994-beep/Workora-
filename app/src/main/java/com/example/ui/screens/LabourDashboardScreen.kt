@@ -63,7 +63,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,8 +77,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.example.model.Job
 import com.example.model.JobApplication
+import com.example.model.JobPost
 import com.example.ui.components.WorkoraHelmetLogo
 import com.example.ui.theme.WorkoraBgLight
 import com.example.ui.theme.WorkoraBorder
@@ -120,17 +119,17 @@ data class CloudLabourJob(
 @Composable
 fun LabourDashboardScreen(
     currentUser: Any? = null,
-    jobs: List<Job> = emptyList(),
+    jobs: List<JobPost> = emptyList(),
     applications: List<JobApplication> = emptyList(),
     selectedCategory: String? = null,
-    onCategorySelected: (String?) -> Unit = {},
+    onCategorySelected: (String) -> Unit = {},
     activeTab: Int = 0,
     onTabSelected: (Int) -> Unit = {},
     isAvailable: Boolean = true,
     onToggleAvailability: () -> Unit = {},
-    onApplyJob: (Job) -> Unit = {},
-    onAcceptJob: (Job) -> Unit = {},
-    onRejectJob: (Job) -> Unit = {},
+    onApplyJob: (JobPost) -> Unit = {},
+    onAcceptJob: (JobPost) -> Unit = {},
+    onRejectJob: (JobPost) -> Unit = {},
     onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
@@ -147,7 +146,6 @@ fun LabourDashboardScreen(
     val workerSkill = remember { profilePrefs.getString("user_skill", "Mason / Mistri") ?: "Mason / Mistri" }
     val workerWage = remember { profilePrefs.getString("user_rate", "600") ?: "600" }
 
-    // Real User Location State (Saved persistently across the app)
     var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
@@ -172,7 +170,6 @@ fun LabourDashboardScreen(
         raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
     }
 
-    // Sync Worker's Real Location & Availability to Firebase so Customers can find them by Location!
     fun syncWorkerLocationAndAvailabilityToCloud(newLocation: String, availableNow: Boolean) {
         profilePrefs.edit().putString("user_location", newLocation).apply()
         settingsPrefs.edit().putBoolean("available_today", availableNow).apply()
@@ -205,7 +202,6 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Fetch Real Live Jobs from Firebase
     fun loadLiveJobsFromCloud() {
         isLoadingJobs = true
         CoroutineScope(Dispatchers.IO).launch {
@@ -269,7 +265,6 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Real GPS Hardware Location Detection Function
     @SuppressLint("MissingPermission")
     fun detectRealGpsLocation() {
         isDetectingGps = true
@@ -290,7 +285,6 @@ fun LabourDashboardScreen(
                     val lon = bestLocation.longitude
                     var resolvedPlace = ""
 
-                    // 1. Try Android Geocoder
                     try {
                         val geocoder = Geocoder(context, Locale.getDefault())
                         @Suppress("DEPRECATION")
@@ -309,7 +303,6 @@ fun LabourDashboardScreen(
                         e.printStackTrace()
                     }
 
-                    // 2. Fallback to OpenStreetMap Nominatim Reverse Geocoding for exact Indian Village/Tehsil
                     if (resolvedPlace.isBlank()) {
                         val url = URL("https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=14&addressdetails=1")
                         val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -372,7 +365,6 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Live Online Search for Real Villages, Towns & Cities in India (OpenStreetMap Nominatim API)
     fun searchRealLocationsOnline(query: String) {
         if (query.trim().length < 2) return
         isSearchingOnlineLocations = true
@@ -415,7 +407,6 @@ fun LabourDashboardScreen(
         loadLiveJobsFromCloud()
     }
 
-    // Filter Jobs by Selected Location + Selected Category + Active Tab
     val locationFilteredJobs = liveCloudJobs.filter { job ->
         val matchesCategory = selectedCategory.isNullOrBlank() ||
                 selectedCategory.equals("All", ignoreCase = true) ||
@@ -443,7 +434,7 @@ fun LabourDashboardScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // ==================== 1. TOP HEADER BAR ====================
+        // 1. TOP HEADER BAR
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -510,7 +501,7 @@ fun LabourDashboardScreen(
             }
         }
 
-        // ==================== 2. GREETING & REAL INTERACTIVE LOCATION BAR ====================
+        // 2. GREETING & REAL INTERACTIVE LOCATION BAR
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -526,7 +517,6 @@ fun LabourDashboardScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Interactive Real Location Selector Bar
             Card(
                 onClick = { showLocationDialog = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -593,7 +583,7 @@ fun LabourDashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // ==================== 3. AVAILABLE FOR WORK TODAY CARD ====================
+            // 3. AVAILABLE FOR WORK TODAY CARD
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -682,7 +672,7 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // ==================== 4. QUICK STATS ROW ====================
+            // 4. QUICK STATS ROW
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -732,7 +722,7 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // ==================== 5. LOCATION FILTER BAR FOR JOBS ====================
+            // 5. LOCATION FILTER BAR FOR JOBS
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -797,7 +787,7 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // ==================== 6. TABS: WORK REQUESTS vs MY JOBS ====================
+            // 6. TABS: WORK REQUESTS vs MY JOBS
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -829,7 +819,7 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // ==================== 7. SKILL CATEGORY CHIPS ====================
+            // 7. SKILL CATEGORY CHIPS
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -838,7 +828,7 @@ fun LabourDashboardScreen(
             ) {
                 val isAllSelected = selectedCategory == null || selectedCategory == "All"
                 Button(
-                    onClick = { onCategorySelected(null) },
+                    onClick = { onCategorySelected("All") },
                     shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isAllSelected) WorkoraNavy else Color.White
@@ -877,7 +867,7 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // ==================== 8. LIVE JOBS LIST ====================
+            // 8. LIVE JOBS LIST
             if (isLoadingJobs) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -986,7 +976,6 @@ fun LabourDashboardScreen(
                                 lineHeight = 18.sp
                             )
 
-                            // Real Job Location Row + Open in Google Maps
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1045,7 +1034,6 @@ fun LabourDashboardScreen(
                                 )
                             }
 
-                            // Action Buttons: Call Customer + Accept / Complete Work
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1109,7 +1097,6 @@ fun LabourDashboardScreen(
         }
     }
 
-    // ==================== REAL LOCATION SELECTOR & LIVE GPS DIALOG ====================
     if (showLocationDialog) {
         val realQuickLocations = listOf(
             "Silwani, Raisen (MP)",
@@ -1163,7 +1150,6 @@ fun LabourDashboardScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // 1. Live GPS Hardware Detector Button
                     Button(
                         onClick = {
                             val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -1194,7 +1180,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 2. Search Box for Any Real Village / City / Tehsil
                     OutlinedTextField(
                         value = locationSearchQuery,
                         onValueChange = {
@@ -1214,7 +1199,6 @@ fun LabourDashboardScreen(
                         )
                     )
 
-                    // Custom Typed Location Direct Apply Button
                     if (locationSearchQuery.trim().isNotEmpty()) {
                         OutlinedButton(
                             onClick = {
@@ -1237,7 +1221,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 3. Live Online OpenStreetMap Results (Real Villages/Towns in India)
                     if (isSearchingOnlineLocations) {
                         Text("Searching real locations across India...", fontSize = 11.sp, color = WorkoraOrange)
                     }
@@ -1270,7 +1253,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 4. Popular Real Cities & Tehsils List
                     Text(
                         text = "Popular Real Locations (Tap to Select):",
                         fontSize = 11.sp,
