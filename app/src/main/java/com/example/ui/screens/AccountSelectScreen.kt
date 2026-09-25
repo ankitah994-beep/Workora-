@@ -1,10 +1,8 @@
 package com.example.ui.screens
 
 import android.content.Context
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,11 +23,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Engineering
+import androidx.compose.material.icons.filled.FormatPaint
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,23 +44,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.UserRole
-import com.example.ui.components.RoleCard
-import com.example.ui.components.WorkoraHelmetLogo
-import com.example.ui.components.WorkoraToast
-import com.example.ui.theme.WorkoraBgLight
-import com.example.ui.theme.WorkoraNavy
-import com.example.ui.theme.WorkoraOrange
-import com.example.ui.theme.WorkoraTextDark
-import com.example.ui.theme.WorkoraTextMuted
+
+private val ThemeIndigo = Color(0xFF1E1B4B)
+private val ThemeOrange = Color(0xFFF59E0B)
 
 @Composable
 fun AccountSelectScreen(
@@ -67,20 +68,6 @@ fun AccountSelectScreen(
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
-
-    var appLang by remember {
-        mutableStateOf(settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish")
-    }
-
-    fun tr(hi: String, hinglish: String, en: String): String {
-        return when (appLang) {
-            "Hindi" -> hi
-            "English" -> en
-            else -> hinglish
-        }
-    }
 
     val activeEmail = remember {
         (authPrefs.getString("last_logged_in_email", "") ?: "").trim().lowercase()
@@ -103,33 +90,7 @@ fun AccountSelectScreen(
     var isBackendAdminVerified by remember { mutableStateOf(isLocalSuperAdmin) }
     var adminRoleTier by remember { mutableStateOf("SUPER_ADMIN") }
 
-    var appName by remember { mutableStateOf(brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
-    var appTagline by remember { mutableStateOf(brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK.") }
-    var bannerText by remember { mutableStateOf(brandPrefs.getString("banner_text", "") ?: "") }
-    var customLogoBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-
-    fun refreshLocalBranding() {
-        appLang = settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish"
-        appName = brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA"
-        appTagline = brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK."
-        bannerText = brandPrefs.getString("banner_text", "") ?: ""
-        val base64 = brandPrefs.getString("logo_base64", "") ?: ""
-        customLogoBitmap = if (base64.isNotBlank()) {
-            try {
-                val bytes = Base64.decode(base64, Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-            } catch (e: Exception) {
-                null
-            }
-        } else null
-    }
-
-    LaunchedEffect(isAdminPanelVisible) {
-        refreshLocalBranding()
-    }
-
     LaunchedEffect(Unit) {
-        refreshLocalBranding()
         val isLogged = authPrefs.getBoolean("is_logged_in", false)
         if (isLogged && activeEmail.isNotBlank()) {
             if (isLocalSuperAdmin) {
@@ -141,8 +102,6 @@ fun AccountSelectScreen(
                     adminRoleTier = tier
                 }
             }
-        } else {
-            isBackendAdminVerified = false
         }
     }
 
@@ -151,205 +110,262 @@ fun AccountSelectScreen(
             adminEmail = if (activeEmail.isNotBlank()) activeEmail else "ankitah994@gmail.com",
             adminTier = adminRoleTier,
             onLogoutAdmin = {
-                refreshLocalBranding()
                 isAdminPanelVisible = false
             }
         )
         return
     }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(WorkoraBgLight)
+            .background(Color.White)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 20.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-                if (customLogoBitmap != null) {
+        // Top WORKORA Title + Subtitle (Exact as Top-Middle of Photo)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = ThemeIndigo, fontWeight = FontWeight.ExtraBold)) {
+                        append("WORK")
+                    }
+                    withStyle(SpanStyle(color = ThemeOrange, fontWeight = FontWeight.ExtraBold)) {
+                        append("ORA")
+                    }
+                },
+                fontSize = 32.sp,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = "Find skilled workers\nnear you or get hired\nfor the best jobs.",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF1F2937),
+                textAlign = TextAlign.Center,
+                lineHeight = 25.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Center 3 Skilled Workers Illustration (Mason/Engineer, Plumber/Mechanic, Painter)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    color = Color(0xFFF3F4F6),
+                    radius = size.minDimension * 0.46f,
+                    center = Offset(size.width / 2f, size.height / 2f)
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy((-12).dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                // Worker 1: Mason / Engineer (Orange Vest & Yellow Helmet)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(76.dp)
+                            .size(64.dp)
                             .clip(CircleShape)
-                            .background(Color.White),
+                            .background(Color(0xFFFEF3C7)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            bitmap = customLogoBitmap!!,
-                            contentDescription = "App Logo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        Text("👷‍♂️", fontSize = 38.sp)
                     }
-                } else {
-                    WorkoraHelmetLogo(
-                        size = 50.dp,
-                        showHalo = false
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = appName,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = WorkoraNavy,
-                    letterSpacing = 1.5.sp
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = appTagline,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraOrange,
-                    letterSpacing = 1.2.sp
-                )
-
-                if (bannerText.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(14.dp))
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .background(WorkoraOrange.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .width(78.dp)
+                            .height(75.dp)
+                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                            .background(Color(0xFFF97316)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "📢 $bannerText",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WorkoraNavy
-                        )
+                        Icon(Icons.Default.Engineering, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = tr("आप क्या करना चाहते हैं?", "Aap kya karna chahte hain?", "What do you want to do?"),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WorkoraTextDark,
-                        lineHeight = 30.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = tr("चुनें कि आप ऐप का उपयोग कैसे करना चाहते हैं", "Chunein ki aap app kaise use karna chahte hain", "Select how you want to use the app"),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = WorkoraTextMuted
-                    )
+                // Worker 2 (Center Tall): Technician / Plumber (Dark Navy Overalls)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(74.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE0E7FF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🛠️", fontSize = 42.sp)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(92.dp)
+                            .height(95.dp)
+                            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                            .background(ThemeIndigo),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Build, contentDescription = null, tint = ThemeOrange, modifier = Modifier.size(32.dp))
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // Worker 3: Painter (Yellow Apron & Roller)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFEF9C3)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("👨‍🎨", fontSize = 38.sp)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(78.dp)
+                            .height(75.dp)
+                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                            .background(Color(0xFFEAB308)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.FormatPaint, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    }
+                }
+            }
+        }
 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Bottom Role Buttons ("I want to Hire" & "I want to Work" Exact as Photo)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 1. Deep Indigo Button: I want to Hire
+            Button(
+                onClick = { onSelectRole(UserRole.CUSTOMER) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ThemeIndigo),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "I want to Hire",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Find skilled workers for your work",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            // 2. White Outlined Card Button: I want to Work
+            OutlinedButton(
+                onClick = { onSelectRole(UserRole.LABOUR) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.5.dp, Color(0xFFE5E7EB)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "I want to Work",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = ThemeIndigo
+                    )
+                    Text(
+                        text = "Find jobs and earn",
+                        fontSize = 11.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+
+            // 3. Super Admin Panel Button (Visible only to verified Admin)
+            if (isBackendAdminVerified) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
+                            isAdminPanelVisible = true
+                        },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                    border = BorderStroke(1.5.dp, ThemeOrange)
                 ) {
-                    RoleCard(
-                        role = UserRole.CUSTOMER,
-                        onClick = { onSelectRole(UserRole.CUSTOMER) }
-                    )
-
-                    RoleCard(
-                        role = UserRole.LABOUR,
-                        onClick = { onSelectRole(UserRole.LABOUR) }
-                    )
-
-                    if (isBackendAdminVerified) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
-                                    isAdminPanelVisible = true
-                                },
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = WorkoraNavy),
-                            border = BorderStroke(2.dp, WorkoraOrange),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Row(
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(ThemeIndigo),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(WorkoraOrange),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Lock,
-                                            contentDescription = "Admin",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            text = tr("$appName एडमिन पैनल", "$appName Admin Panel", "$appName Admin Panel"),
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = tr("ऐप लोगो, यूज़र्स, जॉब्स और कंट्रोल एडिट करें", "Edit App Logo, Users, Jobs & Controls", "Edit App Logo, Users, Jobs & Controls"),
-                                            fontSize = 12.sp,
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = WorkoraOrange,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                                Icon(Icons.Default.Lock, contentDescription = null, tint = ThemeOrange, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("WORKORA Admin Dashboard", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = ThemeIndigo)
+                                Text("Manage Users, Workers, Bookings & Settings", fontSize = 11.sp, color = Color(0xFF6B7280))
                             }
                         }
+                        Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = ThemeIndigo)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-        }
+            Spacer(modifier = Modifier.height(6.dp))
 
-        WorkoraToast(
-            message = toastMessage,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp)
-        )
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Already have an account? ",
+                    fontSize = 13.sp,
+                    color = Color(0xFF6B7280)
+                )
+                Text(
+                    text = "Login",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF2563EB),
+                    modifier = Modifier.clickable { onSelectRole(UserRole.CUSTOMER) }
+                )
+            }
+        }
     }
 }
