@@ -180,7 +180,8 @@ fun LabourDashboardScreen(
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     toastMessage: String? = null,
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
@@ -257,7 +258,7 @@ fun LabourDashboardScreen(
         }
     }
 
-    // 0 = Home View, 1 = Find Work View, 2 = Applied Jobs View
+    // 0 = Menu (Home), 1 = Find Work, 2 = History (Applied Jobs)
     var localTab by remember(activeTab) { mutableStateOf(if (activeTab in 0..2) activeTab else 0) }
     var searchQuery by remember { mutableStateOf("") }
     var activeCategoryFilter by remember(selectedCategory) { mutableStateOf(selectedCategory ?: "All") }
@@ -303,7 +304,7 @@ fun LabourDashboardScreen(
         }.toSet()
     }
 
-    val handleProfileClick: () -> Unit = {
+    val handleSettingsNavigation: () -> Unit = {
         onOpenProfile()
         onNavigateToProfile()
     }
@@ -311,50 +312,67 @@ fun LabourDashboardScreen(
     Scaffold(
         containerColor = Color(0xFFF4F7FB),
         bottomBar = {
+            // Unified 5-Item Bottom Bar: Menu - History - +Post Work - Chat - Settings
             Surface(
                 color = Color.White,
-                shadowElevation = 14.dp,
+                shadowElevation = 16.dp,
                 shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
+                        .navigationBarsPadding()
+                        .padding(vertical = 8.dp, horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 1. Menu
                     LabourBottomNavButton(
-                        icon = Icons.Default.Home,
-                        label = "Home",
-                        selected = localTab == 0,
+                        icon = Icons.Default.Menu,
+                        label = "Menu",
+                        selected = localTab == 0 || localTab == 1,
                         onClick = {
                             localTab = 0
                             onTabSelected(0)
                         }
                     )
+
+                    // 2. History
                     LabourBottomNavButton(
-                        icon = Icons.Default.Search,
-                        label = "Find Work",
-                        selected = localTab == 1,
-                        onClick = {
-                            localTab = 1
-                            onTabSelected(1)
-                        }
-                    )
-                    LabourBottomNavButton(
-                        icon = Icons.Default.CheckCircle,
-                        label = "Applied (${applications.size})",
+                        icon = Icons.Default.History,
+                        label = "History",
                         selected = localTab == 2,
                         onClick = {
                             localTab = 2
                             onTabSelected(2)
                         }
                     )
+
+                    // 3. + Post Work
                     LabourBottomNavButton(
-                        icon = Icons.Default.Person,
-                        label = "Profile",
+                        icon = Icons.Default.AddCircle,
+                        label = "+Post Work",
                         selected = false,
-                        onClick = handleProfileClick
+                        onClick = {
+                            localTab = 1
+                            onTabSelected(1)
+                        }
+                    )
+
+                    // 4. Clean Simple Chat Icon inside Bottom Bar
+                    LabourBottomNavButton(
+                        icon = Icons.Default.Chat,
+                        label = "Chat",
+                        selected = false,
+                        onClick = { onOpenChat() }
+                    )
+
+                    // 5. Settings (Opens Profile & Settings)
+                    LabourBottomNavButton(
+                        icon = Icons.Default.Settings,
+                        label = "Settings",
+                        selected = false,
+                        onClick = handleSettingsNavigation
                     )
                 }
             }
@@ -366,7 +384,7 @@ fun LabourDashboardScreen(
                 .padding(innerPadding)
         ) {
             if (localTab == 0) {
-                // ==================== VIEW 0: HOME SCREEN ====================
+                // ==================== VIEW 0: MENU / HOME SCREEN ====================
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp)
@@ -525,7 +543,7 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 2. Hero Banner (Navy & Orange Theme with Worker Helmet & Wrench Illustration)
+                    // 2. Hero Banner
                     item {
                         Card(
                             modifier = Modifier
@@ -1007,7 +1025,7 @@ fun LabourDashboardScreen(
                     }
                 }
             } else {
-                // ==================== VIEW 2: APPLIED JOBS ====================
+                // ==================== VIEW 2: APPLIED / HISTORY ====================
                 Column(modifier = Modifier.fillMaxSize()) {
                     Surface(
                         color = Color.White,
@@ -1034,7 +1052,7 @@ fun LabourDashboardScreen(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "मेरे आवेदन (Applied Jobs - ${applications.size})",
+                                text = "Work History / Applied (${applications.size})",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF0D253F)
@@ -1062,7 +1080,7 @@ fun LabourDashboardScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.AssignmentLate,
+                                        imageVector = Icons.Default.History,
                                         contentDescription = null,
                                         tint = Color(0xFF94A3B8),
                                         modifier = Modifier.size(52.dp)
@@ -1100,7 +1118,6 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Real GPS + Quick City Chips Location Dialog
     if (showLocationDialog) {
         val quickLocations = listOf(
             "Silwani, Raisen (MP)",
@@ -1138,7 +1155,6 @@ fun LabourDashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Real Live GPS Detection Button
                     Button(
                         onClick = triggerRealGpsDetection,
                         enabled = !isDetectingGps,
@@ -1301,22 +1317,23 @@ private fun LabourBottomNavButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-            color = tint
+            color = tint,
+            maxLines = 1
         )
     }
 }
