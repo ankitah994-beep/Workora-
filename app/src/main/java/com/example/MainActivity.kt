@@ -13,31 +13,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.ScreenState
@@ -55,7 +41,6 @@ import com.example.ui.screens.NotificationScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SearchFilterScreen
 import com.example.ui.screens.SignUpScreen
-import com.example.ui.theme.WorkoraNavy
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
 
@@ -111,7 +96,6 @@ fun WorkoraApp(
         mutableStateOf(authPrefs.getString("saved_admin_tier", "SUPER_ADMIN") ?: "SUPER_ADMIN")
     }
 
-    // Only verify Admin status if a user is actually logged in!
     LaunchedEffect(Unit) {
         val isLogged = authPrefs.getBoolean("is_logged_in", false)
         val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
@@ -128,7 +112,6 @@ fun WorkoraApp(
         }
     }
 
-    // 1. Pure Green Welcome Screen on startup
     if (showGreenWelcomeScreen) {
         LanguageSelectionScreen(
             onLanguageSelected = {
@@ -146,14 +129,12 @@ fun WorkoraApp(
         return
     }
 
-    // 2. Open Admin Panel ONLY when logged in and authorized
     if (isDirectAdminPanelOpen) {
         AdminDashboardScreen(
             adminEmail = activeAdminEmail,
             adminTier = activeAdminTier,
             onLogoutAdmin = {
                 isDirectAdminPanelOpen = false
-                // Perform full logout and go to Login / Registration Screen
                 authPrefs.edit()
                     .putBoolean("is_logged_in", false)
                     .remove("last_logged_in_email")
@@ -300,7 +281,8 @@ fun WorkoraApp(
                         onOpenProfile = { viewModel.openProfile() },
                         onOpenNotifications = { viewModel.navigateTo(ScreenState.NOTIFICATIONS) },
                         onOpenFilters = { viewModel.navigateTo(ScreenState.SEARCH_FILTER) },
-                        toastMessage = toastMessage
+                        toastMessage = toastMessage,
+                        onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) }
                     )
                 }
                 ScreenState.LABOUR_HOME -> {
@@ -323,7 +305,8 @@ fun WorkoraApp(
                             viewModel.switchRole()
                         },
                         onOpenProfile = { viewModel.openProfile() },
-                        toastMessage = toastMessage
+                        toastMessage = toastMessage,
+                        onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) }
                     )
                 }
                 ScreenState.PROFILE -> {
@@ -391,32 +374,6 @@ fun WorkoraApp(
                 else -> {
                     Box(modifier = Modifier.fillMaxSize())
                 }
-            }
-        }
-
-        if (screenState == ScreenState.CUSTOMER_HOME || screenState == ScreenState.LABOUR_HOME) {
-            ExtendedFloatingActionButton(
-                onClick = { viewModel.navigateTo(ScreenState.CHAT) },
-                containerColor = WorkoraNavy,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(28.dp),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(end = 16.dp, bottom = 84.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Chat,
-                    contentDescription = "Live Chat",
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Online Live Chat",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
             }
         }
     }
