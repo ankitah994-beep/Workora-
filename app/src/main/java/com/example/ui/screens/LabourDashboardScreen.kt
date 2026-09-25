@@ -724,7 +724,7 @@ fun LabourDashboardScreen(
                                         color = Color(0xFF1B5E20)
                                     )
                                     Text(
-                                        text = "सीधे ग्राहक को कॉल या WhatsApp करें • पूरी दिहाड़ी पाएं",
+                                        text = "सीधे ग्राहक को कॉल या Live Chat करें • पूरी दिहाड़ी पाएं",
                                         fontSize = 12.sp,
                                         color = Color(0xFF2E7D32)
                                     )
@@ -1721,28 +1721,12 @@ private fun LabourJobCard(
                         tint = Color(0xFF1565C0),
                         modifier = Modifier.size(18.dp)
                     )
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val rawPhone = contactPhone.filter { it.isDigit() }
-                        val formattedPhone = if (rawPhone.length == 10) "91$rawPhone" else rawPhone
-                        val msg = Uri.encode("नमस्ते, मैंने Workora App पर आपका '$jobTitle' ($jobLoc) का काम देखा। मैं यह काम करने के लिए उपलब्ध हूँ।")
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$formattedPhone?text=$msg"))
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "WhatsApp उपलब्ध नहीं है", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFF2E7D32))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Chat,
-                        contentDescription = "WhatsApp",
-                        tint = Color(0xFF2E7D32),
-                        modifier = Modifier.size(18.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Call",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1565C0)
                     )
                 }
             }
