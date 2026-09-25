@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -39,9 +41,11 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Plumbing
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.WorkOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,6 +54,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -70,12 +75,16 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -117,7 +126,8 @@ data class UIWorkerProfile(
     val rating: Double,
     val reviewsCount: Int,
     val aboutText: String,
-    val shirtColorHex: Long = 0xFF1E3A8A
+    val shirtColorHex: Long = 0xFF1E3A8A,
+    val hasYellowHelmet: Boolean = true
 )
 
 data class UIBookingItem(
@@ -167,15 +177,15 @@ fun CustomerDashboardScreen(
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val defaultUserArea = remember {
-        val saved = profilePrefs.getString("user_location", "Delhi") ?: "Delhi"
-        saved.split(",").firstOrNull()?.trim()?.ifBlank { "Delhi" } ?: "Delhi"
+        val saved = profilePrefs.getString("user_location", "Silwani") ?: "Silwani"
+        saved.split(",").firstOrNull()?.trim()?.ifBlank { "Silwani" } ?: "Silwani"
     }
 
-    // Sub-screen navigation matching screens 3, 5, 6, 7 in the reference image
+    // Sub-screen states for Screen 5 (Worker Profile) & Screen 6 (Hire Request)
     var selectedWorkerForProfile by remember { mutableStateOf<UIWorkerProfile?>(null) }
     var selectedWorkerForHireRequest by remember { mutableStateOf<UIWorkerProfile?>(null) }
 
-    //Bookings Tab Filter: 0 = Active, 1 = Completed (Screen 7)
+    // Bookings Sub-tab: 0 = Active, 1 = Completed (Screen 7)
     var bookingsSubTab by remember { mutableIntStateOf(0) }
 
     // Hire Request Form States (Screen 6)
@@ -201,7 +211,8 @@ fun CustomerDashboardScreen(
                 rating = 4.5,
                 reviewsCount = 12,
                 aboutText = "I am a skilled electrician with 3 years of experience in home and office electrical work. I can handle wiring, switch boards, fittings and more.",
-                shirtColorHex = 0xFF1E3A8A
+                shirtColorHex = 0xFF1E3A8A,
+                hasYellowHelmet = true
             ),
             UIWorkerProfile(
                 key = "w_suresh",
@@ -215,7 +226,8 @@ fun CustomerDashboardScreen(
                 rating = 4.6,
                 reviewsCount = 18,
                 aboutText = "I am an experienced painter with 4 years of work in interior wall painting, exterior texture, putty and waterproof coating.",
-                shirtColorHex = 0xFF0F766E
+                shirtColorHex = 0xFF0F766E,
+                hasYellowHelmet = false
             ),
             UIWorkerProfile(
                 key = "w_amit",
@@ -229,7 +241,8 @@ fun CustomerDashboardScreen(
                 rating = 4.5,
                 reviewsCount = 12,
                 aboutText = "I am a skilled electrician with 3 years of experience in home and office electrical work. I can handle wiring, switch boards, fittings and more.",
-                shirtColorHex = 0xFF1D4ED8
+                shirtColorHex = 0xFF1D4ED8,
+                hasYellowHelmet = true
             ),
             UIWorkerProfile(
                 key = "w_mahesh",
@@ -243,7 +256,8 @@ fun CustomerDashboardScreen(
                 rating = 4.7,
                 reviewsCount = 15,
                 aboutText = "I am a professional mason with 5 years of experience in brickwork, wall plastering, floor tiles and RCC construction work.",
-                shirtColorHex = 0xFF374151
+                shirtColorHex = 0xFF374151,
+                hasYellowHelmet = true
             )
         )
     }
@@ -252,7 +266,7 @@ fun CustomerDashboardScreen(
         mutableStateListOf(
             UIBookingItem(
                 id = 201L,
-                worker = workersList[0], // Ramesh Kumar - Pending
+                worker = workersList[0],
                 workTitle = "Fix home wiring",
                 dateText = "2 Nov 2024",
                 areaText = defaultUserArea,
@@ -260,7 +274,7 @@ fun CustomerDashboardScreen(
             ),
             UIBookingItem(
                 id = 202L,
-                worker = workersList[1], // Suresh Yadav - Completed
+                worker = workersList[1],
                 workTitle = "Wall Painting Work",
                 dateText = "28 Oct 2024",
                 areaText = defaultUserArea,
@@ -268,7 +282,7 @@ fun CustomerDashboardScreen(
             ),
             UIBookingItem(
                 id = 203L,
-                worker = workersList[3], // Mahesh Singh - Completed
+                worker = workersList[3],
                 workTitle = "Brickwork & Plastering",
                 dateText = "20 Oct 2024",
                 areaText = defaultUserArea,
@@ -277,7 +291,6 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // Sync any extra live workers from Firebase while keeping the clean theme intact
     LaunchedEffect(Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -309,7 +322,8 @@ fun CustomerDashboardScreen(
                                         experienceYears = "3 years",
                                         rating = obj.optDouble("rating", 4.5),
                                         reviewsCount = 12,
-                                        aboutText = "I am a skilled ${wTrade.lowercase()} with 3 years of experience in home and commercial work. I deliver clean, reliable and timely service."
+                                        aboutText = "I am a skilled ${wTrade.lowercase()} with 3 years of experience in home and office work.",
+                                        hasYellowHelmet = true
                                     )
                                 )
                             }
@@ -328,22 +342,15 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Handle system back button cleanly across Screen 6 -> Screen 5 -> Screen 3
     BackHandler(enabled = selectedWorkerForHireRequest != null || selectedWorkerForProfile != null || activeTab != 0) {
         when {
-            selectedWorkerForHireRequest != null -> {
-                selectedWorkerForHireRequest = null
-            }
-            selectedWorkerForProfile != null -> {
-                selectedWorkerForProfile = null
-            }
-            activeTab != 0 -> {
-                onTabSelected(0)
-            }
+            selectedWorkerForHireRequest != null -> selectedWorkerForHireRequest = null
+            selectedWorkerForProfile != null -> selectedWorkerForProfile = null
+            activeTab != 0 -> onTabSelected(0)
         }
     }
 
-    // ==================== SCREEN 6: HIRE REQUEST SCREEN (EXACT MATCH TO IMAGE) ====================
+    // ==================== SCREEN 6: HIRE REQUEST SCREEN ====================
     if (selectedWorkerForHireRequest != null) {
         val workerToHire = selectedWorkerForHireRequest!!
         Column(
@@ -353,7 +360,6 @@ fun CustomerDashboardScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Top Navy Header Bar: "<- Hire Request"
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -380,7 +386,6 @@ fun CustomerDashboardScreen(
                 )
             }
 
-            // Rounded White Body Sheet
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = ThemeBgWhite,
@@ -392,7 +397,6 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 22.dp, vertical = 26.dp)
                 ) {
-                    // 1. Work Description *
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "Work Description ",
@@ -438,7 +442,6 @@ fun CustomerDashboardScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // 2. Date *
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "Date ",
@@ -483,7 +486,6 @@ fun CustomerDashboardScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // 3. Area *
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "Area ",
@@ -528,7 +530,6 @@ fun CustomerDashboardScreen(
 
                     Spacer(modifier = Modifier.height(30.dp))
 
-                    // 4. Orange "Send Request" Button
                     Button(
                         onClick = {
                             val cleanDesc = hireDescription.trim().ifBlank { "Work request for ${workerToHire.name}" }
@@ -567,7 +568,7 @@ fun CustomerDashboardScreen(
                             selectedWorkerForHireRequest = null
                             selectedWorkerForProfile = null
                             bookingsSubTab = 0
-                            onTabSelected(1) // Open My Bookings to show the newly created request
+                            onTabSelected(1)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -589,7 +590,7 @@ fun CustomerDashboardScreen(
         return
     }
 
-    // ==================== SCREEN 5: WORKER PROFILE SCREEN (EXACT MATCH TO IMAGE) ====================
+    // ==================== SCREEN 5: WORKER PROFILE SCREEN ====================
     if (selectedWorkerForProfile != null) {
         val worker = selectedWorkerForProfile!!
         Column(
@@ -599,7 +600,6 @@ fun CustomerDashboardScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Top Navy Header Bar: "<- Worker Profile"
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -626,7 +626,6 @@ fun CustomerDashboardScreen(
                 )
             }
 
-            // Rounded White Body Sheet
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = ThemeBgWhite,
@@ -643,12 +642,11 @@ fun CustomerDashboardScreen(
                             .weight(1f)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // Top Profile Row: Large Worker Avatar + Name + Trade + Rating
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            WorkerIllustratedAvatar(
+                            WorkerPortraitAvatar(
                                 size = 88.dp,
                                 shirtColor = Color(worker.shirtColorHex),
                                 showYellowHelmet = true
@@ -697,13 +695,11 @@ fun CustomerDashboardScreen(
                         HorizontalDivider(color = ThemeCardBorder, thickness = 1.dp)
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // 3-Column Info Row: Experience | Area | Daily Rate
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 1. Experience
                             Row(verticalAlignment = Alignment.Top) {
                                 Icon(
                                     imageVector = Icons.Default.WorkOutline,
@@ -729,7 +725,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 2. Area
                             Row(verticalAlignment = Alignment.Top) {
                                 Icon(
                                     imageVector = Icons.Default.LocationOn,
@@ -755,7 +750,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 3. Daily Rate
                             Row(verticalAlignment = Alignment.Top) {
                                 Icon(
                                     imageVector = Icons.Default.Build,
@@ -786,7 +780,6 @@ fun CustomerDashboardScreen(
                         HorizontalDivider(color = ThemeCardBorder, thickness = 1.dp)
                         Spacer(modifier = Modifier.height(22.dp))
 
-                        // About Section
                         Text(
                             text = "About",
                             fontSize = 17.sp,
@@ -802,26 +795,48 @@ fun CustomerDashboardScreen(
                         )
                     }
 
-                    // Bottom Full-Width Orange "Hire" Button
-                    Button(
-                        onClick = {
-                            hireDescription = "Need ${worker.trade.lowercase()} work from ${worker.name}."
-                            hireArea = worker.area
-                            selectedWorkerForHireRequest = worker
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ThemeOrange),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "Hire",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}")))
+                                } catch (_: Exception) {
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.5.dp, ThemeNavyBlue)
+                        ) {
+                            Icon(Icons.Default.Phone, contentDescription = null, tint = ThemeNavyBlue, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Call", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ThemeNavyBlue)
+                        }
+
+                        Button(
+                            onClick = {
+                                hireDescription = "Need ${worker.trade.lowercase()} work from ${worker.name}."
+                                hireArea = worker.area
+                                selectedWorkerForHireRequest = worker
+                            },
+                            modifier = Modifier
+                                .weight(2f)
+                                .height(52.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemeOrange),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                        ) {
+                            Text(
+                                text = "Hire",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -865,11 +880,11 @@ fun CustomerDashboardScreen(
         if (activeTab == 0) {
             // ==================== SCREEN 3: CUSTOMER HOME ====================
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Navy Header: "Workora" + Search Icon
+                // Top Navy Header: "Workora" + Role Switch + Search Icon
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                        .padding(horizontal = 20.dp, vertical = 15.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -879,21 +894,52 @@ fun CustomerDashboardScreen(
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
-                    IconButton(
-                        onClick = {
-                            try {
-                                searchFocusRequester.requestFocus()
-                            } catch (_: Exception) {
-                            }
-                        },
-                        modifier = Modifier.size(36.dp)
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Surface(
+                            onClick = onSwitchRole,
+                            color = Color.White.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SwapHoriz,
+                                    contentDescription = "Switch Role",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Worker Mode",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                try {
+                                    searchFocusRequester.requestFocus()
+                                } catch (_: Exception) {
+                                }
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = Color.White,
+                                modifier = Modifier.size(23.dp)
+                            )
+                        }
                     }
                 }
 
@@ -908,9 +954,9 @@ fun CustomerDashboardScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 18.dp, vertical = 20.dp)
-                            .padding(bottom = 84.dp)
+                            .padding(bottom = 110.dp)
                     ) {
-                        // 1. Search Bar: "Search for workers (e.g. painter, electrician...)"
+                        // 1. Search Bar
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChanged,
@@ -995,7 +1041,7 @@ fun CustomerDashboardScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Row 2 of Categories (3 items: Carpenter, Cleaner, General Labour + spacer to match 4-column width)
+                        // Row 2 of Categories (3 items: Carpenter, Cleaner, General Labour)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1012,7 +1058,7 @@ fun CustomerDashboardScreen(
                                     }
                                 )
                             }
-                            Spacer(modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.weight(0.65f))
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
@@ -1027,14 +1073,13 @@ fun CustomerDashboardScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 4. Available Workers Cards List (Clicking card opens Worker Profile Screen 5!)
+                        // 4. Available Workers Cards List
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             filteredWorkers.forEach { worker ->
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            // Clicking anywhere on the worker card opens their full Worker Profile (Screen 5)
                                             selectedWorkerForProfile = worker
                                         },
                                     shape = RoundedCornerShape(16.dp),
@@ -1048,16 +1093,14 @@ fun CustomerDashboardScreen(
                                             .padding(14.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Worker Illustrated Avatar
-                                        WorkerIllustratedAvatar(
+                                        WorkerPortraitAvatar(
                                             size = 64.dp,
                                             shirtColor = Color(worker.shirtColorHex),
-                                            showYellowHelmet = false
+                                            showYellowHelmet = worker.hasYellowHelmet
                                         )
 
                                         Spacer(modifier = Modifier.width(14.dp))
 
-                                        // Worker Name, Skill, Location + Rate
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = worker.name,
@@ -1108,10 +1151,8 @@ fun CustomerDashboardScreen(
 
                                         Spacer(modifier = Modifier.width(8.dp))
 
-                                        // Right Orange "Hire" Button
                                         Button(
                                             onClick = {
-                                                // Opens Worker Profile / Hire flow
                                                 selectedWorkerForProfile = worker
                                             },
                                             shape = RoundedCornerShape(8.dp),
@@ -1134,14 +1175,13 @@ fun CustomerDashboardScreen(
                 }
             }
         } else {
-            // ==================== SCREEN 7: MY BOOKINGS (ACTIVE / COMPLETED TABS) ====================
+            // ==================== SCREEN 7: MY BOOKINGS ====================
             val displayedBookings = bookingsList.filter { item ->
                 if (bookingsSubTab == 0) item.status.equals("Pending", ignoreCase = true)
                 else item.status.equals("Completed", ignoreCase = true)
             }
 
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Navy Header: "My Bookings"
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1156,7 +1196,6 @@ fun CustomerDashboardScreen(
                     )
                 }
 
-                // Rounded White Sheet
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = ThemeBgWhite,
@@ -1167,7 +1206,6 @@ fun CustomerDashboardScreen(
                             .fillMaxSize()
                             .padding(top = 8.dp)
                     ) {
-                        // Active | Completed Underline Tabs (Exact match to Screen 7)
                         Row(modifier = Modifier.fillMaxWidth()) {
                             listOf("Active", "Completed").forEachIndexed { index, title ->
                                 val isSelected = bookingsSubTab == index
@@ -1196,13 +1234,12 @@ fun CustomerDashboardScreen(
                         }
                         HorizontalDivider(color = ThemeCardBorder, thickness = 1.dp)
 
-                        // Bookings List
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 18.dp, vertical = 18.dp)
-                                .padding(bottom = 84.dp),
+                                .padding(bottom = 110.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             val listToShow = if (displayedBookings.isEmpty()) bookingsList else displayedBookings
@@ -1212,7 +1249,6 @@ fun CustomerDashboardScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            // Clicking any booking card also opens that Worker's Profile!
                                             selectedWorkerForProfile = booking.worker
                                         },
                                     shape = RoundedCornerShape(16.dp),
@@ -1229,10 +1265,10 @@ fun CustomerDashboardScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            WorkerIllustratedAvatar(
+                                            WorkerPortraitAvatar(
                                                 size = 60.dp,
                                                 shirtColor = Color(booking.worker.shirtColorHex),
-                                                showYellowHelmet = false
+                                                showYellowHelmet = booking.worker.hasYellowHelmet
                                             )
                                             Spacer(modifier = Modifier.width(14.dp))
                                             Column(modifier = Modifier.weight(1f)) {
@@ -1321,7 +1357,6 @@ fun CustomerDashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Home Tab
                 val isHomeSelected = activeTab == 0
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1345,7 +1380,6 @@ fun CustomerDashboardScreen(
                     )
                 }
 
-                // 2. Bookings Tab
                 val isBookingsSelected = activeTab == 1
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1369,7 +1403,6 @@ fun CustomerDashboardScreen(
                     )
                 }
 
-                // 3. Profile Tab
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -1405,7 +1438,7 @@ private fun CategoryTileCard(
 ) {
     Card(
         modifier = modifier
-            .height(92.dp)
+            .height(94.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
@@ -1417,7 +1450,7 @@ private fun CategoryTileCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -1435,25 +1468,25 @@ private fun CategoryTileCard(
                     modifier = Modifier.size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(7.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = item.name,
-                fontSize = 11.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = ThemeDarkHeading,
+                textAlign = TextAlign.Center,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Visible
             )
         }
     }
 }
 
 /**
- * Draws a clean, realistic illustrated worker avatar (with optional yellow safety helmet)
- * matching the worker photos in Screens 3, 4, 5, and 7 of the reference image.
+ * Clean, natural and professional Worker Portrait Avatar (fixes the dark mouth shape from earlier)
  */
 @Composable
-private fun WorkerIllustratedAvatar(
+private fun WorkerPortraitAvatar(
     size: Dp,
     shirtColor: Color,
     showYellowHelmet: Boolean
@@ -1462,101 +1495,121 @@ private fun WorkerIllustratedAvatar(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color(0xFFE2E8F0))
-            .border(1.dp, Color(0xFFCBD5E1), CircleShape),
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFFE2E8F0), Color(0xFFCBD5E1))
+                )
+            )
+            .border(1.5.dp, Color.White, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = this.size.width
             val h = this.size.height
 
-            // 1. Shoulders / Shirt
+            // 1. Shoulders & Work Jacket
             drawArc(
                 color = shirtColor,
                 startAngle = 180f,
                 sweepAngle = 180f,
                 useCenter = true,
-                topLeft = Offset(w * 0.12f, h * 0.62f),
-                size = Size(w * 0.76f, h * 0.65f)
+                topLeft = Offset(w * 0.10f, h * 0.64f),
+                size = Size(w * 0.80f, h * 0.62f)
             )
 
-            // Overalls straps for worker look
-            drawRoundRect(
-                color = Color(0xFF0F172A).copy(alpha = 0.35f),
-                topLeft = Offset(w * 0.30f, h * 0.66f),
-                size = Size(w * 0.08f, h * 0.34f),
-                cornerRadius = CornerRadius(4f, 4f)
-            )
-            drawRoundRect(
-                color = Color(0xFF0F172A).copy(alpha = 0.35f),
-                topLeft = Offset(w * 0.62f, h * 0.66f),
-                size = Size(w * 0.08f, h * 0.34f),
-                cornerRadius = CornerRadius(4f, 4f)
-            )
+            // White Inner T-Shirt V-Neck
+            val collarPath = Path().apply {
+                moveTo(w * 0.38f, h * 0.65f)
+                lineTo(w * 0.50f, h * 0.79f)
+                lineTo(w * 0.62f, h * 0.65f)
+                close()
+            }
+            drawPath(path = collarPath, color = Color.White)
 
             // 2. Neck
             drawRoundRect(
-                color = Color(0xFFD99B66),
-                topLeft = Offset(w * 0.42f, h * 0.50f),
-                size = Size(w * 0.16f, h * 0.16f),
+                color = Color(0xFFD69A6A),
+                topLeft = Offset(w * 0.41f, h * 0.52f),
+                size = Size(w * 0.18f, h * 0.16f),
                 cornerRadius = CornerRadius(8f, 8f)
             )
 
-            // 3. Face
+            // 3. Ears
             drawCircle(
-                color = Color(0xFFE5A975),
-                radius = w * 0.21f,
-                center = Offset(w * 0.5f, h * 0.39f)
+                color = Color(0xFFD69A6A),
+                radius = w * 0.045f,
+                center = Offset(w * 0.28f, h * 0.42f)
+            )
+            drawCircle(
+                color = Color(0xFFD69A6A),
+                radius = w * 0.045f,
+                center = Offset(w * 0.72f, h * 0.42f)
             )
 
-            // 4. Beard / Mustache detail
+            // 4. Natural Face Oval
+            drawOval(
+                color = Color(0xFFE6AC7E),
+                topLeft = Offset(w * 0.29f, h * 0.23f),
+                size = Size(w * 0.42f, h * 0.38f)
+            )
+
+            // 5. Eyes & Eyebrows
+            drawCircle(
+                color = Color(0xFF1E293B),
+                radius = w * 0.022f,
+                center = Offset(w * 0.42f, h * 0.40f)
+            )
+            drawCircle(
+                color = Color(0xFF1E293B),
+                radius = w * 0.022f,
+                center = Offset(w * 0.58f, h * 0.40f)
+            )
+
+            // Neat Mustache & Gentle Smile Stroke (Not filled!)
             drawArc(
-                color = Color(0xFF1F2937),
-                startAngle = 15f,
-                sweepAngle = 150f,
+                color = Color(0xFF334155),
+                startAngle = 25f,
+                sweepAngle = 130f,
                 useCenter = false,
-                topLeft = Offset(w * 0.33f, h * 0.31f),
-                size = Size(w * 0.34f, h * 0.26f)
-            )
-
-            // Eyes
-            drawCircle(
-                color = Color(0xFF111827),
-                radius = w * 0.022f,
-                center = Offset(w * 0.43f, h * 0.38f)
-            )
-            drawCircle(
-                color = Color(0xFF111827),
-                radius = w * 0.022f,
-                center = Offset(w * 0.57f, h * 0.38f)
+                topLeft = Offset(w * 0.42f, h * 0.46f),
+                size = Size(w * 0.16f, h * 0.07f),
+                style = Stroke(width = w * 0.026f, cap = StrokeCap.Round)
             )
 
             if (showYellowHelmet) {
-                // Yellow Safety Helmet Dome (like Amit Sharma in Screen 4 & 5)
+                // Safety Helmet Dome
                 drawArc(
                     color = Color(0xFFFACC15),
                     startAngle = 180f,
                     sweepAngle = 180f,
                     useCenter = true,
                     topLeft = Offset(w * 0.26f, h * 0.12f),
-                    size = Size(w * 0.48f, h * 0.34f)
+                    size = Size(w * 0.48f, h * 0.32f)
                 )
-                // Helmet Brim
+                // Helmet Top Ridge
+                drawRoundRect(
+                    color = Color(0xFFF59E0B),
+                    topLeft = Offset(w * 0.45f, h * 0.10f),
+                    size = Size(w * 0.10f, h * 0.15f),
+                    cornerRadius = CornerRadius(6f, 6f)
+                )
+                // Helmet Visor Brim
                 drawRoundRect(
                     color = Color(0xFFEAB308),
-                    topLeft = Offset(w * 0.23f, h * 0.27f),
-                    size = Size(w * 0.54f, h * 0.05f),
+                    topLeft = Offset(w * 0.23f, h * 0.26f),
+                    size = Size(w * 0.54f, h * 0.048f),
                     cornerRadius = CornerRadius(8f, 8f)
                 )
             } else {
-                // Dark Hair Top (like Ramesh Kumar & Suresh Yadav in Screen 3)
-                val hairPath = Path().apply {
-                    moveTo(w * 0.29f, h * 0.35f)
-                    quadraticBezierTo(w * 0.50f, h * 0.12f, w * 0.71f, h * 0.35f)
-                    quadraticBezierTo(w * 0.50f, h * 0.24f, w * 0.29f, h * 0.35f)
-                    close()
-                }
-                drawPath(path = hairPath, color = Color(0xFF1F2937))
+                // Neat Dark Hair
+                drawArc(
+                    color = Color(0xFF1E293B),
+                    startAngle = 175f,
+                    sweepAngle = 190f,
+                    useCenter = true,
+                    topLeft = Offset(w * 0.28f, h * 0.16f),
+                    size = Size(w * 0.44f, h * 0.24f)
+                )
             }
         }
     }
