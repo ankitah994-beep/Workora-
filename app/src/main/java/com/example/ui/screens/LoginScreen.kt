@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,20 +23,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -45,6 +39,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -59,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -69,13 +65,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
-import com.example.ui.components.WorkoraHelmetLogo
-import com.example.ui.theme.WorkoraBgLight
-import com.example.ui.theme.WorkoraBorder
-import com.example.ui.theme.WorkoraNavy
-import com.example.ui.theme.WorkoraOrange
-import com.example.ui.theme.WorkoraTextDark
-import com.example.ui.theme.WorkoraTextMuted
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -91,6 +80,9 @@ import kotlin.random.Random
 private const val AUTH_DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 private const val MASTER_ADMIN_EMAIL = "ankitah994@gmail.com"
 private const val MASTER_ADMIN_PHONE = "6265798340"
+
+private val LoginNavy = Color(0xFF1E1F5E)
+private val LoginOrange = Color(0xFFFF9800)
 
 data class PasswordRuleStatus(
     val hasMin8Chars: Boolean,
@@ -121,25 +113,16 @@ private fun sendOtpNotificationToPhone(context: Context, target: String, otpCode
                 channelId,
                 "Workora OTP Verification",
                 NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "6-Digit OTP for Workora Login & Registration"
-            }
+            )
             manager.createNotificationChannel(channel)
         }
-
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle("🔐 Workora Verification OTP: $otpCode")
-            .setContentText("Aapka $target ke liye 6-digit OTP $otpCode hai.")
-            .setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "Aapka Workora Account ($target) verify karne ke liye 6-digit OTP hai: $otpCode"
-                )
-            )
+            .setContentText("Your 6-digit OTP for $target is $otpCode.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
-
         manager.notify(Random.nextInt(1000, 9999), notification)
     } catch (e: Exception) {
         e.printStackTrace()
@@ -154,21 +137,15 @@ fun LoginScreen(
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
-    val appName = remember { brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA" }
-    val appTagline = remember { brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK." }
-
-    // 0 = Sign In, 1 = Mobile Registration (OTP), 2 = Reset Password via OTP (Full Card View so box never squishes!)
+    // 0 = Login, 1 = Register, 2 = Reset Password via OTP
     var activeAuthTab by remember { mutableIntStateOf(0) }
 
-    // Sign In States
     var emailOrPhone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(true) } // Visible by default so user can clearly see what they type!
+    var passwordVisible by remember { mutableStateOf(false) }
     var isVerifying by remember { mutableStateOf(false) }
 
-    // Registration States
     var regFullName by remember { mutableStateOf("") }
     var regMobileNumber by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
@@ -182,7 +159,6 @@ fun LoginScreen(
     var enteredRegOtp by remember { mutableStateOf("") }
     var isSendingOtp by remember { mutableStateOf(false) }
 
-    // Reset Password States (Full Screen Card instead of cramped dialog)
     var forgotIdentifier by remember { mutableStateOf("") }
     var forgotGeneratedOtp by remember { mutableStateOf("") }
     var forgotEnteredOtp by remember { mutableStateOf("") }
@@ -192,7 +168,6 @@ fun LoginScreen(
     var isSavingResetPass by remember { mutableStateOf(false) }
     val forgotPasswordRules = remember(forgotNewPassword) { checkWorkoraPasswordRules(forgotNewPassword) }
 
-    // Helper to save user + password reliably in BOTH Local SharedPreferences AND all matching Firebase nodes
     fun saveUserAndPasswordEverywhere(
         name: String,
         email: String,
@@ -204,7 +179,6 @@ fun LoginScreen(
         val cleanEmail = email.trim().lowercase()
         val cleanPhone = if (phoneDigits.length == 10) "+91 $phoneDigits" else "+91 $MASTER_ADMIN_PHONE"
 
-        // 1. Save locally under both email and phone so login never fails
         authPrefs.edit().apply {
             putString("user_pass_$cleanEmail", newPass)
             if (phoneDigits.length == 10) {
@@ -214,12 +188,9 @@ fun LoginScreen(
             apply()
         }
 
-        // 2. Save to Firebase Cloud and update any existing matching record
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val safeKey = cleanEmail.replace(".", "_").replace("@", "_at_").replace(" ", "_")
-
-                // Also check if another key in /users has the same email or phone and update its password too!
                 val getConn = (URL("$AUTH_DB_URL/users.json").openConnection() as HttpURLConnection)
                 val keysToUpdate = mutableSetOf(safeKey)
                 if (getConn.responseCode in 200..299) {
@@ -263,10 +234,7 @@ fun LoginScreen(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-
-            withContext(Dispatchers.Main) {
-                onComplete()
-            }
+            withContext(Dispatchers.Main) { onComplete() }
         }
     }
 
@@ -275,11 +243,7 @@ fun LoginScreen(
         val otp = Random.nextInt(100000, 999999).toString()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val safeKey = targetIdentifier.lowercase()
-                    .replace(".", "_")
-                    .replace("@", "_at_")
-                    .replace("+", "")
-                    .replace(" ", "_")
+                val safeKey = targetIdentifier.lowercase().replace(".", "_").replace("@", "_at_").replace("+", "").replace(" ", "_")
                 val conn = (URL("$AUTH_DB_URL/otps/$safeKey.json").openConnection() as HttpURLConnection).apply {
                     requestMethod = "PUT"
                     setRequestProperty("Content-Type", "application/json")
@@ -296,15 +260,10 @@ fun LoginScreen(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-
             withContext(Dispatchers.Main) {
                 isSendingOtp = false
                 sendOtpNotificationToPhone(context, targetIdentifier, otp)
-                Toast.makeText(
-                    context,
-                    "📩 6-Digit OTP Sent: $otp",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(context, "📩 6-Digit OTP Sent: $otp", Toast.LENGTH_LONG).show()
                 onOtpReady(otp)
             }
         }
@@ -315,18 +274,17 @@ fun LoginScreen(
         val inputDigits = rawIdentifier.filter { it.isDigit() }.takeLast(10)
         val isMasterAdminInput = rawIdentifier == MASTER_ADMIN_EMAIL || inputDigits == MASTER_ADMIN_PHONE
 
-        // Check local saved password first (instant match if user just registered or reset password on this phone)
         val localSavedByEmail = authPrefs.getString("user_pass_$rawIdentifier", null)
         val localSavedByPhone = if (inputDigits.length == 10) authPrefs.getString("user_pass_$inputDigits", null) else null
         val localSavedMaster = if (isMasterAdminInput) authPrefs.getString("user_pass_$MASTER_ADMIN_EMAIL", null) else null
 
         CoroutineScope(Dispatchers.IO).launch {
             var matchedEmail = if (isMasterAdminInput) MASTER_ADMIN_EMAIL else rawIdentifier
-            var matchedName = if (isMasterAdminInput) "Ankit Ahirwar" else (profilePrefs.getString("user_name", "User") ?: "User")
+            var matchedName = if (isMasterAdminInput) "Ankit Ahirwar" else (profilePrefs.getString("user_name", "Rahul") ?: "Rahul")
             var matchedPhone = if (inputDigits.length == 10) "+91 $inputDigits" else "+91 $MASTER_ADMIN_PHONE"
             var matchedRole = if (isMasterAdminInput) "ADMIN" else "CUSTOMER"
             var matchedStatus = "ACTIVE"
-            var cloudPasswords = mutableListOf<String>()
+            val cloudPasswords = mutableListOf<String>()
             var userFoundInCloud = false
 
             try {
@@ -355,9 +313,7 @@ fun LoginScreen(
                                 matchedRole = obj.optString("role", matchedRole)
                                 matchedStatus = obj.optString("accountStatus", "ACTIVE")
                                 val cPass = obj.optString("password", "")
-                                if (cPass.isNotBlank()) {
-                                    cloudPasswords.add(cPass)
-                                }
+                                if (cPass.isNotBlank()) cloudPasswords.add(cPass)
                             }
                         }
                     }
@@ -369,24 +325,18 @@ fun LoginScreen(
 
             withContext(Dispatchers.Main) {
                 isVerifying = false
-
                 val hasAnyLocalAccount = localSavedByEmail != null || localSavedByPhone != null || localSavedMaster != null
 
                 if (!userFoundInCloud && !hasAnyLocalAccount) {
-                    Toast.makeText(
-                        context,
-                        "❌ Account nahi mila! Pehle 'Mobile Registration' tab se ya 'Forgot Password' se अपना Password set karein.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(context, "❌ Account not found! Please Register or Reset Password via OTP.", Toast.LENGTH_LONG).show()
                     return@withContext
                 }
 
                 if (matchedStatus.equals("BLOCKED", ignoreCase = true)) {
-                    Toast.makeText(context, "🚫 Aapka account Block kiya gaya hai!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "🚫 Account Blocked by Admin!", Toast.LENGTH_LONG).show()
                     return@withContext
                 }
 
-                // Verify Password strictly against either updated Local Password or Cloud Password
                 val isPasswordCorrect = when {
                     localSavedByEmail != null && localSavedByEmail == enteredPass -> true
                     localSavedByPhone != null && localSavedByPhone == enteredPass -> true
@@ -396,11 +346,7 @@ fun LoginScreen(
                 }
 
                 if (!isPasswordCorrect) {
-                    Toast.makeText(
-                        context,
-                        "❌ Galat Password! Kripya sahi password dalein ya niche 'Forgot Password (OTP)' se naya password banayein.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(context, "❌ Wrong Password! Tap 'Forgot Password?' below to reset.", Toast.LENGTH_LONG).show()
                     return@withContext
                 }
 
@@ -427,829 +373,562 @@ fun LoginScreen(
                     .putString("user_phone", matchedPhone)
                     .apply()
 
-                Toast.makeText(
-                    context,
-                    if (isMasterAdmin) "✅ Welcome Super Admin $matchedName!" else "✅ Welcome $matchedName!",
-                    Toast.LENGTH_SHORT
-                ).show()
-
                 onLogin(matchedEmail, enteredPass)
             }
         }
     }
 
-    // imePadding() + Arrangement.Top ensures screen automatically scrolls up above the keyboard when typing!
+    // Main White Login Screen (Exact match to Photo Screen 3)
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(WorkoraBgLight)
+            .background(Color.White)
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.Start
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        IconButton(
+            onClick = { if (activeAuthTab != 0) activeAuthTab = 0 },
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color(0xFF1F2937))
+        }
 
-        WorkoraHelmetLogo(size = 56.dp, showHalo = false)
-
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = appName,
-            fontSize = 22.sp,
+            text = if (activeAuthTab == 1) "Create Account 👋" else if (activeAuthTab == 2) "Reset Password 🔐" else "Welcome Back 👋",
+            fontSize = 26.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = WorkoraNavy,
-            letterSpacing = 1.5.sp
+            color = Color(0xFF111827)
         )
+
+        Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = appTagline,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = WorkoraOrange,
-            letterSpacing = 1.2.sp
+            text = if (activeAuthTab == 1) "Register with OTP verification" else "Login to continue",
+            fontSize = 14.sp,
+            color = Color(0xFF6B7280)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        // Top Switch Buttons: "Log In / Sign In" vs "Mobile Registration"
+        // Clean Underline Tabs: "Login" | "Register" (Exact match to Photo Screen 3)
         if (activeAuthTab != 2) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = { activeAuthTab = 0 },
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (activeAuthTab == 0) WorkoraNavy else Color.White
-                    ),
-                    border = BorderStroke(1.dp, if (activeAuthTab == 0) WorkoraNavy else WorkoraBorder),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { activeAuthTab = 0 },
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Log In / Sign In",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (activeAuthTab == 0) Color.White else WorkoraNavy
+                        text = "Login",
+                        fontSize = 16.sp,
+                        fontWeight = if (activeAuthTab == 0) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (activeAuthTab == 0) LoginNavy else Color(0xFF9CA3AF),
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    HorizontalDivider(
+                        thickness = if (activeAuthTab == 0) 2.5.dp else 1.dp,
+                        color = if (activeAuthTab == 0) LoginNavy else Color(0xFFE5E7EB)
                     )
                 }
 
-                Button(
-                    onClick = { activeAuthTab = 1 },
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (activeAuthTab == 1) WorkoraOrange else Color.White
-                    ),
-                    border = BorderStroke(1.dp, if (activeAuthTab == 1) WorkoraOrange else WorkoraBorder),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { activeAuthTab = 1 },
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Mobile Registration",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (activeAuthTab == 1) Color.White else WorkoraOrange
+                        text = "Register",
+                        fontSize = 16.sp,
+                        fontWeight = if (activeAuthTab == 1) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (activeAuthTab == 1) LoginNavy else Color(0xFF9CA3AF),
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    HorizontalDivider(
+                        thickness = if (activeAuthTab == 1) 2.5.dp else 1.dp,
+                        color = if (activeAuthTab == 1) LoginNavy else Color(0xFFE5E7EB)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // ==================== TAB 0: SIGN IN CARD ====================
+        // ==================== TAB 0: LOGIN VIEW ====================
         if (activeAuthTab == 0) {
-            Card(
+            Text("Mobile Number or Email", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF4B5563))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            OutlinedTextField(
+                value = emailOrPhone,
+                onValueChange = { emailOrPhone = it },
+                placeholder = { Text("98765 43210 or email", color = Color(0xFF9CA3AF)) },
+                leadingIcon = {
+                    Text(
+                        text = "+91",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937),
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp)
+                    )
+                },
+                textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = LoginNavy,
+                    unfocusedBorderColor = Color(0xFFE5E7EB),
+                    focusedContainerColor = Color(0xFFF9FAFB),
+                    unfocusedContainerColor = Color(0xFFF9FAFB)
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("Password", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF4B5563))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                placeholder = { Text("••••••••••", color = Color(0xFF9CA3AF)) },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = "Toggle Password",
+                            tint = Color(0xFF6B7280)
+                        )
+                    }
+                },
+                textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                singleLine = true,
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = LoginNavy,
+                    unfocusedBorderColor = Color(0xFFE5E7EB),
+                    focusedContainerColor = Color(0xFFF9FAFB),
+                    unfocusedContainerColor = Color(0xFFF9FAFB)
+                )
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    text = "Forgot Password?",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = LoginNavy,
+                    modifier = Modifier.clickable {
+                        forgotIdentifier = emailOrPhone
+                        isForgotOtpSent = false
+                        forgotEnteredOtp = ""
+                        forgotNewPassword = ""
+                        activeAuthTab = 2
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = {
+                    val rawInput = emailOrPhone.trim().lowercase()
+                    val cleanPass = password.trim()
+                    if (rawInput.isBlank() || cleanPass.isBlank()) {
+                        Toast.makeText(context, "Please enter Mobile Number/Email and Password!", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    performStrictCloudLogin(rawInput, cleanPass)
+                },
+                enabled = !isVerifying,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = LoginNavy)
+            ) {
+                if (isVerifying) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                } else {
+                    Text("Login", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // "or continue with" Divider (Exact match to Photo Screen 3)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
+                Text(
+                    text = "  or continue with  ",
+                    fontSize = 13.sp,
+                    color = Color(0xFF6B7280)
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Circular Google & Phone OTP Buttons (Exact match to Photo Screen 3)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        emailOrPhone = MASTER_ADMIN_EMAIL
+                        Toast.makeText(context, "Enter your password or tap Phone OTP", Toast.LENGTH_SHORT).show()
+                    }
                 ) {
-                    Text(
-                        text = "Sign In to Your Account",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WorkoraTextDark
-                    )
-                    Text(
-                        text = "Apna registered Mobile Number ya Email aur sahi Password daal kar Log In karein",
-                        fontSize = 11.sp,
-                        color = WorkoraTextMuted
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF9FAFB)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("G", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFEA4335))
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Google", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF4B5563))
+                }
 
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        forgotIdentifier = emailOrPhone
+                        isForgotOtpSent = false
+                        activeAuthTab = 2
+                    }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF9FAFB)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = "Phone OTP", tint = LoginNavy, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Phone OTP", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF4B5563))
+                }
+            }
+        }
+
+        // ==================== TAB 1: REGISTER WITH PRACTICAL PASSWORD RULES + OTP ====================
+        if (activeAuthTab == 1) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = regFullName,
+                    onValueChange = { regFullName = it },
+                    label = { Text("Full Name") },
+                    textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    singleLine = true,
+                    enabled = !isRegOtpSent,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = regMobileNumber,
+                    onValueChange = { regMobileNumber = it },
+                    label = { Text("Mobile Number (+91)") },
+                    textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    singleLine = true,
+                    enabled = !isRegOtpSent,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = regEmail,
+                    onValueChange = { regEmail = it },
+                    label = { Text("Email ID (Optional)") },
+                    textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    singleLine = true,
+                    enabled = !isRegOtpSent,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = regVillageCity,
+                    onValueChange = { regVillageCity = it },
+                    label = { Text("City / Village") },
+                    textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    singleLine = true,
+                    enabled = !isRegOtpSent,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = regPassword,
+                    onValueChange = { regPassword = it },
+                    label = { Text("Create Password (8+ chars, 1 letter, 1 number)") },
+                    trailingIcon = {
+                        IconButton(onClick = { regPasswordVisible = !regPasswordVisible }) {
+                            Icon(
+                                imageVector = if (regPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = LoginNavy
+                            )
+                        }
+                    },
+                    textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    visualTransformation = if (regPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    enabled = !isRegOtpSent,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                    border = BorderStroke(1.dp, if (regPasswordRules.isMandatoryValid) Color(0xFF16A34A) else Color(0xFFE5E7EB))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        PasswordRuleRow("Minimum 8 characters", regPasswordRules.hasMin8Chars, false)
+                        PasswordRuleRow("At least 1 letter (A-Z / a-z)", regPasswordRules.hasLetter, false)
+                        PasswordRuleRow("At least 1 number (0-9)", regPasswordRules.hasNumber, false)
+                        PasswordRuleRow("Special character (@, #, $) — Optional", regPasswordRules.hasSpecialChar, true)
+                    }
+                }
+
+                if (!isRegOtpSent) {
+                    Button(
+                        onClick = {
+                            val cleanName = regFullName.trim()
+                            val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
+                            if (cleanName.isBlank() || digits.length < 10) {
+                                Toast.makeText(context, "Enter Name and 10-digit Mobile Number!", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (!regPasswordRules.isMandatoryValid) {
+                                Toast.makeText(context, "Password must have 8+ chars, 1 letter & 1 number!", Toast.LENGTH_LONG).show()
+                                return@Button
+                            }
+                            generateAndSendOtp("+91 $digits") { otp ->
+                                generatedRegOtp = otp
+                                enteredRegOtp = ""
+                                isRegOtpSent = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = LoginNavy)
+                    ) {
+                        Text("Send 6-Digit OTP", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                } else {
                     OutlinedTextField(
-                        value = emailOrPhone,
-                        onValueChange = { emailOrPhone = it },
-                        label = { Text("Mobile Number or Email ID") },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange) },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                        value = enteredRegOtp,
+                        onValueChange = { if (it.length <= 6) enteredRegOtp = it.filter { c -> c.isDigit() } },
+                        label = { Text("Enter 6-Digit OTP") },
+                        textStyle = TextStyle(color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            if (enteredRegOtp.trim() != generatedRegOtp || generatedRegOtp.isBlank()) {
+                                Toast.makeText(context, "❌ Invalid OTP!", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            val cleanName = regFullName.trim()
+                            val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
+                            val cleanPass = regPassword.trim()
+                            val cleanRegEmail = regEmail.trim().lowercase()
+                            val isMasterAdminReg = cleanRegEmail == MASTER_ADMIN_EMAIL || digits == MASTER_ADMIN_PHONE
+                            val finalEmail = if (isMasterAdminReg) MASTER_ADMIN_EMAIL else if (cleanRegEmail.contains("@")) cleanRegEmail else "${digits}@workora.in"
+                            val assignedRole = if (isMasterAdminReg) "ADMIN" else "CUSTOMER"
+
+                            saveUserAndPasswordEverywhere(cleanName, finalEmail, digits, cleanPass, assignedRole) {
+                                authPrefs.edit().apply {
+                                    putBoolean("is_logged_in", true)
+                                    putString("last_logged_in_email", finalEmail)
+                                    if (isMasterAdminReg) putString("saved_user_role", "ADMIN") else remove("saved_user_role")
+                                    apply()
+                                }
+                                profilePrefs.edit()
+                                    .putString("user_name", cleanName)
+                                    .putString("user_phone", "+91 $digits")
+                                    .putString("user_location", regVillageCity.trim())
+                                    .apply()
+                                onLogin(finalEmail, cleanPass)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = WorkoraOrange,
-                            unfocusedBorderColor = WorkoraBorder,
-                            focusedTextColor = WorkoraTextDark,
-                            unfocusedTextColor = WorkoraTextDark
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                    ) {
+                        Text("Verify OTP & Register ✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                }
+            }
+        }
+
+        // ==================== TAB 2: RESET PASSWORD VIA OTP ====================
+        if (activeAuthTab == 2) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = forgotIdentifier,
+                    onValueChange = { forgotIdentifier = it },
+                    label = { Text("Mobile Number or Email ID") },
+                    textStyle = TextStyle(color = Color(0xFF111827), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    singleLine = true,
+                    enabled = !isForgotOtpSent,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                if (!isForgotOtpSent) {
+                    Button(
+                        onClick = {
+                            if (forgotIdentifier.trim().length < 5) {
+                                Toast.makeText(context, "Enter valid Mobile Number or Email!", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            generateAndSendOtp(forgotIdentifier.trim()) { otp ->
+                                forgotGeneratedOtp = otp
+                                isForgotOtpSent = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = LoginNavy)
+                    ) {
+                        Text("Send 6-Digit OTP", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = forgotEnteredOtp,
+                        onValueChange = { if (it.length <= 6) forgotEnteredOtp = it.filter { c -> c.isDigit() } },
+                        label = { Text("Enter 6-Digit OTP") },
+                        textStyle = TextStyle(color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Enter Password (पासवर्ड)") },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
+                        value = forgotNewPassword,
+                        onValueChange = { forgotNewPassword = it },
+                        label = { Text("Enter New Password (e.g. Ankit123)") },
                         trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            IconButton(onClick = { forgotPasswordVisible = !forgotPasswordVisible }) {
                                 Icon(
-                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = "Show/Hide Password",
-                                    tint = WorkoraOrange
+                                    imageVector = if (forgotPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = LoginNavy
                                 )
                             }
                         },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                        textStyle = TextStyle(color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+                        visualTransformation = if (forgotPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         singleLine = true,
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = WorkoraOrange,
-                            unfocusedBorderColor = WorkoraBorder,
-                            focusedTextColor = WorkoraTextDark,
-                            unfocusedTextColor = WorkoraTextDark
-                        )
+                        shape = RoundedCornerShape(12.dp)
                     )
 
-                    Row(
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB))
                     ) {
-                        Text(
-                            text = "Forgot Password? (OTP से नया पासवर्ड बनाएं)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = WorkoraOrange,
-                            modifier = Modifier.clickable {
-                                forgotIdentifier = emailOrPhone
-                                isForgotOtpSent = false
-                                forgotEnteredOtp = ""
-                                forgotNewPassword = ""
-                                activeAuthTab = 2
-                            }
-                        )
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            PasswordRuleRow("Minimum 8 characters", forgotPasswordRules.hasMin8Chars, false)
+                            PasswordRuleRow("At least 1 letter & 1 number", forgotPasswordRules.hasLetter && forgotPasswordRules.hasNumber, false)
+                            PasswordRuleRow("Special character — Optional", forgotPasswordRules.hasSpecialChar, true)
+                        }
                     }
 
                     Button(
                         onClick = {
-                            val rawInput = emailOrPhone.trim().lowercase()
-                            val cleanPass = password.trim()
-
-                            if (rawInput.isBlank() || cleanPass.isBlank()) {
-                                Toast.makeText(context, "Kripya Mobile Number/Email aur Password dalein!", Toast.LENGTH_SHORT).show()
+                            if (forgotEnteredOtp.trim() != forgotGeneratedOtp || forgotGeneratedOtp.isBlank()) {
+                                Toast.makeText(context, "❌ Wrong OTP!", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
+                            if (!forgotPasswordRules.isMandatoryValid) {
+                                Toast.makeText(context, "❌ Password must have 8+ chars, 1 letter & 1 number!", Toast.LENGTH_LONG).show()
+                                return@Button
+                            }
+                            isSavingResetPass = true
+                            val rawTarget = forgotIdentifier.trim().lowercase()
+                            val digits = rawTarget.filter { it.isDigit() }.takeLast(10)
+                            val isMaster = rawTarget == MASTER_ADMIN_EMAIL || rawTarget.contains("ankitah994") || digits == MASTER_ADMIN_PHONE
+                            val targetEmail = if (isMaster) MASTER_ADMIN_EMAIL else if (rawTarget.contains("@")) rawTarget else "${digits}@workora.in"
+                            val cleanNewPass = forgotNewPassword.trim()
 
-                            performStrictCloudLogin(rawInput, cleanPass)
-                        },
-                        enabled = !isVerifying,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraNavy)
-                    ) {
-                        if (isVerifying) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
-                            Text(
-                                text = "Verify Password & Log In ✓",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // ==================== TAB 1: MOBILE REGISTRATION WITH PRACTICAL PASSWORD RULES + OTP ====================
-        if (activeAuthTab == 1) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "New Registration (OTP Verification)",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WorkoraNavy
-                    )
-
-                    OutlinedTextField(
-                        value = regFullName,
-                        onValueChange = { regFullName = it },
-                        label = { Text("Full Name (आपका पूरा नाम)") },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange) },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                        singleLine = true,
-                        enabled = !isRegOtpSent,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = regMobileNumber,
-                        onValueChange = { regMobileNumber = it },
-                        label = { Text("Mobile Number (10-Digit Number)") },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange) },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                        singleLine = true,
-                        enabled = !isRegOtpSent,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = regEmail,
-                        onValueChange = { regEmail = it },
-                        label = { Text("Gmail / Email ID") },
-                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = WorkoraOrange) },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                        singleLine = true,
-                        enabled = !isRegOtpSent,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = regVillageCity,
-                        onValueChange = { regVillageCity = it },
-                        label = { Text("Village / City (गाँव या शहर)") },
-                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange) },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                        singleLine = true,
-                        enabled = !isRegOtpSent,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = regPassword,
-                        onValueChange = { regPassword = it },
-                        label = { Text("Create Password (e.g. Ankit123)") },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
-                        trailingIcon = {
-                            IconButton(onClick = { regPasswordVisible = !regPasswordVisible }) {
-                                Icon(
-                                    imageVector = if (regPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = "Show/Hide Password",
-                                    tint = WorkoraOrange
-                                )
+                            saveUserAndPasswordEverywhere(
+                                name = if (isMaster) "Ankit Ahirwar" else (profilePrefs.getString("user_name", "Rahul") ?: "Rahul"),
+                                email = targetEmail,
+                                phoneDigits = if (digits.length == 10) digits else MASTER_ADMIN_PHONE,
+                                newPass = cleanNewPass,
+                                role = if (isMaster) "ADMIN" else "CUSTOMER"
+                            ) {
+                                isSavingResetPass = false
+                                emailOrPhone = targetEmail
+                                password = cleanNewPass
+                                activeAuthTab = 0
+                                Toast.makeText(context, "✅ Password Saved! Tap Login now.", Toast.LENGTH_LONG).show()
                             }
                         },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                        visualTransformation = if (regPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        enabled = !isRegOtpSent,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    // Practical Password Rules Box
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSavingResetPass,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = WorkoraBgLight),
-                        border = BorderStroke(
-                            1.dp,
-                            if (regPasswordRules.isMandatoryValid) Color(0xFF16A34A) else WorkoraBorder
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
                     ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Password Rules:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
-                                Text(
-                                    text = when {
-                                        regPasswordRules.isMandatoryValid && regPasswordRules.hasSpecialChar -> "💪 Strong Password"
-                                        regPasswordRules.isMandatoryValid -> "✔ Valid Password"
-                                        else -> "❌ Rule Incomplete"
-                                    },
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (regPasswordRules.isMandatoryValid) Color(0xFF16A34A) else Color(0xFFDC2626)
-                                )
-                            }
-                            PasswordRuleRow("Minimum 8 characters (कम से कम 8 अक्षर)", regPasswordRules.hasMin8Chars, false)
-                            PasswordRuleRow("At least 1 letter (A-Z या a-z)", regPasswordRules.hasLetter, false)
-                            PasswordRuleRow("At least 1 number (0-9)", regPasswordRules.hasNumber, false)
-                            PasswordRuleRow("Special character (@, #, $) — Optional", regPasswordRules.hasSpecialChar, true)
-                        }
-                    }
-
-                    if (!isRegOtpSent) {
-                        Button(
-                            onClick = {
-                                val cleanName = regFullName.trim()
-                                val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
-
-                                if (cleanName.isBlank() || digits.length < 10) {
-                                    Toast.makeText(context, "Kripya apna Naam aur 10-digit Mobile Number dalein!", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-
-                                // Strictly block weak passwords!
-                                if (!regPasswordRules.isMandatoryValid) {
-                                    Toast.makeText(
-                                        context,
-                                        "❌ Password mein kam se kam 8 characters, 1 letter aur 1 number hona zaroori hai!",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    return@Button
-                                }
-
-                                val targetDisplay = if (regEmail.trim().contains("@")) {
-                                    "+91 $digits & ${regEmail.trim()}"
-                                } else {
-                                    "+91 $digits"
-                                }
-
-                                generateAndSendOtp(targetDisplay) { otp ->
-                                    generatedRegOtp = otp
-                                    enteredRegOtp = ""
-                                    isRegOtpSent = true
-                                }
-                            },
-                            enabled = !isSendingOtp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (regPasswordRules.isMandatoryValid) WorkoraOrange else Color(0xFF94A3B8)
-                            )
-                        ) {
-                            if (isSendingOtp) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Send 6-Digit OTP",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    } else {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                            border = BorderStroke(1.5.dp, Color(0xFF16A34A))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(
-                                    text = "📩 6-Digit OTP Sent! (Upar Notification bar mein aaya OTP dalein)",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF16A34A)
-                                )
-
-                                OutlinedTextField(
-                                    value = enteredRegOtp,
-                                    onValueChange = { if (it.length <= 6) enteredRegOtp = it.filter { c -> c.isDigit() } },
-                                    label = { Text("Enter 6-Digit OTP Code") },
-                                    leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A)) },
-                                    textStyle = TextStyle(color = WorkoraTextDark, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
-                                            generateAndSendOtp("+91 $digits") { otp ->
-                                                generatedRegOtp = otp
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f).height(46.dp),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Resend", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            if (enteredRegOtp.trim() != generatedRegOtp || generatedRegOtp.isBlank()) {
-                                                Toast.makeText(context, "❌ Galat OTP! Sahi 6-digit OTP dalein.", Toast.LENGTH_LONG).show()
-                                                return@Button
-                                            }
-                                            if (!regPasswordRules.isMandatoryValid) {
-                                                Toast.makeText(context, "❌ Password rules poore nahi hain!", Toast.LENGTH_SHORT).show()
-                                                return@Button
-                                            }
-
-                                            val cleanName = regFullName.trim()
-                                            val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
-                                            val cleanPass = regPassword.trim()
-                                            val cleanRegEmail = regEmail.trim().lowercase()
-
-                                            val isMasterAdminReg = cleanRegEmail == MASTER_ADMIN_EMAIL || digits == MASTER_ADMIN_PHONE
-                                            val finalEmail = if (isMasterAdminReg) {
-                                                MASTER_ADMIN_EMAIL
-                                            } else if (cleanRegEmail.contains("@")) {
-                                                cleanRegEmail
-                                            } else {
-                                                "${digits}@workora.in"
-                                            }
-                                            val assignedRole = if (isMasterAdminReg) "ADMIN" else "CUSTOMER"
-
-                                            saveUserAndPasswordEverywhere(
-                                                name = cleanName,
-                                                email = finalEmail,
-                                                phoneDigits = digits,
-                                                newPass = cleanPass,
-                                                role = assignedRole
-                                            ) {
-                                                authPrefs.edit().apply {
-                                                    putBoolean("is_logged_in", true)
-                                                    putString("last_logged_in_email", finalEmail)
-                                                    if (isMasterAdminReg) {
-                                                        putString("saved_user_role", "ADMIN")
-                                                        putString("saved_admin_tier", "SUPER_ADMIN")
-                                                    } else {
-                                                        remove("saved_user_role")
-                                                    }
-                                                    apply()
-                                                }
-
-                                                profilePrefs.edit()
-                                                    .putString("user_name", cleanName)
-                                                    .putString("user_phone", "+91 $digits")
-                                                    .putString("user_location", regVillageCity.trim())
-                                                    .apply()
-
-                                                Toast.makeText(context, "✅ Account Registered & Password Saved!", Toast.LENGTH_LONG).show()
-                                                onLogin(finalEmail, cleanPass)
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1.4f).height(46.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                                    ) {
-                                        Text("Verify OTP & Register ✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                                    }
-                                }
-
-                                Text(
-                                    text = "← Edit Details / Password",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = WorkoraNavy,
-                                    modifier = Modifier
-                                        .align(Alignment.CenterHorizontally)
-                                        .clickable { isRegOtpSent = false }
-                                )
-                            }
-                        }
+                        Text("Verify OTP & Save Password ✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                     }
                 }
             }
         }
 
-        // ==================== TAB 2: FULL-SIZE RESET PASSWORD CARD (NO SQUISHED TEXT BOX!) ====================
-        if (activeAuthTab == 2) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.5.dp, WorkoraOrange),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { activeAuthTab = 0 },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = WorkoraNavy)
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "🔐 Reset Password via OTP",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = WorkoraNavy
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "Apna registered Mobile Number ya Email dalein, us par 6-digit OTP aayega:",
-                        fontSize = 12.sp,
-                        color = WorkoraTextMuted
-                    )
-
-                    OutlinedTextField(
-                        value = forgotIdentifier,
-                        onValueChange = { forgotIdentifier = it },
-                        label = { Text("Mobile Number or Email ID") },
-                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = WorkoraOrange) },
-                        textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                        singleLine = true,
-                        enabled = !isForgotOtpSent,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = WorkoraOrange,
-                            unfocusedBorderColor = WorkoraBorder,
-                            focusedTextColor = WorkoraTextDark,
-                            unfocusedTextColor = WorkoraTextDark,
-                            disabledTextColor = WorkoraTextDark,
-                            disabledBorderColor = WorkoraBorder
-                        )
-                    )
-
-                    if (!isForgotOtpSent) {
-                        Button(
-                            onClick = {
-                                val cleanTarget = forgotIdentifier.trim()
-                                if (cleanTarget.length < 5) {
-                                    Toast.makeText(context, "Kripya sahi Mobile Number ya Email dalein!", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                generateAndSendOtp(cleanTarget) { otp ->
-                                    forgotGeneratedOtp = otp
-                                    isForgotOtpSent = true
-                                }
-                            },
-                            enabled = !isSendingOtp,
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
-                        ) {
-                            Text("Send 6-Digit OTP", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                        }
-                    } else {
-                        // 1. Enter 6-Digit OTP Box (Full Height & Clear Dark Text)
-                        OutlinedTextField(
-                            value = forgotEnteredOtp,
-                            onValueChange = { if (it.length <= 6) forgotEnteredOtp = it.filter { c -> c.isDigit() } },
-                            label = { Text("Enter 6-Digit OTP") },
-                            leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A)) },
-                            textStyle = TextStyle(color = WorkoraTextDark, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF16A34A),
-                                unfocusedBorderColor = WorkoraBorder,
-                                focusedTextColor = WorkoraTextDark,
-                                unfocusedTextColor = WorkoraTextDark
-                            )
-                        )
-
-                        // 2. Enter New Password Box (Full Height, Clear Dark Text + Eye Toggle!)
-                        OutlinedTextField(
-                            value = forgotNewPassword,
-                            onValueChange = { forgotNewPassword = it },
-                            label = { Text("Enter New Password (e.g. Ankit123)") },
-                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
-                            trailingIcon = {
-                                IconButton(onClick = { forgotPasswordVisible = !forgotPasswordVisible }) {
-                                    Icon(
-                                        imageVector = if (forgotPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = "Show/Hide Password",
-                                        tint = WorkoraOrange
-                                    )
-                                }
-                            },
-                            textStyle = TextStyle(color = WorkoraTextDark, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-                            visualTransformation = if (forgotPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = WorkoraOrange,
-                                unfocusedBorderColor = WorkoraBorder,
-                                focusedTextColor = WorkoraTextDark,
-                                unfocusedTextColor = WorkoraTextDark
-                            )
-                        )
-
-                        // 3. Live Password Rules Validation Box
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = WorkoraBgLight),
-                            border = BorderStroke(
-                                1.dp,
-                                if (forgotPasswordRules.isMandatoryValid) Color(0xFF16A34A) else WorkoraBorder
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = if (forgotPasswordRules.isMandatoryValid) "✔ Password Rule Complete!" else "Password Rules (तीनों नियम पूरे करें):",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (forgotPasswordRules.isMandatoryValid) Color(0xFF16A34A) else WorkoraNavy
-                                )
-                                PasswordRuleRow("Minimum 8 characters (कम से कम 8 अक्षर)", forgotPasswordRules.hasMin8Chars, false)
-                                PasswordRuleRow("At least 1 letter (A-Z या a-z)", forgotPasswordRules.hasLetter, false)
-                                PasswordRuleRow("At least 1 number (0-9)", forgotPasswordRules.hasNumber, false)
-                                PasswordRuleRow("Special character (@, #, $) — Optional", forgotPasswordRules.hasSpecialChar, true)
-                            }
-                        }
-
-                        // 4. Verify OTP & Save Password Button
-                        Button(
-                            onClick = {
-                                if (forgotEnteredOtp.trim() != forgotGeneratedOtp || forgotGeneratedOtp.isBlank()) {
-                                    Toast.makeText(context, "❌ Galat OTP! Sahi 6-digit OTP dalein.", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                // Strictly block invalid passwords from saving!
-                                if (!forgotPasswordRules.isMandatoryValid) {
-                                    Toast.makeText(
-                                        context,
-                                        "❌ Password mein kam se kam 8 characters, 1 letter aur 1 number hona zaroori hai!",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    return@Button
-                                }
-
-                                isSavingResetPass = true
-                                val rawTarget = forgotIdentifier.trim().lowercase()
-                                val digits = rawTarget.filter { it.isDigit() }.takeLast(10)
-                                val isMaster = rawTarget == MASTER_ADMIN_EMAIL || rawTarget.contains("ankitah994") || digits == MASTER_ADMIN_PHONE
-                                val targetEmail = if (isMaster) MASTER_ADMIN_EMAIL else if (rawTarget.contains("@")) rawTarget else "${digits}@workora.in"
-                                val cleanNewPass = forgotNewPassword.trim()
-
-                                saveUserAndPasswordEverywhere(
-                                    name = if (isMaster) "Ankit Ahirwar" else (profilePrefs.getString("user_name", "User") ?: "User"),
-                                    email = targetEmail,
-                                    phoneDigits = if (digits.length == 10) digits else MASTER_ADMIN_PHONE,
-                                    newPass = cleanNewPass,
-                                    role = if (isMaster) "ADMIN" else "CUSTOMER"
-                                ) {
-                                    isSavingResetPass = false
-                                    emailOrPhone = targetEmail
-                                    password = cleanNewPass
-                                    activeAuthTab = 0
-                                    Toast.makeText(
-                                        context,
-                                        "✅ Naya Password 100% Save Ho Gaya! Ab 'Verify Password & Log In' dabayein.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            },
-                            enabled = !isSavingResetPass,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (forgotPasswordRules.isMandatoryValid) Color(0xFF16A34A) else Color(0xFF94A3B8)
-                            )
-                        ) {
-                            if (isSavingResetPass) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
-                                Text(
-                                    text = "Verify OTP & Save Password ✓",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = { activeAuthTab = 0 },
-                        modifier = Modifier.fillMaxWidth().height(42.dp),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("← Back to Log In", fontWeight = FontWeight.Bold, color = WorkoraNavy)
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (activeAuthTab != 2) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (activeAuthTab == 0) "Naya account banana hai? " else "Pehle se account hai? ",
-                    fontSize = 13.sp,
-                    color = WorkoraTextMuted
-                )
-                Text(
-                    text = if (activeAuthTab == 0) "Mobile Registration (OTP) karein" else "Log In karein",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = WorkoraOrange,
-                    modifier = Modifier.clickable {
-                        activeAuthTab = if (activeAuthTab == 0) 1 else 0
-                    }
-                )
-            }
-        }
-
-        // Extra bottom padding so when keyboard opens, user can scroll every field comfortably above the keyboard!
-        Spacer(modifier = Modifier.height(220.dp))
+        Spacer(modifier = Modifier.height(200.dp))
     }
 }
 
 @Composable
-private fun PasswordRuleRow(
-    label: String,
-    isMet: Boolean,
-    isOptional: Boolean
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+private fun PasswordRuleRow(label: String, isMet: Boolean, isOptional: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(
             imageVector = if (isOptional) Icons.Default.Star else Icons.Default.CheckCircle,
             contentDescription = null,
-            tint = when {
-                isMet -> Color(0xFF16A34A)
-                isOptional -> WorkoraOrange
-                else -> Color(0xFF94A3B8)
-            },
+            tint = if (isMet) Color(0xFF16A34A) else if (isOptional) LoginOrange else Color(0xFF9CA3AF),
             modifier = Modifier.size(14.dp)
         )
         Text(
             text = label,
             fontSize = 11.sp,
             fontWeight = if (isMet) FontWeight.Bold else FontWeight.Medium,
-            color = if (isMet) Color(0xFF16A34A) else WorkoraTextMuted
+            color = if (isMet) Color(0xFF16A34A) else Color(0xFF6B7280)
         )
     }
 }
