@@ -39,12 +39,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -82,7 +80,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.example.model.Job
+import com.example.model.JobPost
 import com.example.model.Worker
 import com.example.ui.components.WorkoraHelmetLogo
 import com.example.ui.theme.WorkoraBgLight
@@ -136,9 +134,9 @@ fun CustomerDashboardScreen(
     searchQuery: String = "",
     onSearchQueryChanged: (String) -> Unit = {},
     workers: List<Worker> = emptyList(),
-    jobs: List<Job> = emptyList(),
+    jobs: List<JobPost> = emptyList(),
     selectedCategory: String? = null,
-    onCategorySelected: (String?) -> Unit = {},
+    onCategorySelected: (String) -> Unit = {},
     activeTab: Int = 0,
     onTabSelected: (Int) -> Unit = {},
     onPostJob: (
@@ -165,9 +163,7 @@ fun CustomerDashboardScreen(
 
     val appName = remember { brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA" }
     val bannerText = remember { brandPrefs.getString("banner_text", "") ?: "" }
-    val customerName = remember { profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar" }
 
-    // Real Persistent Location State
     var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
@@ -178,12 +174,10 @@ fun CustomerDashboardScreen(
     var isDetectingGps by remember { mutableStateOf(false) }
     val onlinePlaceResults = remember { mutableStateListOf<String>() }
 
-    // Live Workers & Posted Jobs from Firebase
     var isLoadingData by remember { mutableStateOf(true) }
     val liveWorkersList = remember { mutableStateListOf<LiveWorkerCardItem>() }
     val livePostedJobs = remember { mutableStateListOf<CustomerPostedJobItem>() }
 
-    // Single Hire / Work Request Sheet State (No duplicate screen!)
     var showHireOrPostSheet by remember { mutableStateOf(false) }
     var targetHireWorker by remember { mutableStateOf<LiveWorkerCardItem?>(null) }
     var formWorkTitle by remember { mutableStateOf("") }
@@ -226,7 +220,6 @@ fun CustomerDashboardScreen(
             val loadedJobs = mutableListOf<CustomerPostedJobItem>()
 
             try {
-                // 1. Fetch Live Workers from Firebase
                 val wConn = (URL("$CUSTOMER_DB_URL/workers.json").openConnection() as HttpURLConnection)
                 if (wConn.responseCode in 200..299) {
                     val text = BufferedReader(InputStreamReader(wConn.inputStream)).use { it.readText() }
@@ -254,7 +247,6 @@ fun CustomerDashboardScreen(
                 }
                 wConn.disconnect()
 
-                // 2. Fetch Live Posted Jobs from Firebase
                 val jConn = (URL("$CUSTOMER_DB_URL/jobs.json").openConnection() as HttpURLConnection)
                 if (jConn.responseCode in 200..299) {
                     val text = BufferedReader(InputStreamReader(jConn.inputStream)).use { it.readText() }
@@ -285,7 +277,6 @@ fun CustomerDashboardScreen(
                 e.printStackTrace()
             }
 
-            // Realistic Default Workers if Cloud is Empty
             if (loadedWorkers.isEmpty()) {
                 loadedWorkers.addAll(
                     listOf(
@@ -347,7 +338,6 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Real GPS Hardware Location Detector
     @SuppressLint("MissingPermission")
     fun detectRealCustomerGpsLocation() {
         isDetectingGps = true
@@ -448,7 +438,6 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Search Real Indian Villages, Towns & Cities Online
     fun searchOnlineRealPlaces(query: String) {
         if (query.trim().length < 2) return
         isSearchingOnline = true
@@ -518,7 +507,7 @@ fun CustomerDashboardScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // ==================== 1. TOP HEADER BAR ====================
+        // 1. TOP HEADER BAR
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -592,7 +581,7 @@ fun CustomerDashboardScreen(
             }
         }
 
-        // ==================== 2. REAL LOCATION SELECTOR BAR ====================
+        // 2. REAL LOCATION SELECTOR BAR
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -681,7 +670,7 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            // ==================== 3. SEARCH BAR + POST NEW WORK BUTTON ====================
+            // 3. SEARCH BAR + POST NEW WORK BUTTON
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChanged,
@@ -716,7 +705,7 @@ fun CustomerDashboardScreen(
                 )
             }
 
-            // ==================== 4. LOCATION FILTER BUTTONS ====================
+            // 4. LOCATION FILTER BUTTONS
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -781,7 +770,7 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            // ==================== 5. TABS: FIND WORKERS vs MY POSTED JOBS ====================
+            // 5. TABS: FIND WORKERS vs MY POSTED JOBS
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -813,7 +802,7 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            // ==================== 6. SKILL CATEGORY FILTER CHIPS ====================
+            // 6. SKILL CATEGORY FILTER CHIPS
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -822,7 +811,7 @@ fun CustomerDashboardScreen(
             ) {
                 val isAllSelected = selectedCategory == null || selectedCategory == "All"
                 Button(
-                    onClick = { onCategorySelected(null) },
+                    onClick = { onCategorySelected("All") },
                     shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isAllSelected) WorkoraNavy else Color.White
@@ -861,7 +850,7 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            // ==================== 7. WORKERS LIST OR MY POSTED JOBS ====================
+            // 7. WORKERS LIST OR MY POSTED JOBS
             if (isLoadingData) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -982,7 +971,6 @@ fun CustomerDashboardScreen(
                                     }
                                 }
 
-                                // Real Location Bar on Worker Card + Open in Google Maps
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1018,7 +1006,6 @@ fun CustomerDashboardScreen(
                                     )
                                 }
 
-                                // Call & Hire Buttons
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1055,7 +1042,6 @@ fun CustomerDashboardScreen(
                     }
                 }
             } else {
-                // TAB 1: MY POSTED JOBS
                 if (livePostedJobs.isEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -1138,7 +1124,6 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // ==================== SINGLE HIRE / SEND WORK REQUEST DIALOG (NO DUPLICATE SCREEN!) ====================
     if (showHireOrPostSheet) {
         val w = targetHireWorker
         AlertDialog(
@@ -1201,7 +1186,6 @@ fun CustomerDashboardScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
 
-                    // Quick Time Slots
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1254,7 +1238,6 @@ fun CustomerDashboardScreen(
                         )
                     }
 
-                    // Quick Wage Chips
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1334,7 +1317,6 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // ==================== REAL LOCATION SELECTOR & LIVE GPS MODAL ====================
     if (showLocationModal) {
         val realLocationsList = listOf(
             "Silwani, Raisen (MP)",
@@ -1388,7 +1370,6 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // 1. Live GPS Hardware Button
                     Button(
                         onClick = {
                             val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -1419,7 +1400,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 2. Search Box for Any Village, Town or City in India
                     OutlinedTextField(
                         value = locationSearchInput,
                         onValueChange = {
@@ -1461,7 +1441,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 3. Live Online OpenStreetMap Search Results
                     if (isSearchingOnline) {
                         Text("Searching real villages & cities in India...", fontSize = 11.sp, color = WorkoraOrange)
                     }
@@ -1494,7 +1473,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 4. Popular Nearby Locations
                     Text(
                         text = "Popular Real Locations (Tap to Select):",
                         fontSize = 11.sp,
