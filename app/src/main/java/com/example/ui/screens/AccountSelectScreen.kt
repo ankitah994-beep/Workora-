@@ -1,7 +1,10 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,6 +41,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,17 +66,45 @@ fun AccountSelectScreen(
 ) {
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
+    val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
     var isAdminPanelVisible by remember { mutableStateOf(false) }
     var isBackendAdminVerified by remember { mutableStateOf(true) }
     var adminRoleTier by remember { mutableStateOf("SUPER_ADMIN") }
+
+    var appName by remember { mutableStateOf(brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
+    var appTagline by remember { mutableStateOf(brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK.") }
+    var welcomeHeading by remember { mutableStateOf(brandPrefs.getString("welcome_heading", "What do you want to do?") ?: "What do you want to do?") }
+    var bannerText by remember { mutableStateOf(brandPrefs.getString("banner_text", "") ?: "") }
+    var customLogoBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    fun refreshLocalBranding() {
+        appName = brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA"
+        appTagline = brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK."
+        welcomeHeading = brandPrefs.getString("welcome_heading", "What do you want to do?") ?: "What do you want to do?"
+        bannerText = brandPrefs.getString("banner_text", "") ?: ""
+        val base64 = brandPrefs.getString("logo_base64", "") ?: ""
+        customLogoBitmap = if (base64.isNotBlank()) {
+            try {
+                val bytes = Base64.decode(base64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+    }
 
     val activeEmail = remember {
         val saved = authPrefs.getString("last_logged_in_email", "") ?: ""
         if (saved.isNotBlank()) saved else "ankitah994@gmail.com"
     }
 
+    LaunchedEffect(isAdminPanelVisible) {
+        refreshLocalBranding()
+    }
+
     LaunchedEffect(Unit) {
+        refreshLocalBranding()
         FirebaseManager.checkIfEmailIsAdminOnCloud(activeEmail) { isAdmin, tier ->
             if (isAdmin) {
                 isBackendAdminVerified = true
@@ -88,6 +123,7 @@ fun AccountSelectScreen(
             adminEmail = activeEmail,
             adminTier = adminRoleTier,
             onLogoutAdmin = {
+                refreshLocalBranding()
                 isAdminPanelVisible = false
             }
         )
@@ -115,15 +151,33 @@ fun AccountSelectScreen(
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                WorkoraHelmetLogo(
-                    size = 50.dp,
-                    showHalo = false
-                )
+                // Custom App Logo (or Default Helmet Logo)
+                if (customLogoBitmap != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background( Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            bitmap = customLogoBitmap!!,
+                            contentDescription = "App Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } else {
+                    WorkoraHelmetLogo(
+                        size = 50.dp,
+                        showHalo = false
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "WORKORA",
+                    text = appName,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraNavy,
@@ -133,18 +187,35 @@ fun AccountSelectScreen(
                 Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = "FIND. HIRE. WORK.",
+                    text = appTagline,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = WorkoraOrange,
                     letterSpacing = 1.2.sp
                 )
 
-                Spacer(modifier = Modifier.height(36.dp))
+                if (bannerText.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(WorkoraOrange.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "📢 $bannerText",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WorkoraNavy
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
 
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "What do you want to do?",
+                        text = welcomeHeading,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = WorkoraTextDark,
@@ -218,14 +289,14 @@ fun AccountSelectScreen(
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column {
                                         Text(
-                                            text = "Workora Admin Panel",
+                                            text = "$appName Admin Panel",
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = Color.White
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "Open $adminRoleTier Control Center",
+                                            text = "Edit App Logo, Users, Jobs & Controls",
                                             fontSize = 12.sp,
                                             color = Color.White.copy(alpha = 0.85f)
                                         )
