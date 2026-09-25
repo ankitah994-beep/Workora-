@@ -1,23 +1,63 @@
 package com.example.ui.screens
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,1212 +71,1325 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.JobPost
 import com.example.model.Worker
+import com.example.ui.theme.WorkoraOrange
 
-@OptIn(ExperimentalMaterial3Api::class)
+data class ExactWorkerItem(
+    val name: String,
+    val trade: String,
+    val rating: Double,
+    val reviewsCount: Int,
+    val distanceKm: Int,
+    val dailyWage: Int,
+    val shirtColor: Color
+)
+
+@Composable
+private fun ExactWorkoraWLogo(size: Dp = 44.dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = this.size.width
+            val h = this.size.height
+            drawCircle(
+                color = Color(0xFFF59E0B),
+                radius = w * 0.46f,
+                style = Stroke(width = w * 0.08f)
+            )
+            val path = Path().apply {
+                moveTo(w * 0.26f, h * 0.36f)
+                lineTo(w * 0.38f, h * 0.66f)
+                lineTo(w * 0.50f, h * 0.46f)
+                lineTo(w * 0.62f, h * 0.66f)
+                lineTo(w * 0.74f, h * 0.36f)
+            }
+            drawPath(
+                path = path,
+                color = Color(0xFF1E3A8A),
+                style = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExactBannerWorkerGraphic(size: Dp = 105.dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+
+        drawLine(
+            color = Color(0xFF334155),
+            start = Offset(w * 0.16f, h * 0.44f),
+            end = Offset(w * 0.28f, h * 0.74f),
+            strokeWidth = w * 0.055f,
+            cap = StrokeCap.Round
+        )
+        drawCircle(
+            color = Color(0xFF475569),
+            radius = w * 0.075f,
+            center = Offset(w * 0.15f, h * 0.40f)
+        )
+        drawCircle(
+            color = Color(0xFFE0F2FE),
+            radius = w * 0.032f,
+            center = Offset(w * 0.13f, h * 0.38f)
+        )
+
+        drawRoundRect(
+            color = Color(0xFF2563EB),
+            topLeft = Offset(w * 0.26f, h * 0.54f),
+            size = Size(w * 0.54f, h * 0.38f),
+            cornerRadius = CornerRadius(w * 0.14f, w * 0.14f)
+        )
+
+        drawRoundRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(w * 0.34f, h * 0.58f),
+            size = Size(w * 0.38f, h * 0.34f),
+            cornerRadius = CornerRadius(w * 0.05f, w * 0.05f)
+        )
+        drawRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(w * 0.36f, h * 0.52f),
+            size = Size(w * 0.06f, h * 0.10f)
+        )
+        drawRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(w * 0.64f, h * 0.52f),
+            size = Size(w * 0.06f, h * 0.10f)
+        )
+
+        drawRoundRect(
+            color = Color(0xFFFDBA74),
+            topLeft = Offset(w * 0.46f, h * 0.44f),
+            size = Size(w * 0.14f, h * 0.12f),
+            cornerRadius = CornerRadius(8f, 8f)
+        )
+        drawCircle(
+            color = Color(0xFFFED7AA),
+            radius = w * 0.16f,
+            center = Offset(w * 0.53f, h * 0.34f)
+        )
+
+        drawCircle(color = Color(0xFF1E293B), radius = w * 0.018f, center = Offset(w * 0.48f, h * 0.33f))
+        drawCircle(color = Color(0xFF1E293B), radius = w * 0.018f, center = Offset(w * 0.58f, h * 0.33f))
+        drawArc(
+            color = Color(0xFF1E293B),
+            startAngle = 20f,
+            sweepAngle = 140f,
+            useCenter = false,
+            topLeft = Offset(w * 0.48f, h * 0.35f),
+            size = Size(w * 0.10f, h * 0.06f),
+            style = Stroke(width = 3f, cap = StrokeCap.Round)
+        )
+
+        val helmetPath = Path().apply {
+            moveTo(w * 0.35f, h * 0.26f)
+            cubicTo(w * 0.35f, h * 0.10f, w * 0.71f, h * 0.10f, w * 0.71f, h * 0.26f)
+            close()
+        }
+        drawPath(path = helmetPath, color = Color(0xFFFACC15))
+        drawRoundRect(
+            color = Color(0xFFEAB308),
+            topLeft = Offset(w * 0.32f, h * 0.24f),
+            size = Size(w * 0.42f, h * 0.045f),
+            cornerRadius = CornerRadius(10f, 10f)
+        )
+    }
+}
+
+@Composable
+private fun ExactCategoryIconBox(category: String) {
+    val bgColor = when (category) {
+        "Mason" -> Color(0xFFE0F2FE)
+        "Electrician" -> Color(0xFFFEF3C7)
+        "Plumber" -> Color(0xFFDCFCE7)
+        "Painter" -> Color(0xFFFEE2E2)
+        "Carpenter" -> Color(0xFFEDE9FE)
+        else -> Color(0xFFF1F5F9)
+    }
+
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(bgColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(22.dp)) {
+            val w = this.size.width
+            val h = this.size.height
+            when (category) {
+                "Mason" -> {
+                    val blade = Path().apply {
+                        moveTo(w * 0.75f, h * 0.20f)
+                        lineTo(w * 0.30f, h * 0.45f)
+                        lineTo(w * 0.55f, h * 0.70f)
+                        close()
+                    }
+                    drawPath(blade, color = Color(0xFF1D4ED8))
+                    drawLine(
+                        color = Color(0xFF1E3A8A),
+                        start = Offset(w * 0.42f, h * 0.58f),
+                        end = Offset(w * 0.20f, h * 0.80f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                }
+                "Electrician" -> {
+                    val bolt = Path().apply {
+                        moveTo(w * 0.58f, h * 0.10f)
+                        lineTo(w * 0.25f, h * 0.55f)
+                        lineTo(w * 0.50f, h * 0.55f)
+                        lineTo(w * 0.40f, h * 0.90f)
+                        lineTo(w * 0.75f, h * 0.45f)
+                        lineTo(w * 0.50f, h * 0.45f)
+                        close()
+                    }
+                    drawPath(bolt, color = Color(0xFFF59E0B))
+                }
+                "Plumber" -> {
+                    drawRoundRect(
+                        color = Color(0xFF16A34A),
+                        topLeft = Offset(w * 0.20f, h * 0.42f),
+                        size = Size(w * 0.55f, h * 0.18f),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    drawRoundRect(
+                        color = Color(0xFF16A34A),
+                        topLeft = Offset(w * 0.58f, h * 0.42f),
+                        size = Size(w * 0.18f, h * 0.36f),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    drawLine(
+                        color = Color(0xFF15803D),
+                        start = Offset(w * 0.32f, h * 0.25f),
+                        end = Offset(w * 0.52f, h * 0.25f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = Color(0xFF15803D),
+                        start = Offset(w * 0.42f, h * 0.25f),
+                        end = Offset(w * 0.42f, h * 0.42f),
+                        strokeWidth = w * 0.10f
+                    )
+                }
+                "Painter" -> {
+                    drawRoundRect(
+                        color = Color(0xFFEF4444),
+                        topLeft = Offset(w * 0.20f, h * 0.18f),
+                        size = Size(w * 0.56f, h * 0.24f),
+                        cornerRadius = CornerRadius(6f, 6f)
+                    )
+                    drawLine(
+                        color = Color(0xFF991B1B),
+                        start = Offset(w * 0.48f, h * 0.42f),
+                        end = Offset(w * 0.48f, h * 0.84f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                }
+                "Carpenter" -> {
+                    drawLine(
+                        color = Color(0xFF6D28D9),
+                        start = Offset(w * 0.24f, h * 0.78f),
+                        end = Offset(w * 0.64f, h * 0.34f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                    drawRoundRect(
+                        color = Color(0xFF5B21B6),
+                        topLeft = Offset(w * 0.42f, h * 0.18f),
+                        size = Size(w * 0.40f, h * 0.18f),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                }
+                else -> {
+                    val r = w * 0.13f
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.32f, h * 0.32f))
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.68f, h * 0.32f))
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.32f, h * 0.68f))
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.68f, h * 0.68f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExactWorkerAvatar(
+    shirtColor: Color,
+    showYellowHelmet: Boolean,
+    size: Dp = 54.dp
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xFFE2E8F0)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = this.size.width
+            val h = this.size.height
+
+            drawArc(
+                color = shirtColor,
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = true,
+                topLeft = Offset(w * 0.14f, h * 0.62f),
+                size = Size(w * 0.72f, h * 0.54f)
+            )
+            drawRect(
+                color = Color(0xFFE0A96D),
+                topLeft = Offset(w * 0.42f, h * 0.52f),
+                size = Size(w * 0.16f, h * 0.14f)
+            )
+            drawCircle(
+                color = Color(0xFFF1C27D),
+                radius = w * 0.20f,
+                center = Offset(w * 0.50f, h * 0.40f)
+            )
+            if (showYellowHelmet) {
+                drawArc(
+                    color = Color(0xFFFACC15),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = true,
+                    topLeft = Offset(w * 0.28f, h * 0.14f),
+                    size = Size(w * 0.44f, h * 0.32f)
+                )
+            } else {
+                drawArc(
+                    color = Color(0xFF1E293B),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = true,
+                    topLeft = Offset(w * 0.30f, h * 0.17f),
+                    size = Size(w * 0.40f, h * 0.26f)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun CustomerDashboardScreen(
-    workers: List<Worker>,
-    jobs: List<JobPost>,
-    selectedCategory: String?,
-    onCategorySelected: (String) -> Unit,
-    onPostJobClick: () -> Unit,
-    onNavigateToProfile: () -> Unit,
-    onSwitchRole: () -> Unit
+    currentUser: Any? = null,
+    searchQuery: String = "",
+    onSearchQueryChanged: (String) -> Unit = {},
+    workers: List<Worker> = emptyList(),
+    jobs: List<JobPost> = emptyList(),
+    selectedCategory: String? = null,
+    onCategorySelected: (String) -> Unit = {},
+    activeTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
+    onPostJob: (
+        title: String,
+        category: String,
+        description: String,
+        dailyRate: Int,
+        location: String,
+        workersNeeded: Int,
+        urgency: String,
+        dateTime: String
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    onHireWorker: (Worker) -> Unit = {},
+    onCompleteJob: (Long) -> Unit = {},
+    onSwitchRole: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
+    onOpenFilters: () -> Unit = {},
+    toastMessage: String? = null,
+    onPostJobClick: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
-    val appName = remember { brandingPrefs.getString("app_name", "Workora") ?: "Workora" }
-    val appTagline = remember { brandingPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK." }
-
-    var currentLocation by remember {
+    var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
-    var showLocationDialog by remember { mutableStateOf(false) }
-    var tempLocationInput by remember { mutableStateOf(currentLocation) }
+    var showLocationModal by remember { mutableStateOf(false) }
+    var locationSearchInput by remember { mutableStateOf("") }
 
-    // View 0 = Home Screen, View 1 = Available Workers Search Screen
-    var currentTab by remember { mutableStateOf(0) }
-    var searchQuery by remember { mutableStateOf("") }
-    var activeCategoryFilter by remember { mutableStateOf(selectedCategory ?: "All") }
+    var bottomNavIndex by remember { mutableIntStateOf(0) }
 
-    val categories = listOf(
-        "Mason / मिस्त्री",
-        "Plumber / प्लंबर",
-        "Electrician / इलेक्ट्रीशियन",
-        "Painter / पेंटर",
-        "Carpenter / बढ़ई",
-        "Labour / मजदूर"
-    )
+    var showPostDialog by remember { mutableStateOf(false) }
+    var postTitle by remember { mutableStateOf("House Repair Work") }
+    var postCategory by remember { mutableStateOf("Mason") }
+    var postWage by remember { mutableStateOf("500") }
 
-    val filteredWorkers = remember(workers, searchQuery, activeCategoryFilter) {
-        workers.filter { worker ->
-            val matchesCategory = if (activeCategoryFilter.isBlank() || activeCategoryFilter == "All") {
-                true
-            } else {
-                val cleanFilter = activeCategoryFilter.substringBefore("/").trim()
-                worker.skill.contains(cleanFilter, ignoreCase = true)
-            }
-            val matchesSearch = if (searchQuery.isBlank()) {
-                true
-            } else {
-                worker.name.contains(searchQuery, ignoreCase = true) ||
-                    worker.skill.contains(searchQuery, ignoreCase = true) ||
-                    worker.location.contains(searchQuery, ignoreCase = true)
-            }
-            matchesCategory && matchesSearch
-        }
+    val exactWorkers = remember {
+        mutableStateListOf(
+            ExactWorkerItem(
+                name = "Ramesh Kumar",
+                trade = "Mason",
+                rating = 4.8,
+                reviewsCount = 12,
+                distanceKm = 2,
+                dailyWage = 600,
+                shirtColor = Color(0xFF1E3A8A)
+            ),
+            ExactWorkerItem(
+                name = "Suresh Patel",
+                trade = "Electrician",
+                rating = 4.6,
+                reviewsCount = 8,
+                distanceKm = 3,
+                dailyWage = 550,
+                shirtColor = Color(0xFF334155)
+            ),
+            ExactWorkerItem(
+                name = "Amit Yadav",
+                trade = "Plumber",
+                rating = 4.7,
+                reviewsCount = 15,
+                distanceKm = 4,
+                dailyWage = 500,
+                shirtColor = Color(0xFF0F766E)
+            )
+        )
     }
 
-    Scaffold(
-        containerColor = Color(0xFFF4F7FB),
-        bottomBar = {
-            Surface(
-                color = Color.White,
-                shadowElevation = 12.dp,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    val filteredWorkers = exactWorkers.filter { w ->
+        val matchQuery = searchQuery.isBlank() ||
+                w.name.contains(searchQuery, ignoreCase = true) ||
+                w.trade.contains(searchQuery, ignoreCase = true)
+        val matchCat = selectedCategory.isNullOrBlank() ||
+                selectedCategory.equals("All", ignoreCase = true) ||
+                w.trade.equals(selectedCategory, ignoreCase = true)
+        matchQuery && matchCat
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF8FAFC))
+    ) {
+        if (bottomNavIndex == 0) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 84.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(Color.White)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    CustomerBottomNavItem(
-                        icon = Icons.Default.Home,
-                        label = "Home",
-                        selected = currentTab == 0,
-                        onClick = { currentTab = 0 }
-                    )
-                    CustomerBottomNavItem(
-                        icon = Icons.Default.Search,
-                        label = "Search",
-                        selected = currentTab == 1,
-                        onClick = { currentTab = 1 }
-                    )
-                    CustomerBottomNavItem(
-                        icon = Icons.Default.AddCircle,
-                        label = "Post",
-                        selected = false,
-                        onClick = onPostJobClick
-                    )
-                    CustomerBottomNavItem(
-                        icon = Icons.Default.Person,
-                        label = "Profile",
-                        selected = false,
-                        onClick = onNavigateToProfile
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { onSwitchRole() }
+                    ) {
+                        ExactWorkoraWLogo(size = 44.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "WORKORA",
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A),
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = "Find & Hire Skilled Labour",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onOpenNotifications) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color(0xFF1E293B),
+                                modifier = Modifier.size(23.dp)
+                            )
+                        }
+                        IconButton(onClick = onSwitchRole) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menu",
+                                tint = Color(0xFF1E293B),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                 }
-            }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (currentTab == 0) {
-                // ==================== VIEW 0: HOME SCREEN ====================
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 24.dp)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // 1. Header with W Logo, App Name & Location Card
-                    item {
-                        Surface(
-                            color = Color.White,
-                            shadowElevation = 2.dp
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(42.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(
-                                                    Brush.linearGradient(
-                                                        listOf(Color(0xFF1565C0), Color(0xFF0D47A1))
-                                                    )
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "W",
-                                                color = Color.White,
-                                                fontSize = 24.sp,
-                                                fontWeight = FontWeight.ExtraBold
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column {
-                                            Text(
-                                                text = appName,
-                                                fontSize = 20.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = Color(0xFF0D47A1)
-                                            )
-                                            Text(
-                                                text = appTagline,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF64748B),
-                                                letterSpacing = 0.8.sp
-                                            )
-                                        }
-                                    }
-
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        TextButton(
-                                            onClick = onSwitchRole,
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.SwapHoriz,
-                                                contentDescription = "Switch Role",
-                                                tint = Color(0xFF1565C0),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "Switch Role",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF1565C0)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                // Location Bar Card
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFFF1F5F9),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            tempLocationInput = currentLocation
-                                            showLocationDialog = true
-                                        }
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.LocationOn,
-                                                contentDescription = "Location",
-                                                tint = Color(0xFF1565C0),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = currentLocation,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = Color(0xFF1E293B),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        Text(
-                                            text = "बदलें >",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1565C0)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 2. Reference Hero Banner with Yellow Helmet & Wrench Worker Illustration
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color(0xFF0D47A1),
-                                                Color(0xFF1976D2),
-                                                Color(0xFF42A5F5)
-                                            )
-                                        )
-                                    )
-                                    .padding(18.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Surface(
-                                            color = Color(0xFFFFC107),
-                                            shape = RoundedCornerShape(6.dp)
-                                        ) {
-                                            Text(
-                                                text = "TRUSTED CARIGARS",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = Color(0xFF0D47A1),
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "कुशल कारीगर और मजदूर अब एक क्लिक पर!",
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White,
-                                            lineHeight = 23.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = "मिस्त्री • प्लंबर • इलेक्ट्रीशियन • पेंटर • मजदूर",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFE3F2FD)
-                                        )
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Button(
-                                                onClick = { currentTab = 1 },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = Color.White,
-                                                    contentColor = Color(0xFF0D47A1)
-                                                ),
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "कारीगर खोजें",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                            OutlinedButton(
-                                                onClick = onPostJobClick,
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White),
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "+ काम पोस्ट करें",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    // Worker Canvas Illustration (Yellow Helmet + Wrench)
-                                    CustomerHeroWorkerIllustration(size = 96.dp)
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. 3x2 Popular Categories Grid
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Popular Categories",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF1E293B)
-                                )
-                                Text(
-                                    text = "View All",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1565C0),
-                                    modifier = Modifier.clickable {
-                                        activeCategoryFilter = "All"
-                                        onCategorySelected("All")
-                                        currentTab = 1
-                                    }
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Row 1 of 3x2 Grid
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                categories.take(3).forEach { cat ->
-                                    CustomerCategoryGridCard(
-                                        categoryTitle = cat,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            val shortCat = cat.substringBefore("/").trim()
-                                            activeCategoryFilter = shortCat
-                                            onCategorySelected(shortCat)
-                                            currentTab = 1
-                                        }
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Row 2 of 3x2 Grid
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                categories.drop(3).take(3).forEach { cat ->
-                                    CustomerCategoryGridCard(
-                                        categoryTitle = cat,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            val shortCat = cat.substringBefore("/").trim()
-                                            activeCategoryFilter = shortCat
-                                            onCategorySelected(shortCat)
-                                            currentTab = 1
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 4. Green Shield Verified Card
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA5D6A7))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2E7D32)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.VerifiedUser,
-                                        contentDescription = "Verified",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "100% Verified Local Workers",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF1B5E20)
-                                    )
-                                    Text(
-                                        text = "सीधे कॉल या WhatsApp पर बात करें • कोई बिचौलिया नहीं",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF2E7D32)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 5. Recent Jobs Section
-                    item {
+                    Card(
+                        onClick = { showLocationModal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = "Recent Jobs (${jobs.size})",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF1E293B)
-                            )
-                            TextButton(onClick = onPostJobClick) {
-                                Text(
-                                    text = "+ Post New Job",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1565C0)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF97316),
+                                    modifier = Modifier.size(22.dp)
                                 )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = currentRealLocation,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Text(
+                                        text = "Tap to change location",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
                             }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B)
+                            )
                         }
                     }
 
-                    if (jobs.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.WorkOutline,
-                                        contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(44.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "अभी कोई जॉब पोस्ट नहीं है",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF475569)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = onPostJobClick,
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("पहला काम पोस्ट करें")
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        items(jobs.take(5)) { job ->
-                            CustomerRecentJobCard(job = job)
-                        }
-                    }
-                }
-            } else {
-                // ==================== VIEW 1: AVAILABLE WORKERS SEARCH SCREEN ====================
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Surface(
-                        color = Color.White,
-                        shadowElevation = 3.dp
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color(0xFFE0F2FE), Color(0xFFDBEAFE))
+                                    )
+                                )
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = { currentTab = 0 },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowBack,
-                                            contentDescription = "Back",
-                                            tint = Color(0xFF1E293B)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Available Workers (${filteredWorkers.size})",
+                                        text = "Find Skilled\nWorkers Near You",
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF1E293B)
+                                        color = Color(0xFF0F172A),
+                                        lineHeight = 23.sp
                                     )
-                                }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Get your work done easily\nand safely.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF475569),
+                                        lineHeight = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(14.dp))
 
-                                // Location Pill
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = Color(0xFFE3F2FD),
-                                    modifier = Modifier.clickable { showLocationDialog = true }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Button(
+                                        onClick = { showPostDialog = true },
+                                        shape = RoundedCornerShape(22.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF97316)),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                        modifier = Modifier.height(38.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.LocationOn,
-                                            contentDescription = null,
-                                            tint = Color(0xFF1565C0),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = null,
+                                                tint = Color(0xFFF97316),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = currentLocation.take(14),
-                                            fontSize = 11.sp,
+                                            text = "Post New Requirement",
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1565C0)
+                                            color = Color.White
                                         )
                                     }
                                 }
+
+                                ExactBannerWorkerGraphic(size = 102.dp)
                             }
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Popular Categories",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "View All >",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E3A8A),
+                                modifier = Modifier.clickable {
+                                    onCategorySelected("All")
+                                    bottomNavIndex = 1
+                                }
+                            )
+                        }
 
-                            // Search Bar
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = {
-                                    Text(
-                                        text = "कारीगर का नाम, काम या शहर खोजें...",
-                                        fontSize = 13.sp
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = "Search",
-                                        tint = Color(0xFF1565C0)
-                                    )
-                                },
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Clear,
-                                                contentDescription = "Clear"
+                        val categories = listOf("Mason", "Electrician", "Plumber", "Painter", "Carpenter", "More")
+                        categories.chunked(3).forEach { rowCats ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowCats.forEach { catName ->
+                                    Card(
+                                        onClick = {
+                                            onCategorySelected(if (catName == "More") "All" else catName)
+                                            bottomNavIndex = 1
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(90.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            ExactCategoryIconBox(category = catName)
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = catName,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF0F172A)
                                             )
                                         }
                                     }
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF1565C0),
-                                    unfocusedBorderColor = Color(0xFFCBD5E1),
-                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = Color(0xFFF8FAFC)
-                                )
+                                }
+                            }
+                        }
+                    }
+
+                    Card(
+                        onClick = { bottomNavIndex = 1 },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
+                        border = BorderStroke(1.dp, Color(0xFFE0F2FE)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF16A34A)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Verified & Trusted Workers",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Text(
+                                        text = "All workers are verified for your safety.",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B)
                             )
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent Jobs",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "View All >",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E3A8A),
+                                modifier = Modifier.clickable { bottomNavIndex = 1 }
+                            )
+                        }
 
-                            // Category Filter Chips
-                            val chipOptions = listOf("All", "Mason", "Plumber", "Electrician", "Painter", "Carpenter", "Labour")
+                        Card(
+                            onClick = { bottomNavIndex = 1 },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                chipOptions.forEach { chip ->
-                                    val isSelected = activeCategoryFilter.equals(chip, ignoreCase = true)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            activeCategoryFilter = chip
-                                            onCategorySelected(chip)
-                                        },
-                                        label = {
-                                            Text(
-                                                text = chip,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                            )
-                                        },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = Color(0xFF1565C0),
-                                            selectedLabelColor = Color.White
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFE0F2FE)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Build,
+                                            contentDescription = null,
+                                            tint = Color(0xFF1D4ED8),
+                                            modifier = Modifier.size(20.dp)
                                         )
-                                    )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = "House Repair Work",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = currentRealLocation,
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        Text(
+                                            text = "Posted 2 hours ago",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
                                 }
-                            }
-                        }
-                    }
 
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        if (filteredWorkers.isEmpty()) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(36.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PersonSearch,
-                                        contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(54.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
+                                Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        text = "इस कैटेगरी में अभी कोई कारीगर नहीं मिला",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF475569),
-                                        textAlign = TextAlign.Center
+                                        text = "₹500/day",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E3A8A)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = Color(0xFF64748B)
                                     )
                                 }
                             }
-                        } else {
-                            items(filteredWorkers) { worker ->
-                                CustomerWorkerCard(worker = worker, context = context)
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 84.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { bottomNavIndex = 0 }) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFF0F172A)
+                            )
+                        }
+                        Text(
+                            text = "Available Workers",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF0F172A)
+                        )
+                    }
+                    IconButton(onClick = {}) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF0F172A)
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Card(
+                        onClick = { showLocationModal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1D4ED8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = currentRealLocation,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                            Text(
+                                text = "Change",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2563EB)
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = onSearchQueryChanged,
+                        placeholder = {
+                            Text(
+                                text = "Search by name, skill or service...",
+                                fontSize = 13.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFE2E8F0),
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("All", "Mason", "Electrician", "Plumber").forEach { cat ->
+                            val isSelected = (cat == "All" && (selectedCategory == null || selectedCategory == "All")) ||
+                                    selectedCategory.equals(cat, ignoreCase = true)
+                            Button(
+                                onClick = { onCategorySelected(cat) },
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSelected) Color(0xFF1E3A8A) else Color.White
+                                ),
+                                border = BorderStroke(1.dp, if (isSelected) Color(0xFF1E3A8A) else Color(0xFFE2E8F0)),
+                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else Color(0xFF0F172A)
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${filteredWorkers.size} Workers Found",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF0F172A)
+                        )
+
+                        Card(
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Sort by",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    filteredWorkers.forEachIndexed { index, worker ->
+                        Card(
+                            onClick = {
+                                Toast.makeText(context, "Selected ${worker.name} (${worker.trade})", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    ExactWorkerAvatar(
+                                        shirtColor = worker.shirtColor,
+                                        showYellowHelmet = index == 0,
+                                        size = 54.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = worker.name,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        Text(
+                                            text = worker.trade,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = Color(0xFFF59E0B),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "${worker.rating}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF0F172A)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "(${worker.reviewsCount} reviews)",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "${worker.distanceKm} km away",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFFE0F2FE), shape = RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "Available",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0284C7)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = Color(0xFF94A3B8)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "₹${worker.dailyWage}/day",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E3A8A)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
 
-    if (showLocationDialog) {
-        AlertDialog(
-            onDismissRequest = { showLocationDialog = false },
-            title = {
-                Text(
-                    text = "अपनी लोकेशन अपडेट करें",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                OutlinedTextField(
-                    value = tempLocationInput,
-                    onValueChange = { tempLocationInput = it },
-                    label = { Text("शहर / गाँव / तहसील (जैसे: Silwani, Raisen)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (tempLocationInput.isNotBlank()) {
-                            currentLocation = tempLocationInput.trim()
-                            profilePrefs.edit().putString("user_location", currentLocation).apply()
-                        }
-                        showLocationDialog = false
-                    }
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLocationDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun CustomerBottomNavItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val tint = if (selected) Color(0xFF1565C0) else Color(0xFF64748B)
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-            color = tint
-        )
-    }
-}
-
-@Composable
-private fun CustomerCategoryGridCard(
-    categoryTitle: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val parts = categoryTitle.split("/")
-    val englishTitle = parts.firstOrNull()?.trim() ?: categoryTitle
-    val hindiTitle = parts.getOrNull(1)?.trim() ?: ""
-
-    Card(
-        modifier = modifier
-            .height(104.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
+        Card(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFE3F2FD)),
-                contentAlignment = Alignment.Center
-            ) {
-                CustomerCategoryCanvasIcon(categoryName = englishTitle, size = 26.dp)
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = englishTitle,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1E293B),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (hindiTitle.isNotEmpty()) {
-                Text(
-                    text = hindiTitle,
-                    fontSize = 11.sp,
-                    color = Color(0xFF64748B),
-                    maxLines = 1
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CustomerCategoryCanvasIcon(
-    categoryName: String,
-    size: Dp = 26.dp
-) {
-    // FIXED: Using capital Modifier.size(size) and this.size.width / this.size.height
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-        val primary = Color(0xFF1565C0)
-        val accent = Color(0xFFFFA000)
-
-        when {
-            categoryName.contains("Mason", ignoreCase = true) -> {
-                drawRoundRect(
-                    color = primary,
-                    topLeft = Offset(w * 0.1f, h * 0.55f),
-                    size = Size(w * 0.38f, h * 0.25f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-                drawRoundRect(
-                    color = primary,
-                    topLeft = Offset(w * 0.52f, h * 0.55f),
-                    size = Size(w * 0.38f, h * 0.25f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(w * 0.28f, h * 0.24f),
-                    size = Size(w * 0.44f, h * 0.25f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-            }
-            categoryName.contains("Plumber", ignoreCase = true) -> {
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.2f, h * 0.5f),
-                    end = Offset(w * 0.8f, h * 0.5f),
-                    strokeWidth = w * 0.16f,
-                    cap = StrokeCap.Round
-                )
-                drawCircle(
-                    color = accent,
-                    radius = w * 0.16f,
-                    center = Offset(w * 0.5f, h * 0.25f)
-                )
-            }
-            categoryName.contains("Electrician", ignoreCase = true) -> {
-                val bolt = Path().apply {
-                    moveTo(w * 0.55f, h * 0.1f)
-                    lineTo(w * 0.25f, h * 0.52f)
-                    lineTo(w * 0.5f, h * 0.52f)
-                    lineTo(w * 0.42f, h * 0.9f)
-                    lineTo(w * 0.75f, h * 0.45f)
-                    lineTo(w * 0.52f, h * 0.45f)
-                    close()
-                }
-                drawPath(path = bolt, color = accent)
-            }
-            categoryName.contains("Painter", ignoreCase = true) -> {
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(w * 0.2f, h * 0.18f),
-                    size = Size(w * 0.6f, h * 0.26f),
-                    cornerRadius = CornerRadius(6f, 6f)
-                )
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.5f, h * 0.44f),
-                    end = Offset(w * 0.5f, h * 0.85f),
-                    strokeWidth = w * 0.12f,
-                    cap = StrokeCap.Round
-                )
-            }
-            categoryName.contains("Carpenter", ignoreCase = true) -> {
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.3f, h * 0.78f),
-                    end = Offset(w * 0.7f, h * 0.32f),
-                    strokeWidth = w * 0.12f,
-                    cap = StrokeCap.Round
-                )
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(w * 0.48f, h * 0.16f),
-                    size = Size(w * 0.36f, h * 0.2f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-            }
-            else -> {
-                drawArc(
-                    color = accent,
-                    startAngle = 180f,
-                    sweepAngle = 180f,
-                    useCenter = true,
-                    topLeft = Offset(w * 0.15f, h * 0.25f),
-                    size = Size(w * 0.7f, h * 0.55f)
-                )
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.1f, h * 0.55f),
-                    end = Offset(w * 0.9f, h * 0.55f),
-                    strokeWidth = w * 0.1f,
-                    cap = StrokeCap.Round
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CustomerHeroWorkerIllustration(size: Dp = 96.dp) {
-    // FIXED: Using capital Modifier.size(size) and this.size.width / this.size.height
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-
-        drawCircle(
-            color = Color.White.copy(alpha = 0.18f),
-            radius = w * 0.48f,
-            center = Offset(w * 0.5f, h * 0.5f)
-        )
-
-        drawRoundRect(
-            color = Color(0xFFFFC107),
-            topLeft = Offset(w * 0.22f, h * 0.58f),
-            size = Size(w * 0.56f, h * 0.34f),
-            cornerRadius = CornerRadius(18f, 18f)
-        )
-
-        drawCircle(
-            color = Color(0xFFFFCC80),
-            radius = w * 0.18f,
-            center = Offset(w * 0.5f, h * 0.42f)
-        )
-
-        drawArc(
-            color = Color(0xFFFFD54F),
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(w * 0.28f, h * 0.16f),
-            size = Size(w * 0.44f, h * 0.32f)
-        )
-
-        drawLine(
-            color = Color(0xFFFFA000),
-            start = Offset(w * 0.24f, h * 0.32f),
-            end = Offset(w * 0.76f, h * 0.32f),
-            strokeWidth = w * 0.06f,
-            cap = StrokeCap.Round
-        )
-
-        drawLine(
-            color = Color(0xFFECEFF1),
-            start = Offset(w * 0.78f, h * 0.75f),
-            end = Offset(w * 0.88f, h * 0.38f),
-            strokeWidth = w * 0.07f,
-            cap = StrokeCap.Round
-        )
-        drawCircle(
-            color = Color(0xFFECEFF1),
-            radius = w * 0.08f,
-            center = Offset(w * 0.88f, h * 0.34f),
-            style = Stroke(width = w * 0.04f)
-        )
-    }
-}
-
-@Composable
-private fun CustomerWorkerCard(
-    worker: Worker,
-    context: Context
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(16.dp)
+                .navigationBarsPadding(),
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE3F2FD)),
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { bottomNavIndex = 0 }
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = "Home",
+                        tint = if (bottomNavIndex == 0) Color(0xFF1E3A8A) else Color(0xFF64748B),
+                        modifier = Modifier.size(23.dp)
+                    )
                     Text(
-                        text = worker.name.take(1).uppercase().ifBlank { "W" },
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF1565C0)
+                        text = "Home",
+                        fontSize = 10.sp,
+                        fontWeight = if (bottomNavIndex == 0) FontWeight.Bold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 0) Color(0xFF1E3A8A) else Color(0xFF64748B)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        bottomNavIndex = 1
+                        onOpenFilters()
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = if (bottomNavIndex == 1) Color(0xFF1E3A8A) else Color(0xFF64748B),
+                        modifier = Modifier.size(23.dp)
+                    )
+                    Text(
+                        text = "Search",
+                        fontSize = 10.sp,
+                        fontWeight = if (bottomNavIndex == 1) FontWeight.Bold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 1) Color(0xFF1E3A8A) else Color(0xFF64748B)
+                    )
+                }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = worker.name.ifBlank { "कुशल कारीगर" },
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF1E293B)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        showPostDialog = true
+                        onPostJobClick()
+                    }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF94A3B8)),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Verified,
-                            contentDescription = "Verified",
-                            tint = Color(0xFF2E7D32),
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Post",
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = worker.skill.ifBlank { "General Worker" },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1565C0)
+                        text = "Post",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF64748B)
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = Color(0xFF64748B),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = worker.location.ifBlank { "Silwani, Raisen" },
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B)
-                        )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        onOpenProfile()
+                        onNavigateToProfile()
                     }
-                }
-
-                Surface(
-                    color = Color(0xFFFFF8E1),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFE082))
-                ) {
-                    Text(
-                        text = if (worker.dailyWage.startsWith("₹")) worker.dailyWage else "₹${worker.dailyWage}/दिन",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFFE65100),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = {
-                        val phone = worker.phone.ifBlank { "6265798340" }
-                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Call,
-                        contentDescription = "Call",
-                        modifier = Modifier.size(16.dp)
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(23.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "कॉल करें",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val rawPhone = worker.phone.ifBlank { "6265798340" }.filter { it.isDigit() }
-                        val formattedPhone = if (rawPhone.length == 10) "91$rawPhone" else rawPhone
-                        val msg = Uri.encode("नमस्ते ${worker.name}, मैंने Workora App पर आपकी प्रोफाइल (${worker.skill}) देखी। मुझे काम के लिए आपकी आवश्यकता है।")
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$formattedPhone?text=$msg"))
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "WhatsApp उपलब्ध नहीं है", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E7D32))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Chat,
-                        contentDescription = "WhatsApp",
-                        tint = Color(0xFF2E7D32),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "WhatsApp",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2E7D32)
+                        text = "Profile",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF64748B)
                     )
                 }
             }
         }
     }
-}
 
-@Composable
-private fun CustomerRecentJobCard(job: JobPost) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = job.title.ifBlank { "काम उपलब्ध है" },
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF1E293B)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${job.category} • ${job.location}",
-                    fontSize = 12.sp,
-                    color = Color(0xFF64748B)
-                )
+    if (showLocationModal) {
+        val locations = listOf(
+            "Silwani, Raisen (MP)",
+            "Raisen, Madhya Pradesh",
+            "Begamganj, Raisen (MP)",
+            "Gairatganj, Raisen (MP)",
+            "Bareli, Raisen (MP)",
+            "Bhopal, Madhya Pradesh"
+        )
+        AlertDialog(
+            onDismissRequest = { showLocationModal = false },
+            title = { Text("Select Location", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = locationSearchInput,
+                        onValueChange = { locationSearchInput = it },
+                        placeholder = { Text("Type village or city...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (locationSearchInput.isNotBlank()) {
+                        Button(
+                            onClick = {
+                                currentRealLocation = locationSearchInput.trim()
+                                profilePrefs.edit().putString("user_location", currentRealLocation).apply()
+                                showLocationModal = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Set '${locationSearchInput.trim()}'")
+                        }
+                    }
+                    locations.forEach { loc ->
+                        Text(
+                            text = loc,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    currentRealLocation = loc
+                                    profilePrefs.edit().putString("user_location", loc).apply()
+                                    showLocationModal = false
+                                }
+                                .padding(vertical = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (showPostDialog) {
+        AlertDialog(
+            onDismissRequest = { showPostDialog = false },
+            title = { Text("Post New Requirement", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = postTitle,
+                        onValueChange = { postTitle = it },
+                        label = { Text("Work Title") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = postCategory,
+                        onValueChange = { postCategory = it },
+                        label = { Text("Category (Mason, Electrician...)") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = postWage,
+                        onValueChange = { postWage = it },
+                        label = { Text("Daily Wage (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onPostJob(
+                            postTitle,
+                            postCategory,
+                            "Work at $currentRealLocation",
+                            postWage.toIntOrNull() ?: 500,
+                            currentRealLocation,
+                            1,
+                            "Today",
+                            "Today"
+                        )
+                        showPostDialog = false
+                        Toast.makeText(context, "Requirement Posted ✓", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
+                ) {
+                    Text("Post", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showPostDialog = false }) {
+                    Text("Cancel")
+                }
             }
-            Surface(
-                color = Color(0xFFE3F2FD),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = if (job.wage.startsWith("₹")) job.wage else "₹${job.wage}",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF1565C0),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                )
-            }
-        }
+        )
     }
 }
