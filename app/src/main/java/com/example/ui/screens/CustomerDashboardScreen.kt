@@ -271,7 +271,6 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // 0 = Menu (Home), 1 = Search Workers, 2 = History
     var localTab by remember(activeTab) { mutableStateOf(if (activeTab in 0..2) activeTab else 0) }
     var localSearchQuery by remember(searchQuery) { mutableStateOf(searchQuery) }
     var activeCategoryFilter by remember(selectedCategory) { mutableStateOf(selectedCategory ?: "All") }
@@ -397,7 +396,6 @@ fun CustomerDashboardScreen(
     Scaffold(
         containerColor = Color(0xFFF4F7FB),
         bottomBar = {
-            // Unified 5-Item Bottom Bar: Menu - History - +Post Work - Floating Live Chat - Settings
             Surface(
                 color = Color.White,
                 shadowElevation = 16.dp,
@@ -411,7 +409,6 @@ fun CustomerDashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. Menu
                     WorkoraBottomNavButton(
                         icon = Icons.Default.Menu,
                         label = "Menu",
@@ -422,7 +419,6 @@ fun CustomerDashboardScreen(
                         }
                     )
 
-                    // 2. History
                     WorkoraBottomNavButton(
                         icon = Icons.Default.History,
                         label = "History",
@@ -433,43 +429,20 @@ fun CustomerDashboardScreen(
                         }
                     )
 
-                    // 3. + Post Work
                     WorkoraBottomNavButton(
                         icon = Icons.Default.AddCircle,
-                        label = "+Post Work",
+                        label = "Post Skills",
                         selected = false,
                         onClick = handleOpenPostJob
                     )
 
-                    // 4. Floating Live Chat Option inside Bottom Bar
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = Color(0xFF0D253F),
-                        shadowElevation = 6.dp,
-                        modifier = Modifier
-                            .clickable { onOpenChat() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Chat,
-                                contentDescription = "Live Chat",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Live Chat",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                        }
-                    }
+                    WorkoraBottomNavButton(
+                        icon = Icons.Default.Chat,
+                        label = "Chat",
+                        selected = false,
+                        onClick = { onOpenChat() }
+                    )
 
-                    // 5. Settings (Opens Profile & Settings)
                     WorkoraBottomNavButton(
                         icon = Icons.Default.Settings,
                         label = "Settings",
@@ -491,7 +464,6 @@ fun CustomerDashboardScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    // 1. Top Header
                     item {
                         Surface(
                             color = Color.White,
@@ -565,7 +537,6 @@ fun CustomerDashboardScreen(
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // Location Card
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = Color(0xFFF8FAFC),
@@ -613,7 +584,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 2. Hero Banner
                     item {
                         Card(
                             modifier = Modifier
@@ -695,7 +665,7 @@ fun CustomerDashboardScreen(
                                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                             ) {
                                                 Text(
-                                                    text = "+ Post Job",
+                                                    text = "Post Skills",
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White
@@ -712,7 +682,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 3. Popular Categories 3x2 Grid
                     item {
                         Column(
                             modifier = Modifier
@@ -788,7 +757,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 4. Verified Shield Card
                     item {
                         Card(
                             modifier = Modifier
@@ -836,7 +804,6 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 5. Featured Workers Preview
                     item {
                         Row(
                             modifier = Modifier
@@ -868,13 +835,15 @@ fun CustomerDashboardScreen(
                         WorkoraPrototypeWorkerCard(
                             worker = workerItem,
                             context = context,
+                            onCardClick = {
+                                handleSettingsNavigation()
+                            },
                             onHireClick = {
                                 workerItem.originalWorker?.let(onHireWorker)
                             }
                         )
                     }
 
-                    // 6. Recent Posted Jobs Section
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
@@ -892,7 +861,7 @@ fun CustomerDashboardScreen(
                             )
                             TextButton(onClick = handleOpenPostJob) {
                                 Text(
-                                    text = "+ Post New Job",
+                                    text = "Post Skills",
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFFF6F00)
                                 )
@@ -927,7 +896,7 @@ fun CustomerDashboardScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F)),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Text("+ नया काम पोस्ट करें")
+                                        Text("Post Skills")
                                     }
                                 }
                             }
@@ -1133,6 +1102,9 @@ fun CustomerDashboardScreen(
                                 WorkoraPrototypeWorkerCard(
                                     worker = workerItem,
                                     context = context,
+                                    onCardClick = {
+                                        handleSettingsNavigation()
+                                    },
                                     onHireClick = {
                                         workerItem.originalWorker?.let(onHireWorker)
                                     }
@@ -1142,7 +1114,7 @@ fun CustomerDashboardScreen(
                     }
                 }
             } else {
-                // ==================== VIEW 2: WORK & JOB POST HISTORY ====================
+                // ==================== VIEW 2: HISTORY ====================
                 Column(modifier = Modifier.fillMaxSize()) {
                     Surface(
                         color = Color.White,
@@ -1185,7 +1157,7 @@ fun CustomerDashboardScreen(
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "+ Post Work",
+                                    text = "Post Skills",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -1226,7 +1198,7 @@ fun CustomerDashboardScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F)),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Text("+ नया काम पोस्ट करें")
+                                        Text("Post Skills")
                                     }
                                 }
                             }
@@ -1247,7 +1219,6 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Real GPS + Quick City Chips Location Dialog
     if (showLocationDialog) {
         val quickLocations = listOf(
             "Silwani, Raisen (MP)",
@@ -1285,7 +1256,6 @@ fun CustomerDashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Real Live GPS Detection Button
                     Button(
                         onClick = triggerRealGpsDetection,
                         enabled = !isDetectingGps,
@@ -1405,7 +1375,7 @@ fun CustomerDashboardScreen(
             containerColor = Color.White,
             title = {
                 Text(
-                    text = "नया काम पोस्ट करें (+Post Work)",
+                    text = "Post Skills",
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF0D253F)
                 )
@@ -1473,12 +1443,12 @@ fun CustomerDashboardScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00))
                 ) {
-                    Text("Post Job ✓", fontWeight = FontWeight.Bold)
+                    Text("Post Skills ✓", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPostJobDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -1593,12 +1563,14 @@ private fun WorkoraWorkerAvatarCanvas(
 private fun WorkoraPrototypeWorkerCard(
     worker: PrototypeWorkerItem,
     context: Context,
+    onCardClick: () -> Unit = {},
     onHireClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clickable { onCardClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
