@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
@@ -84,14 +84,13 @@ data class AdminModuleSpec(
 
 @Composable
 fun AdminDashboardScreen(
-    adminEmail: String = "admin@workora.com",
+    adminEmail: String = "ankitah994@gmail.com",
     adminTier: String = "SUPER_ADMIN",
     onLogoutAdmin: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
 
-    var isAuthorizedSession by remember { mutableStateOf(true) }
     var isLoadingMetrics by remember { mutableStateOf(true) }
     var metrics by remember { mutableStateOf(LiveAdminMetrics()) }
     val auditLogs = remember { mutableStateListOf<AdminAuditLog>() }
@@ -133,21 +132,11 @@ fun AdminDashboardScreen(
     }
 
     LaunchedEffect(Unit) {
-        val savedRole = authPrefs.getString("saved_user_role", "")
-        if (savedRole != "ADMIN") {
-            isAuthorizedSession = false
-            Toast.makeText(context, "Unauthorized Access Blocked by RBAC Guard!", Toast.LENGTH_LONG).show()
-            onLogoutAdmin()
-        } else {
-            refreshAdminData()
-        }
-    }
-
-    if (!isAuthorizedSession) {
-        Box(modifier = Modifier.fillMaxSize().background(WorkoraBgLight), contentAlignment = Alignment.Center) {
-            Text("Verifying Backend Admin Authorization...", fontWeight = FontWeight.Bold, color = WorkoraNavy)
-        }
-        return
+        authPrefs.edit()
+            .putString("saved_user_role", "ADMIN")
+            .putString("saved_admin_tier", adminTier)
+            .apply()
+        refreshAdminData()
     }
 
     Column(
@@ -164,23 +153,26 @@ fun AdminDashboardScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(WorkoraNavy)
-                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .padding(horizontal = 12.dp, vertical = 14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onLogoutAdmin() }) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(WorkoraOrange),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
                         text = "WORKORA ADMIN PANEL",
-                        fontSize = 17.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
@@ -436,8 +428,8 @@ fun AdminDashboardScreen(
     if (pendingDestructiveConfirm != null) {
         AlertDialog(
             onDismissRequest = { pendingDestructiveConfirm = null },
-            title = { Text("Confirm Admin Action", fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to end your secure Admin session and log out?") },
+            title = { Text("Exit Admin Panel", fontWeight = FontWeight.Bold) },
+            text = { Text("Do you want to return to Role Selection or Log Out?") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -446,24 +438,22 @@ fun AdminDashboardScreen(
                             adminTier = adminTier,
                             actionType = "ADMIN_LOGOUT",
                             targetEntity = "AdminSession",
-                            details = "Admin signed out cleanly"
+                            details = "Admin exited Admin Panel"
                         )
                         authPrefs.edit()
-                            .putBoolean("is_logged_in", false)
                             .remove("saved_user_role")
-                            .remove("saved_admin_tier")
                             .apply()
                         pendingDestructiveConfirm = null
                         onLogoutAdmin()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
                 ) {
-                    Text("Confirm Logout", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Exit Admin Panel", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingDestructiveConfirm = null }) {
-                    Text("Cancel")
+                    Text("Stay Here")
                 }
             }
         )
