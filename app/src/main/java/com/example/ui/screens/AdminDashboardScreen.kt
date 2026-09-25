@@ -12,7 +12,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,10 +35,9 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
@@ -169,6 +167,9 @@ fun AdminDashboardScreen(
     var activeTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Track whether branding is saved (false = Orange Save Icon, true = White Save Icon)
+    var isBrandingSaved by remember { mutableStateOf(false) }
+
     // App Branding & Logo Editor States
     var customAppName by remember { mutableStateOf(brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
     var customAppTagline by remember { mutableStateOf(brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK.") }
@@ -201,7 +202,6 @@ fun AdminDashboardScreen(
 
     var showExitDialog by remember { mutableStateOf(false) }
 
-    // Gallery Picker for App Logo
     val logoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -218,8 +218,9 @@ fun AdminDashboardScreen(
                     val encoded = encodeBitmapToBase64(bmp)
                     customLogoBase64 = encoded
                     customLogoBitmap = bmp.asImageBitmap()
+                    isBrandingSaved = false
                     brandPrefs.edit().putString("logo_base64", encoded).apply()
-                    Toast.makeText(context, "Naya App Logo Select Ho Gaya! Ab Niche Save Dabayein ✓", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Logo Select Ho Gaya! Ab Save Button Dabayein ✓", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 Toast.makeText(context, "Photo load nahi ho payi!", Toast.LENGTH_SHORT).show()
@@ -231,7 +232,6 @@ fun AdminDashboardScreen(
         isLoading = true
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 0. Fetch App Branding & Logo from Cloud
                 val bConn = (URL("$ADMIN_DB_URL/app_branding.json").openConnection() as HttpURLConnection)
                 if (bConn.responseCode in 200..299) {
                     val text = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
@@ -271,7 +271,6 @@ fun AdminDashboardScreen(
                 }
                 bConn.disconnect()
 
-                // 1. Fetch Users
                 val loadedUsers = mutableListOf<AdminUserItem>()
                 val uConn = (URL("$ADMIN_DB_URL/users.json").openConnection() as HttpURLConnection)
                 if (uConn.responseCode in 200..299) {
@@ -299,7 +298,6 @@ fun AdminDashboardScreen(
                 }
                 uConn.disconnect()
 
-                // 2. Fetch Workers
                 val loadedWorkers = mutableListOf<AdminWorkerItem>()
                 val wConn = (URL("$ADMIN_DB_URL/workers.json").openConnection() as HttpURLConnection)
                 if (wConn.responseCode in 200..299) {
@@ -327,7 +325,6 @@ fun AdminDashboardScreen(
                 }
                 wConn.disconnect()
 
-                // 3. Fetch Jobs
                 val loadedJobs = mutableListOf<AdminJobItem>()
                 val jConn = (URL("$ADMIN_DB_URL/jobs.json").openConnection() as HttpURLConnection)
                 if (jConn.responseCode in 200..299) {
@@ -355,7 +352,6 @@ fun AdminDashboardScreen(
                 }
                 jConn.disconnect()
 
-                // 4. Fetch System Settings
                 val sConn = (URL("$ADMIN_DB_URL/system_settings.json").openConnection() as HttpURLConnection)
                 if (sConn.responseCode in 200..299) {
                     val text = BufferedReader(InputStreamReader(sConn.inputStream)).use { it.readText() }
@@ -368,7 +364,6 @@ fun AdminDashboardScreen(
                 }
                 sConn.disconnect()
 
-                // 5. Fetch Audit Logs
                 val loadedLogs = mutableListOf<AdminAuditLog>()
                 val lConn = (URL("$ADMIN_DB_URL/audit_logs.json").openConnection() as HttpURLConnection)
                 if (lConn.responseCode in 200..299) {
@@ -415,6 +410,7 @@ fun AdminDashboardScreen(
     }
 
     fun saveAppBrandingToCloud() {
+        isBrandingSaved = true
         brandPrefs.edit()
             .putString("app_name", customAppName.trim())
             .putString("app_tagline", customAppTagline.trim())
@@ -456,11 +452,11 @@ fun AdminDashboardScreen(
                 )
 
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "App Logo & Design Cloud Par Save Ho Gaya! ✓", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Saved! Save Icon White Ho Gaya ✓", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Local Save Hua, Internet Check Karein!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Saved Locally! ✓", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -534,28 +530,35 @@ fun AdminDashboardScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(WorkoraBgLight)
-            .statusBarsPadding()
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // Top Header Bar
+        // Compact Top Header Bar with proper statusBarsPadding so text never clips
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(WorkoraNavy)
-                .padding(horizontal = 12.dp, vertical = 14.dp)
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 10.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onLogoutAdmin() }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                IconButton(
+                    onClick = { onLogoutAdmin() },
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
+                Spacer(modifier = Modifier.width(4.dp))
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
-                        .background(WorkoraOrange)
+                        .background(Color.White)
                         .clickable { activeTab = 0 },
                     contentAlignment = Alignment.Center
                 ) {
@@ -567,34 +570,40 @@ fun AdminDashboardScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(20.dp))
                     }
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
                         text = "$customAppName ADMIN PANEL",
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
                     Text(
                         text = "$adminTier • $adminEmail",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         color = Color.White.copy(alpha = 0.85f)
                     )
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = {
-                    Toast.makeText(context, "Refreshing Firebase Data...", Toast.LENGTH_SHORT).show()
-                    loadAllLiveFirebaseData()
-                }) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = WorkoraOrange)
+                IconButton(
+                    onClick = {
+                        Toast.makeText(context, "Refreshing Firebase...", Toast.LENGTH_SHORT).show()
+                        loadAllLiveFirebaseData()
+                    },
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = WorkoraOrange, modifier = Modifier.size(20.dp))
                 }
-                IconButton(onClick = { showExitDialog = true }) {
-                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Exit", tint = Color.White)
+                IconButton(
+                    onClick = { showExitDialog = true },
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Exit", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -602,17 +611,17 @@ fun AdminDashboardScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 1. Live Interactive Stats Cards
+            // 1. Compact Live Stats Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, WorkoraBorder)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -620,25 +629,25 @@ fun AdminDashboardScreen(
                     ) {
                         Text(
                             text = "Live Cloud Control Center",
-                            fontSize = 15.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = WorkoraNavy
                         )
                         Text(
                             text = if (isLoading) "Syncing..." else "● Firebase Connected",
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF16A34A)
                         )
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         AdminStatTile("Edit App/Logo", "🎨", WorkoraOrange, Modifier.weight(1f)) { activeTab = 0 }
                         AdminStatTile("Total Users", usersList.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 1 }
                         AdminStatTile("Workers", workersList.size.toString(), Color(0xFF16A34A), Modifier.weight(1f)) { activeTab = 2 }
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         AdminStatTile("Total Jobs", jobsList.size.toString(), Color(0xFF0284C7), Modifier.weight(1f)) { activeTab = 3 }
                         AdminStatTile("Blocked Users", usersList.count { it.accountStatus == "BLOCKED" }.toString(), Color(0xFFDC2626), Modifier.weight(1f)) { activeTab = 1 }
                         AdminStatTile("Audit Logs", auditLogs.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 6 }
@@ -646,196 +655,251 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // 2. Control Tabs
-            Text(
-                text = "Select Control Tool (बटन दबाकर ऐप एडिट या कंट्रोल करें):",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = WorkoraNavy
-            )
-
-            val tabs = listOf(
-                "🎨 Edit App & Logo",
-                "👥 Manage Users (${usersList.size})",
-                "🛠️ Verify Workers (${workersList.size})",
-                "📋 Manage Jobs (${jobsList.size})",
-                "📢 Send Notification",
-                "🛡️ Add Admin",
-                "🚨 Emergency & Logs"
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 2. Left-Aligned Numbered Vertical Rows for "Select Control Tool"
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, WorkoraBorder)
             ) {
-                tabs.forEachIndexed { index, title ->
-                    val selected = activeTab == index
-                    Button(
-                        onClick = { activeTab = index },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) WorkoraOrange else Color.White
-                        ),
-                        border = BorderStroke(1.dp, if (selected) WorkoraOrange else WorkoraBorder),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (selected) Color.White else WorkoraNavy
-                        )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Select Control Tool (नंबर पर टैप करें):",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+
+                    val numberedTools = listOf(
+                        "1. Edit App & Logo",
+                        "2. Manage Users (${usersList.size})",
+                        "3. Verify Workers (${workersList.size})",
+                        "4. Manage Jobs (${jobsList.size})",
+                        "5. Send Notification",
+                        "6. Add Admin",
+                        "7. Emergency & Logs"
+                    )
+
+                    numberedTools.forEachIndexed { index, toolTitle ->
+                        val isSelected = activeTab == index
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) WorkoraNavy else WorkoraBgLight)
+                                .clickable { activeTab = index }
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = toolTitle,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                color = if (isSelected) Color.White else WorkoraTextDark
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = if (isSelected) WorkoraOrange else WorkoraTextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            // ==================== TAB 0: EDIT APP, LOGO & BRANDING ====================
+            // ==================== TAB 0: 1. EDIT APP & LOGO ====================
             if (activeTab == 0) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.5.dp, WorkoraOrange)
+                    border = BorderStroke(1.2.dp, WorkoraOrange)
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "🎨 Edit App Logo, Name & Branding",
-                            fontSize = 16.sp,
+                            text = "1. Edit App Logo, Name & Branding",
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = WorkoraNavy
-                        )
-                        Text(
-                            text = "यहाँ से ऐप का लोगो (Logo), नाम, टैगलाइन, बैनर और कैटेगरी बदलें। Save करते ही यह पूरे ऐप में बदल जाएगा!",
-                            fontSize = 12.sp,
-                            color = WorkoraTextMuted
+                            color = WorkoraNavy,
+                            modifier = Modifier.align(Alignment.Start)
                         )
 
-                        // App Logo Upload Box
-                        Box(
-                            modifier = Modifier
-                                .size(110.dp)
-                                .clip(CircleShape)
-                                .background(WorkoraBgLight)
-                                .clickable { logoPickerLauncher.launch("image/*") },
-                            contentAlignment = Alignment.Center
+                        // Compact App Logo Upload Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            if (customLogoBitmap != null) {
-                                Image(
-                                    bitmap = customLogoBitmap!!,
-                                    contentDescription = "Custom App Logo",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Default.AddAPhoto,
-                                        contentDescription = null,
-                                        tint = WorkoraOrange,
-                                        modifier = Modifier.size(34.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(WorkoraBgLight)
+                                    .clickable { logoPickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (customLogoBitmap != null) {
+                                    Image(
+                                        bitmap = customLogoBitmap!!,
+                                        contentDescription = "Custom App Logo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Change Logo", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                } else {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddAPhoto,
+                                            contentDescription = null,
+                                            tint = WorkoraOrange,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Text("Logo", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                    }
                                 }
                             }
-                        }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(
-                                onClick = { logoPickerLauncher.launch("image/*") },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = WorkoraNavy)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Select New Logo from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            if (customLogoBitmap != null) {
-                                OutlinedButton(
-                                    onClick = {
-                                        customLogoBase64 = ""
-                                        customLogoBitmap = null
-                                        File(context.filesDir, "workora_custom_logo.jpg").delete()
-                                        brandPrefs.edit().remove("logo_base64").apply()
-                                        Toast.makeText(context, "Default Helmet Logo Restored!", Toast.LENGTH_SHORT).show()
-                                    },
-                                    shape = RoundedCornerShape(10.dp)
+                                Button(
+                                    onClick = { logoPickerLauncher.launch("image/*") },
+                                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = WorkoraNavy),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
-                                    Text("Reset", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Select Logo from Gallery", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                if (customLogoBitmap != null) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            customLogoBase64 = ""
+                                            customLogoBitmap = null
+                                            isBrandingSaved = false
+                                            File(context.filesDir, "workora_custom_logo.jpg").delete()
+                                            brandPrefs.edit().remove("logo_base64").apply()
+                                            Toast.makeText(context, "Default Logo Restored!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(34.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("Reset Default Logo", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                                    }
                                 }
                             }
                         }
 
                         OutlinedTextField(
                             value = customAppName,
-                            onValueChange = { customAppName = it },
-                            label = { Text("App Name (जैसे: WORKORA)") },
+                            onValueChange = {
+                                customAppName = it
+                                isBrandingSaved = false
+                            },
+                            label = { Text("App Name (जैसे: WORKORA)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         OutlinedTextField(
                             value = customAppTagline,
-                            onValueChange = { customAppTagline = it },
-                            label = { Text("App Tagline (जैसे: FIND. HIRE. WORK.)") },
+                            onValueChange = {
+                                customAppTagline = it
+                                isBrandingSaved = false
+                            },
+                            label = { Text("App Tagline (जैसे: FIND. HIRE. WORK.)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         OutlinedTextField(
                             value = customWelcomeHeading,
-                            onValueChange = { customWelcomeHeading = it },
-                            label = { Text("Home Heading (जैसे: What do you want to do?)") },
+                            onValueChange = {
+                                customWelcomeHeading = it
+                                isBrandingSaved = false
+                            },
+                            label = { Text("Home Heading (जैसे: What do you want to do?)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         OutlinedTextField(
                             value = customSupportPhone,
-                            onValueChange = { customSupportPhone = it },
-                            label = { Text("Admin Helpline / WhatsApp Number") },
+                            onValueChange = {
+                                customSupportPhone = it
+                                isBrandingSaved = false
+                            },
+                            label = { Text("Admin Helpline Number", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         OutlinedTextField(
                             value = customBannerText,
-                            onValueChange = { customBannerText = it },
-                            label = { Text("Top App Announcement Banner Text") },
+                            onValueChange = {
+                                customBannerText = it
+                                isBrandingSaved = false
+                            },
+                            label = { Text("Top App Announcement Banner", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         OutlinedTextField(
                             value = customCategoriesList,
-                            onValueChange = { customCategoriesList = it },
-                            label = { Text("Work Categories (Comma se alag karein)") },
+                            onValueChange = {
+                                customCategoriesList = it
+                                isBrandingSaved = false
+                            },
+                            label = { Text("Work Categories (Comma se alag karein)", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
+                        // Save Button: Save Icon is Orange before saving, and turns White after saving!
                         Button(
                             onClick = { saveAppBrandingToCloud() },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                                .height(46.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isBrandingSaved) Color(0xFF16A34A) else WorkoraNavy
+                            )
                         ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Save Icon",
+                                tint = if (isBrandingSaved) Color.White else WorkoraOrange,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Save App Logo & Branding Live ✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text(
+                                text = if (isBrandingSaved) "Saved! (Icon White Ho Gaya ✓)" else "Save App Logo & Branding",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
                         }
                     }
                 }
@@ -846,15 +910,15 @@ fun AdminDashboardScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Search by Name, Phone or Location...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WorkoraOrange) },
+                    label = { Text("Search by Name, Phone or Location...", fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 )
             }
 
-            // ==================== TAB 1: REAL USER MANAGEMENT ====================
+            // ==================== TAB 1: 2. MANAGE USERS ====================
             if (activeTab == 1) {
                 val filteredUsers = usersList.filter {
                     searchQuery.isBlank() ||
@@ -864,8 +928,8 @@ fun AdminDashboardScreen(
                 }
 
                 Text(
-                    text = "Registered App Users (${filteredUsers.size})",
-                    fontSize = 15.sp,
+                    text = "2. Registered App Users (${filteredUsers.size})",
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraNavy
                 )
@@ -874,39 +938,39 @@ fun AdminDashboardScreen(
                     val isBlocked = user.accountStatus == "BLOCKED"
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, if (isBlocked) Color(0xFFDC2626) else WorkoraBorder)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = user.fullName, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
-                                    Text(text = "📧 ${user.email} • 📞 ${user.phone}", fontSize = 12.sp, color = WorkoraTextMuted)
-                                    Text(text = "📍 ${user.location} • Role: ${user.role}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                    Text(text = user.fullName, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
+                                    Text(text = "📧 ${user.email} • 📞 ${user.phone}", fontSize = 11.sp, color = WorkoraTextMuted)
+                                    Text(text = "📍 ${user.location} • Role: ${user.role}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
                                 }
                                 Box(
                                     modifier = Modifier
                                         .background(
                                             if (isBlocked) Color(0xFFDC2626).copy(alpha = 0.15f) else Color(0xFF16A34A).copy(alpha = 0.15f),
-                                            shape = RoundedCornerShape(8.dp)
+                                            shape = RoundedCornerShape(6.dp)
                                         )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .padding(horizontal = 6.dp, vertical = 3.dp)
                                 ) {
                                     Text(
                                         text = user.accountStatus,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = if (isBlocked) Color(0xFFDC2626) else Color(0xFF16A34A)
                                     )
                                 }
                             }
 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Button(
                                     onClick = {
                                         val nextStatus = if (isBlocked) "ACTIVE" else "BLOCKED"
@@ -918,13 +982,14 @@ fun AdminDashboardScreen(
                                             logDetails = "${user.fullName} marked $nextStatus"
                                         )
                                     },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (isBlocked) Color(0xFF16A34A) else Color(0xFFDC2626)
                                     )
                                 ) {
-                                    Text(if (isBlocked) "Unblock User" else "Block User", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (isBlocked) "Unblock" else "Block User", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 OutlinedButton(
@@ -938,11 +1003,12 @@ fun AdminDashboardScreen(
                                             logDetails = "${user.fullName} role changed to $nextRole"
                                         )
                                     },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                     border = BorderStroke(1.dp, WorkoraNavy)
                                 ) {
-                                    Text("Make ${if (user.role == "CUSTOMER") "Worker" else "Customer"}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                    Text("Make ${if (user.role == "CUSTOMER") "Worker" else "Customer"}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
                                 }
 
                                 IconButton(
@@ -952,9 +1018,10 @@ fun AdminDashboardScreen(
                                             logAction = "DELETE_USER",
                                             logDetails = "Deleted user ${user.fullName}"
                                         )
-                                    }
+                                    },
+                                    modifier = Modifier.size(36.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626))
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -962,7 +1029,7 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 2: REAL WORKER VERIFICATION ====================
+            // ==================== TAB 2: 3. VERIFY WORKERS ====================
             if (activeTab == 2) {
                 val filteredWorkers = workersList.filter {
                     searchQuery.isBlank() ||
@@ -972,8 +1039,8 @@ fun AdminDashboardScreen(
                 }
 
                 Text(
-                    text = "Workers Verification & Control (${filteredWorkers.size})",
-                    fontSize = 15.sp,
+                    text = "3. Workers Verification & Control (${filteredWorkers.size})",
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraNavy
                 )
@@ -981,37 +1048,37 @@ fun AdminDashboardScreen(
                 filteredWorkers.forEach { worker ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, if (worker.isVerified) Color(0xFF16A34A) else WorkoraOrange)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = worker.name, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
-                                    Text(text = "🛠️ ${worker.trade} • ₹${worker.dailyWage}/day", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
-                                    Text(text = "📍 ${worker.location} • 📞 ${worker.phone}", fontSize = 12.sp, color = WorkoraTextMuted)
+                                    Text(text = worker.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
+                                    Text(text = "🛠️ ${worker.trade} • ₹${worker.dailyWage}/day", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
+                                    Text(text = "📍 ${worker.location} • 📞 ${worker.phone}", fontSize = 11.sp, color = WorkoraTextMuted)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
                                         text = if (worker.isVerified) "✔ VERIFIED" else "⏳ UNVERIFIED",
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = if (worker.isVerified) Color(0xFF16A34A) else WorkoraOrange
                                     )
                                     Text(
                                         text = if (worker.isAvailableToday) "● Available" else "○ Busy",
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         color = if (worker.isAvailableToday) Color(0xFF16A34A) else WorkoraTextMuted
                                     )
                                 }
                             }
 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Button(
                                     onClick = {
                                         val nextVerified = !worker.isVerified
@@ -1023,13 +1090,14 @@ fun AdminDashboardScreen(
                                             logDetails = "${worker.name} Verified = $nextVerified"
                                         )
                                     },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (worker.isVerified) WorkoraNavy else Color(0xFF16A34A)
                                     )
                                 ) {
-                                    Text(if (worker.isVerified) "Revoke Verify" else "Approve & Verify ✓", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (worker.isVerified) "Revoke Verify" else "Approve ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 OutlinedButton(
@@ -1043,10 +1111,11 @@ fun AdminDashboardScreen(
                                             logDetails = "${worker.name} Available = $nextAvail"
                                         )
                                     },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
-                                    Text(if (worker.isAvailableToday) "Mark Busy" else "Mark Available", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                    Text(if (worker.isAvailableToday) "Mark Busy" else "Mark Available", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
                                 }
 
                                 IconButton(
@@ -1056,9 +1125,10 @@ fun AdminDashboardScreen(
                                             logAction = "DELETE_WORKER",
                                             logDetails = "Removed worker ${worker.name}"
                                         )
-                                    }
+                                    },
+                                    modifier = Modifier.size(36.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626))
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -1066,52 +1136,52 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 3: REAL JOB MANAGEMENT & POSTING ====================
+            // ==================== TAB 3: 4. MANAGE JOBS ====================
             if (activeTab == 3) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = BorderStroke(1.dp, WorkoraOrange)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("➕ Post Official Job from Admin Panel", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("4. Post Official Job from Admin Panel", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
 
                         OutlinedTextField(
                             value = newJobTitle,
                             onValueChange = { newJobTitle = it },
-                            label = { Text("Job Title (जैसे: मकान निर्माण के लिए 2 मिस्त्री चाहिए)") },
+                            label = { Text("Job Title (जैसे: 2 मिस्त्री चाहिए)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedTextField(
                                 value = newJobCategory,
                                 onValueChange = { newJobCategory = it },
-                                label = { Text("Category") },
+                                label = { Text("Category", fontSize = 12.sp) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(8.dp)
                             )
                             OutlinedTextField(
                                 value = newJobWage,
                                 onValueChange = { newJobWage = it },
-                                label = { Text("Daily Wage ₹") },
+                                label = { Text("Wage ₹", fontSize = 12.sp) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(8.dp)
                             )
                         }
 
                         OutlinedTextField(
                             value = newJobLocation,
                             onValueChange = { newJobLocation = it },
-                            label = { Text("Location (जैसे: Silwani, Raisen)") },
+                            label = { Text("Location (Silwani, Raisen)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         Button(
@@ -1122,7 +1192,7 @@ fun AdminDashboardScreen(
                                     FirebaseManager.postJobToFirebase(
                                         title = newJobTitle.trim(),
                                         category = newJobCategory.trim(),
-                                        description = "Posted directly by $customAppName Admin ($adminEmail)",
+                                        description = "Posted by $customAppName Admin ($adminEmail)",
                                         dailyRate = newJobWage.toIntOrNull() ?: 600,
                                         location = newJobLocation.trim(),
                                         workersNeeded = 2,
@@ -1131,56 +1201,48 @@ fun AdminDashboardScreen(
                                         customerPhone = customSupportPhone
                                     ) {
                                         newJobTitle = ""
-                                        Toast.makeText(context, "Live Job Posted on Firebase! ✓", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Live Job Posted! ✓", Toast.LENGTH_SHORT).show()
                                         loadAllLiveFirebaseData()
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(42.dp),
+                            shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Publish Live Job Now ✓", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Publish Live Job Now ✓", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
 
-                Text(
-                    text = "All Posted Jobs (${jobsList.size})",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = WorkoraNavy
-                )
-
                 jobsList.forEach { job ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, WorkoraBorder)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = job.title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
-                                    Text(text = "${job.category} • ₹${job.dailyRate}/day • 📍 ${job.location}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
-                                    Text(text = "Posted by: ${job.customerName}", fontSize = 12.sp, color = WorkoraTextMuted)
+                                    Text(text = job.title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
+                                    Text(text = "${job.category} • ₹${job.dailyRate}/day • 📍 ${job.location}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
                                 }
                                 Text(
                                     text = job.status,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (job.status == "COMPLETED") Color(0xFF16A34A) else WorkoraNavy
                                 )
                             }
 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Button(
                                     onClick = {
                                         val nextStatus = if (job.status == "COMPLETED") "PENDING" else "COMPLETED"
@@ -1192,11 +1254,11 @@ fun AdminDashboardScreen(
                                             logDetails = "Job '${job.title}' marked $nextStatus"
                                         )
                                     },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraNavy)
                                 ) {
-                                    Text(if (job.status == "COMPLETED") "Re-Open Job" else "Mark Completed ✓", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (job.status == "COMPLETED") "Re-Open" else "Mark Completed ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 OutlinedButton(
@@ -1207,12 +1269,13 @@ fun AdminDashboardScreen(
                                             logDetails = "Deleted job '${job.title}'"
                                         )
                                     },
-                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     border = BorderStroke(1.dp, Color(0xFFDC2626))
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Delete", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                                    Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
                                 }
                             }
                         }
@@ -1220,32 +1283,32 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 4: LIVE BROADCAST NOTIFICATION ====================
+            // ==================== TAB 4: 5. SEND NOTIFICATION ====================
             if (activeTab == 4) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = BorderStroke(1.dp, WorkoraOrange)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("📢 Send Live Broadcast Notification to All Users", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("5. Send Live Notification to All Users", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
 
                         OutlinedTextField(
                             value = broadcastTitle,
                             onValueChange = { broadcastTitle = it },
-                            label = { Text("Announcement Title (जैसे: Workora सूचना)") },
+                            label = { Text("Notice Title (जैसे: Workora सूचना)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         OutlinedTextField(
                             value = broadcastMessage,
                             onValueChange = { broadcastMessage = it },
-                            label = { Text("Type Message (जैसे: सिलवानी में नए काम उपलब्ध हैं!)") },
+                            label = { Text("Type Message (जैसे: सिलवानी में नए काम उपलब्ध हैं!)", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         Button(
@@ -1269,55 +1332,56 @@ fun AdminDashboardScreen(
                                         )
                                         broadcastTitle = ""
                                         broadcastMessage = ""
-                                        Toast.makeText(context, "Live Broadcast Sent to All Users! ✓", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "Live Notification Sent! ✓", Toast.LENGTH_LONG).show()
                                         loadAllLiveFirebaseData()
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                         ) {
-                            Icon(Icons.Default.Send, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Send Live Broadcast Now ✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text("Send Broadcast Now ✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                         }
                     }
                 }
             }
 
-            // ==================== TAB 5: ADD / MANAGE ADMINS ====================
+            // ==================== TAB 5: 6. ADD ADMIN ====================
             if (activeTab == 5) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = BorderStroke(1.dp, WorkoraBorder)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("🛡️ Add or Promote Another Admin on Firebase", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("6. Add or Promote Another Admin", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
 
                         OutlinedTextField(
                             value = newAdminEmailInput,
                             onValueChange = { newAdminEmailInput = it },
-                            label = { Text("Enter User Email (जैसे: friend@gmail.com)") },
+                            label = { Text("Enter User Email (friend@gmail.com)", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("SUPER_ADMIN", "SUPPORT_ADMIN", "MODERATOR").forEach { tierOption ->
                                 val selected = newAdminRoleInput == tierOption
                                 OutlinedButton(
                                     onClick = { newAdminRoleInput = tierOption },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).height(34.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = if (selected) WorkoraNavy else Color.White
                                     )
                                 ) {
-                                    Text(tierOption.replace("_", " "), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (selected) Color.White else WorkoraNavy)
+                                    Text(tierOption.replace("_", " "), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (selected) Color.White else WorkoraNavy)
                                 }
                             }
                         }
@@ -1357,28 +1421,28 @@ fun AdminDashboardScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
                         ) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Grant Admin Access Now ✓", fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text("Grant Admin Access Now ✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                         }
                     }
                 }
             }
 
-            // ==================== TAB 6: EMERGENCY CONTROLS & AUDIT LOGS ====================
+            // ==================== TAB 6: 7. EMERGENCY & LOGS ====================
             if (activeTab == 6) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = BorderStroke(1.dp, Color(0xFFDC2626))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("🚨 Emergency System Switches (Live on Firebase)", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFDC2626))
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("7. Emergency System Switches", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFDC2626))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1386,8 +1450,8 @@ fun AdminDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Maintenance Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = WorkoraTextDark)
-                                Text("ऐप को मेंटेनेंस मोड में डालें", fontSize = 11.sp, color = WorkoraTextMuted)
+                                Text("Maintenance Mode", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                                Text("ऐप को मेंटेनेंस मोड में डालें", fontSize = 10.sp, color = WorkoraTextMuted)
                             }
                             Switch(
                                 checked = maintenanceMode,
@@ -1405,8 +1469,8 @@ fun AdminDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Allow New User Registrations", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = WorkoraTextDark)
-                                Text("नए यूज़र्स का साइन-अप चालू/बंद करें", fontSize = 11.sp, color = WorkoraTextMuted)
+                                Text("Allow New Registrations", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                                Text("नए यूज़र्स का साइन-अप चालू/बंद करें", fontSize = 10.sp, color = WorkoraTextMuted)
                             }
                             Switch(
                                 checked = allowRegistrations,
@@ -1424,8 +1488,8 @@ fun AdminDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Allow New Job Posting", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = WorkoraTextDark)
-                                Text("नई जॉब पोस्टिंग चालू/बंद करें", fontSize = 11.sp, color = WorkoraTextMuted)
+                                Text("Allow New Job Posting", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                                Text("नई जॉब पोस्टिंग चालू/बंद करें", fontSize = 10.sp, color = WorkoraTextMuted)
                             }
                             Switch(
                                 checked = allowJobPosting,
@@ -1441,12 +1505,12 @@ fun AdminDashboardScreen(
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = BorderStroke(1.dp, WorkoraBorder)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Live Admin Security Audit Logs (${auditLogs.size})", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Live Admin Audit Logs (${auditLogs.size})", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
                         auditLogs.take(15).forEach { log ->
                             val timeText = remember(log.timestamp) {
                                 SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(log.timestamp))
@@ -1454,14 +1518,14 @@ fun AdminDashboardScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(WorkoraBgLight, shape = RoundedCornerShape(10.dp))
-                                    .padding(10.dp)
+                                    .background(WorkoraBgLight, shape = RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
                             ) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("${log.actionType} • ${log.adminTier}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = WorkoraNavy)
-                                    Text(timeText, fontSize = 11.sp, color = WorkoraTextMuted)
+                                    Text("${log.actionType} • ${log.adminTier}", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = WorkoraNavy)
+                                    Text(timeText, fontSize = 10.sp, color = WorkoraTextMuted)
                                 }
-                                Text("${log.adminEmail}: ${log.details}", fontSize = 12.sp, color = WorkoraTextDark)
+                                Text("${log.adminEmail}: ${log.details}", fontSize = 11.sp, color = WorkoraTextDark)
                             }
                         }
                     }
@@ -1501,19 +1565,19 @@ private fun AdminStatTile(label: String, value: String, accent: Color, modifier:
     Card(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = WorkoraBgLight),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 10.dp, horizontal = 6.dp),
+                .padding(vertical = 8.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = accent)
+            Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = accent)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraTextMuted)
+            Text(text = label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WorkoraTextMuted)
         }
     }
 }
