@@ -52,6 +52,22 @@ private data class PrototypeWorkerItem(
     val avatarKey: String
 )
 
+private fun extractSafeJobPay(job: JobPost): String {
+    val fieldNames = listOf("dailyWage", "budget", "wage", "pay", "salary", "amount", "rate")
+    for (name in fieldNames) {
+        try {
+            val field = job.javaClass.getDeclaredField(name)
+            field.isAccessible = true
+            val value = field.get(job)?.toString()?.trim() ?: ""
+            if (value.isNotEmpty() && value != "0") {
+                return if (value.startsWith("₹")) value else "₹$value"
+            }
+        } catch (_: Exception) {
+        }
+    }
+    return "₹600/दिन"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDashboardScreen(
@@ -81,7 +97,6 @@ fun CustomerDashboardScreen(
     var searchQuery by remember { mutableStateOf("") }
     var activeCategoryFilter by remember { mutableStateOf(selectedCategory ?: "All") }
 
-    // Default Prototype Workers (Ramesh, Mohan, Mahesh, Suresh) merged with live Firebase workers
     val allDisplayWorkers = remember(workers) {
         val defaultList = listOf(
             PrototypeWorkerItem(
@@ -132,13 +147,25 @@ fun CustomerDashboardScreen(
 
         val liveMapped = workers.mapIndexed { index, w ->
             val avatarKeys = listOf("ramesh", "mohan", "mahesh", "suresh")
+            val rawName = w.name.toString().trim()
+            val rawSkill = w.skill.toString().trim()
+            val rawLoc = w.location.toString().trim()
+            val rawWage = w.dailyWage.toString().trim()
+            val rawPhone = w.phone.toString().trim()
+
+            val formattedWage = when {
+                rawWage.isEmpty() || rawWage == "0" -> "₹500/दिन"
+                rawWage.startsWith("₹") -> rawWage
+                else -> "₹$rawWage/दिन"
+            }
+
             PrototypeWorkerItem(
-                id = "live_${index}_${w.name}",
-                name = w.name.ifBlank { "कुशल कारीगर" },
-                skill = w.skill.ifBlank { "General Worker" },
-                location = w.location.ifBlank { "Silwani, Raisen (MP)" },
-                dailyWage = if (w.dailyWage.startsWith("₹")) w.dailyWage else "₹${w.dailyWage.ifBlank { "500" }}/दिन",
-                phone = w.phone.ifBlank { "6265798340" },
+                id = "live_${index}_$rawName",
+                name = if (rawName.isEmpty()) "कुशल कारीगर" else rawName,
+                skill = if (rawSkill.isEmpty()) "General Worker" else rawSkill,
+                location = if (rawLoc.isEmpty()) "Silwani, Raisen (MP)" else rawLoc,
+                dailyWage = formattedWage,
+                phone = if (rawPhone.isEmpty()) "6265798340" else rawPhone,
                 rating = "4.8",
                 jobsDone = 25 + (index * 7),
                 avatarKey = avatarKeys[index % avatarKeys.size]
@@ -230,7 +257,7 @@ fun CustomerDashboardScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    // 1. Top Header (Logo.tsx + Location Selector)
+                    // 1. Top Header
                     item {
                         Surface(
                             color = Color.White,
@@ -343,7 +370,7 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 2. Hero Banner (Navy & Orange Theme with Worker Helmet & Wrench Illustration)
+                    // 2. Hero Banner
                     item {
                         Card(
                             modifier = Modifier
@@ -439,7 +466,7 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 3. Popular Categories 3x2 Grid (Icon.tsx style)
+                    // 3. Popular Categories 3x2 Grid
                     item {
                         Column(
                             modifier = Modifier
@@ -560,7 +587,7 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    // 5. Top Available Workers Preview on Home Screen
+                    // 5. Featured Workers Preview
                     item {
                         Row(
                             modifier = Modifier
@@ -873,7 +900,6 @@ fun CustomerDashboardScreen(
     }
 }
 
-// ==================== LOGO.TSX EQUIVALENT ====================
 @Composable
 private fun WorkoraLogoCanvas(size: Dp = 44.dp) {
     Canvas(modifier = Modifier.size(size)) {
@@ -889,7 +915,6 @@ private fun WorkoraLogoCanvas(size: Dp = 44.dp) {
             cornerRadius = CornerRadius(w * 0.24f, h * 0.24f)
         )
 
-        // Orange top accent bar
         drawRoundRect(
             color = Color(0xFFFF6F00),
             topLeft = Offset(w * 0.22f, h * 0.16f),
@@ -897,7 +922,6 @@ private fun WorkoraLogoCanvas(size: Dp = 44.dp) {
             cornerRadius = CornerRadius(4f, 4f)
         )
 
-        // Stylized 'W' path
         val wPath = Path().apply {
             moveTo(w * 0.22f, h * 0.36f)
             lineTo(w * 0.35f, h * 0.78f)
@@ -913,7 +937,6 @@ private fun WorkoraLogoCanvas(size: Dp = 44.dp) {
     }
 }
 
-// ==================== AVATARS (ramesh.svg, mohan.svg, mahesh.svg, suresh.svg) ====================
 @Composable
 private fun WorkoraWorkerAvatarCanvas(
     avatarKey: String,
@@ -942,14 +965,12 @@ private fun WorkoraWorkerAvatarCanvas(
             else -> Color(0xFFFFD54F)
         }
 
-        // Circle Avatar Background
         drawCircle(
             color = bgColor,
             radius = w * 0.5f,
             center = Offset(w * 0.5f, h * 0.5f)
         )
 
-        // Shoulders / Shirt
         drawArc(
             color = shirtColor,
             startAngle = 180f,
@@ -959,14 +980,12 @@ private fun WorkoraWorkerAvatarCanvas(
             size = Size(w * 0.64f, h * 0.55f)
         )
 
-        // Face
         drawCircle(
             color = Color(0xFFFFCC80),
             radius = w * 0.2f,
             center = Offset(w * 0.5f, h * 0.44f)
         )
 
-        // Safety Helmet / Cap
         drawArc(
             color = hatColor,
             startAngle = 180f,
@@ -985,7 +1004,6 @@ private fun WorkoraWorkerAvatarCanvas(
     }
 }
 
-// ==================== WORKER CARD (App.tsx + data.ts style) ====================
 @Composable
 private fun WorkoraPrototypeWorkerCard(
     worker: PrototypeWorkerItem,
@@ -1239,7 +1257,6 @@ private fun WorkoraCategoryItemCard(
     }
 }
 
-// ==================== ICON.TSX EQUIVALENT ====================
 @Composable
 private fun WorkoraCustomCategoryIcon(
     categoryName: String,
@@ -1409,6 +1426,11 @@ private fun WorkoraHeroWorkerCanvas(size: Dp = 98.dp) {
 
 @Composable
 private fun WorkoraRecentJobRowCard(job: JobPost) {
+    val payDisplay = remember(job) { extractSafeJobPay(job) }
+    val rawTitle = job.title.toString().trim()
+    val rawCategory = job.category.toString().trim()
+    val rawLocation = job.location.toString().trim()
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1426,14 +1448,14 @@ private fun WorkoraRecentJobRowCard(job: JobPost) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = job.title.ifBlank { "काम उपलब्ध है" },
+                    text = if (rawTitle.isEmpty()) "काम उपलब्ध है" else rawTitle,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF0D253F)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${job.category} • ${job.location}",
+                    text = "$rawCategory • $rawLocation",
                     fontSize = 12.sp,
                     color = Color(0xFF64748B)
                 )
@@ -1444,7 +1466,7 @@ private fun WorkoraRecentJobRowCard(job: JobPost) {
                 border = BorderStroke(1.dp, Color(0xFFFFE082))
             ) {
                 Text(
-                    text = if (job.wage.startsWith("₹")) job.wage else "₹${job.wage}",
+                    text = payDisplay,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFFE65100),
