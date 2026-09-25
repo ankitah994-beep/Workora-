@@ -126,7 +126,7 @@ private fun loadSavedBitmap(context: Context, fileName: String): ImageBitmap? {
 fun ProfileScreen(
     role: UserRole = UserRole.CUSTOMER,
     userName: String = "Ankit Ahirwar",
-    userPhone: String = "+91 98765 43210",
+    userPhone: String = "+91 6265798340",
     userLocation: String = "Silwani, Raisen",
     toastMessage: String? = null,
     onBack: () -> Unit = {},
@@ -146,8 +146,7 @@ fun ProfileScreen(
     var isVerifiedAdminUser by remember { mutableStateOf(false) }
     var verifiedAdminTier by remember { mutableStateOf("SUPER_ADMIN") }
 
-    // False = Save Icon is Orange, True = Save Icon turns White
-    var isProfileSaved by remember { mutableStateOf(false) }
+    var isSavedState by remember { mutableStateOf(false) }
 
     var currentName by remember { mutableStateOf(prefs.getString("user_name", userName) ?: userName) }
     var currentPhone by remember { mutableStateOf(prefs.getString("user_phone", userPhone) ?: userPhone) }
@@ -155,7 +154,6 @@ fun ProfileScreen(
     var currentSkill by remember { mutableStateOf(prefs.getString("user_skill", "Mistri / Electrician / Painter") ?: "Mistri / Electrician / Painter") }
     var currentDailyRate by remember { mutableStateOf(prefs.getString("user_rate", "500") ?: "500") }
 
-    // Complete App Settings States
     var isAvailableToday by remember { mutableStateOf(settingsPrefs.getBoolean("available_today", true)) }
     var allowDirectCalls by remember { mutableStateOf(settingsPrefs.getBoolean("allow_calls", true)) }
     var allowWhatsAppAlerts by remember { mutableStateOf(settingsPrefs.getBoolean("allow_whatsapp", true)) }
@@ -164,6 +162,15 @@ fun ProfileScreen(
     var selectedRadius by remember { mutableStateOf(settingsPrefs.getString("search_radius", "10 KM") ?: "10 KM") }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var newPasswordInput by remember { mutableStateOf("") }
+
+    // Dynamic Translator Function based on selectedLanguage ("Hindi", "Hinglish", "English")
+    fun tr(hindi: String, hinglish: String, english: String): String {
+        return when (selectedLanguage) {
+            "Hindi" -> hindi
+            "English" -> english
+            else -> hinglish
+        }
+    }
 
     var profileBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     val workPhotoBitmaps = remember { mutableStateListOf<ImageBitmap?>(null, null, null) }
@@ -192,8 +199,8 @@ fun ProfileScreen(
             val savedBmp = saveUriToInternalStorage(context, uri, "saved_profile_photo.jpg")
             if (savedBmp != null) {
                 profileBitmap = savedBmp
-                isProfileSaved = false
-                Toast.makeText(context, "Profile Photo Selected! ✓", Toast.LENGTH_SHORT).show()
+                isSavedState = false
+                Toast.makeText(context, tr("प्रोफाइल फोटो चुन ली गई! सेव दबाएं ✓", "Profile Photo Selected! Save Dabayein ✓", "Profile Photo Selected! Tap Save ✓"), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -205,14 +212,14 @@ fun ProfileScreen(
             val savedBmp = saveUriToInternalStorage(context, uri, "saved_work_photo_$selectedWorkPhotoIndex.jpg")
             if (savedBmp != null) {
                 workPhotoBitmaps[selectedWorkPhotoIndex] = savedBmp
-                isProfileSaved = false
-                Toast.makeText(context, "Work Photo ${selectedWorkPhotoIndex + 1} Saved! ✓", Toast.LENGTH_SHORT).show()
+                isSavedState = false
+                Toast.makeText(context, tr("काम की फोटो ${selectedWorkPhotoIndex + 1} सेव हो गई! ✓", "Work Photo ${selectedWorkPhotoIndex + 1} Saved! ✓", "Work Photo ${selectedWorkPhotoIndex + 1} Saved! ✓"), Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     fun saveAllProfileAndSettings() {
-        isProfileSaved = true
+        isSavedState = true
         prefs.edit()
             .putString("user_name", currentName.trim())
             .putString("user_phone", currentPhone.trim())
@@ -233,7 +240,11 @@ fun ProfileScreen(
         )
 
         onUpdateProfile(currentName.trim(), currentPhone.trim(), currentLocation.trim())
-        Toast.makeText(context, "Profile & Settings Saved! (Save Icon White ✓)", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            tr("सेटिंग्स और प्रोफाइल सेव हो गई! ✓", "Settings & Profile Saved! ✓", "Settings & Profile Saved! ✓"),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     if (isInternalAdminOpen) {
@@ -252,7 +263,11 @@ fun ProfileScreen(
         return
     }
 
-    val roleTitle = if (role == UserRole.CUSTOMER) "Customer / Hirer Mode" else "Worker / Labour Mode"
+    val roleTitle = if (role == UserRole.CUSTOMER) {
+        tr("ग्राहक / काम देने वाला मोड", "Customer / Hirer Mode", "Customer / Hirer Mode")
+    } else {
+        tr("कारीगर / मजदूर मोड", "Worker / Labour Mode", "Worker / Labour Mode")
+    }
 
     Column(
         modifier = Modifier
@@ -261,7 +276,7 @@ fun ProfileScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // Top Header with Settings Icon (⚙️) + Save Button
+        // Top Header Bar
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -272,22 +287,20 @@ fun ProfileScreen(
                 .padding(horizontal = 8.dp, vertical = 10.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                IconButton(onClick = onBack, modifier = Modifier.size(34.dp)) {
+                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(WorkoraOrange),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings", tint = WorkoraOrange, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Column {
-                    Text(text = "Settings & Edit Profile", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text(text = "$roleTitle • $activeEmail", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                    Text(
+                        text = tr("सेटिंग्स और प्रोफाइल एडिट", "Settings & Profile Edit", "Settings & Profile Edit"),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    Text(text = "$activeEmail • $selectedLanguage", fontSize = 10.sp, color = Color.White.copy(alpha = 0.85f))
                 }
             }
 
@@ -295,7 +308,7 @@ fun ProfileScreen(
                 onClick = { saveAllProfileAndSettings() },
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isProfileSaved) Color(0xFF16A34A) else Color.White
+                    containerColor = if (isSavedState) Color(0xFF16A34A) else Color.White
                 ),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.height(34.dp)
@@ -303,14 +316,14 @@ fun ProfileScreen(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Save",
-                    tint = if (isProfileSaved) Color.White else WorkoraOrange,
+                    tint = if (isSavedState) Color.White else WorkoraOrange,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isProfileSaved) "Saved" else "Save",
-                    color = if (isProfileSaved) Color.White else WorkoraNavy,
-                    fontSize = 11.sp,
+                    text = if (isSavedState) tr("सेव ✓", "Saved ✓", "Saved ✓") else tr("सेव करें", "Save", "Save"),
+                    color = if (isSavedState) Color.White else WorkoraNavy,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
@@ -322,7 +335,6 @@ fun ProfileScreen(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Admin Panel Quick Button (If User is Verified Admin)
             if (isVerifiedAdminUser) {
                 Button(
                     onClick = {
@@ -330,14 +342,14 @@ fun ProfileScreen(
                         isInternalAdminOpen = true
                         onOpenAdmin()
                     },
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
                 ) {
                     Icon(imageVector = Icons.Default.VerifiedUser, tint = Color.White, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Open Workora Admin Panel ($verifiedAdminTier)",
+                        text = tr("Workora एडमिन पैनल खोलें ($verifiedAdminTier)", "Open Workora Admin Panel ($verifiedAdminTier)", "Open Workora Admin Panel ($verifiedAdminTier)"),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
@@ -345,29 +357,24 @@ fun ProfileScreen(
                 }
             }
 
-            // ==================== 1. EDIT PROFILE & PHOTOS SECTION ====================
+            // ==================== SECTION 1: EDIT PROFILE & PHOTOS ====================
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, WorkoraOrange)
+                border = BorderStroke(1.dp, WorkoraBorder)
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "1. Edit Profile & Photo (प्रोफाइल एडिट करें)",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = WorkoraNavy
-                        )
-                    }
+                    Text(
+                        text = tr("1. अपनी प्रोफाइल और फोटो एडिट करें", "1. Edit Profile & Photo (Proflie Edit Karein)", "1. Edit Your Profile & Photos"),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
 
-                    // Compact Profile Photo + Name Summary
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -375,13 +382,13 @@ fun ProfileScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(74.dp)
+                                .size(76.dp)
                                 .clickable { profileFallbackLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(70.dp)
+                                    .size(72.dp)
                                     .clip(CircleShape)
                                     .background(WorkoraOrange.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
@@ -395,28 +402,41 @@ fun ProfileScreen(
                                     )
                                 } else {
                                     Icon(
-                                        imageVector = Icons.Default.Settings,
+                                        imageVector = Icons.Default.Person,
                                         contentDescription = null,
                                         tint = WorkoraOrange,
-                                        modifier = Modifier.size(34.dp)
+                                        modifier = Modifier.size(40.dp)
                                     )
                                 }
                             }
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .size(24.dp)
-                                    .background(WorkoraNavy, CircleShape),
+                                    .size(26.dp)
+                                    .background(WorkoraNavy, shape = CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                Icon(
+                                    imageVector = Icons.Default.AddAPhoto,
+                                    contentDescription = "Change Photo",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
                         }
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = currentName, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraTextDark)
-                            Text(text = currentSkill, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
-                            Text(text = "📍 $currentLocation • ₹$currentDailyRate/day", fontSize = 11.sp, color = WorkoraTextMuted)
+                            Text(text = roleTitle, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = { profileFallbackLauncher.launch("image/*") },
+                                modifier = Modifier.height(32.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                            ) {
+                                Text(tr("प्रोफाइल फोटो बदलें", "Profile Photo Badlein", "Change Profile Photo"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                            }
                         }
                     }
 
@@ -424,9 +444,9 @@ fun ProfileScreen(
                         value = currentName,
                         onValueChange = {
                             currentName = it
-                            isProfileSaved = false
+                            isSavedState = false
                         },
-                        label = { Text("Full Name (पूरा नाम)", fontSize = 12.sp) },
+                        label = { Text(tr("पूरा नाम", "Full Name (Poora Naam)", "Full Name"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -438,9 +458,9 @@ fun ProfileScreen(
                         value = currentPhone,
                         onValueChange = {
                             currentPhone = it
-                            isProfileSaved = false
+                            isSavedState = false
                         },
-                        label = { Text("Mobile Number (मोबाइल नंबर)", fontSize = 12.sp) },
+                        label = { Text(tr("मोबाइल नंबर", "Mobile Number", "Mobile Number"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -453,9 +473,9 @@ fun ProfileScreen(
                         value = currentLocation,
                         onValueChange = {
                             currentLocation = it
-                            isProfileSaved = false
+                            isSavedState = false
                         },
-                        label = { Text("Village / City (गाँव या शहर का पता)", fontSize = 12.sp) },
+                        label = { Text(tr("गाँव या शहर का पता", "Village / City (Gaon ya Shahar)", "Village / City Address"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -467,9 +487,9 @@ fun ProfileScreen(
                         value = currentSkill,
                         onValueChange = {
                             currentSkill = it
-                            isProfileSaved = false
+                            isSavedState = false
                         },
-                        label = { Text("Your Work / Skill (आप क्या काम करते हैं?)", fontSize = 12.sp) },
+                        label = { Text(tr("आपका काम / हुनर (जैसे: मिस्त्री)", "Aapka Kaam / Skill (e.g. Mistri)", "Your Work / Skill"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Build, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -481,9 +501,9 @@ fun ProfileScreen(
                         value = currentDailyRate,
                         onValueChange = {
                             currentDailyRate = it
-                            isProfileSaved = false
+                            isSavedState = false
                         },
-                        label = { Text("Daily Wage ₹ (रोज़ की मजदूरी रेट)", fontSize = 12.sp) },
+                        label = { Text(tr("रोज़ की दिहाड़ी रेट ₹", "Daily Wage ₹ (Roz ki Dihadi)", "Daily Wage Rate ₹"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -492,9 +512,8 @@ fun ProfileScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = WorkoraOrange, unfocusedBorderColor = WorkoraBorder)
                     )
 
-                    // 3 Work Proof Photos inside Profile Edit
                     Text(
-                        text = "काम की 3 फोटो (Work Proof Portfolio - ${workPhotoBitmaps.count { it != null }}/3):",
+                        text = tr("काम की 3 फोटो (${workPhotoBitmaps.count { it != null }}/3 सेव):", "Kaam ki 3 Photo (${workPhotoBitmaps.count { it != null }}/3 Saved):", "3 Work Proof Photos (${workPhotoBitmaps.count { it != null }}/3 Saved):"),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = WorkoraNavy
@@ -529,7 +548,7 @@ fun ProfileScreen(
                                     } else {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(20.dp))
-                                            Text("Photo ${index + 1}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WorkoraTextDark)
+                                            Text(tr("फोटो ${index + 1}", "Photo ${index + 1}", "Photo ${index + 1}"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WorkoraTextDark)
                                         }
                                     }
                                 }
@@ -537,24 +556,23 @@ fun ProfileScreen(
                         }
                     }
 
-                    // Save Button (Save Icon Orange -> White after saving!)
                     Button(
                         onClick = { saveAllProfileAndSettings() },
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isProfileSaved) Color(0xFF16A34A) else WorkoraNavy
+                            containerColor = if (isSavedState) Color(0xFF16A34A) else WorkoraNavy
                         )
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
-                            tint = if (isProfileSaved) Color.White else WorkoraOrange,
+                            tint = if (isSavedState) Color.White else WorkoraOrange,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isProfileSaved) "Profile Saved! (Icon White ✓)" else "Save Profile Changes",
+                            text = if (isSavedState) tr("प्रोफाइल सेव हो गई! ✓", "Profile Saved! ✓", "Profile Saved! ✓") else tr("प्रोफाइल सेव करें", "Save Profile Changes", "Save Profile Changes"),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
@@ -563,7 +581,7 @@ fun ProfileScreen(
                 }
             }
 
-            // ==================== 2. WORK & PRIVACY SETTINGS SECTION ====================
+            // ==================== SECTION 2: WORK & PRIVACY SETTINGS ====================
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -571,16 +589,12 @@ fun ProfileScreen(
                 border = BorderStroke(1.dp, WorkoraBorder)
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Settings, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "2. Work & Privacy Settings (ऐप सेटिंग्स)",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = WorkoraNavy
-                        )
-                    }
+                    Text(
+                        text = tr("2. काम और प्राइवेसी सेटिंग्स", "2. Work & Privacy Settings", "2. Work & Privacy Settings"),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -588,13 +602,14 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Available for Work Today", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
-                            Text("ग्राहकों को दिखाएं कि आप आज काम के लिए उपलब्ध हैं", fontSize = 10.sp, color = WorkoraTextMuted)
+                            Text(tr("आज काम के लिए उपलब्ध हैं", "Available for Work Today", "Available for Work Today"), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                            Text(tr("ग्राहकों को दिखाएं कि आप आज काम के लिए तैयार हैं", "Grahakon ko dikhayein ki aap aaj kaam ke liye available hain", "Show customers you are available today"), fontSize = 10.sp, color = WorkoraTextMuted)
                         }
                         Switch(
                             checked = isAvailableToday,
                             onCheckedChange = {
                                 isAvailableToday = it
+                                isSavedState = false
                                 settingsPrefs.edit().putBoolean("available_today", it).apply()
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF16A34A))
@@ -607,13 +622,14 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Allow Direct Phone Calls", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
-                            Text("ग्राहक सीधे आपके नंबर पर कॉल कर सकें", fontSize = 10.sp, color = WorkoraTextMuted)
+                            Text(tr("सीधे फ़ोन कॉल की अनुमति दें", "Allow Direct Phone Calls", "Allow Direct Phone Calls"), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                            Text(tr("ग्राहक सीधे आपके नंबर पर कॉल कर सकें", "Grahak seedhe aapke number par call kar sakein", "Let customers call your phone number directly"), fontSize = 10.sp, color = WorkoraTextMuted)
                         }
                         Switch(
                             checked = allowDirectCalls,
                             onCheckedChange = {
                                 allowDirectCalls = it
+                                isSavedState = false
                                 settingsPrefs.edit().putBoolean("allow_calls", it).apply()
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = WorkoraOrange)
@@ -626,13 +642,14 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("WhatsApp & Live Chat Alerts", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
-                            Text("नए काम और चैट के मैसेज अलर्ट प्राप्त करें", fontSize = 10.sp, color = WorkoraTextMuted)
+                            Text(tr("व्हाट्सएप और लाइव चैट अलर्ट", "WhatsApp & Live Chat Alerts", "WhatsApp & Live Chat Alerts"), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                            Text(tr("नए काम और चैट के मैसेज अलर्ट प्राप्त करें", "Naye kaam aur chat ke message alert prapt karein", "Receive new job and live chat alerts"), fontSize = 10.sp, color = WorkoraTextMuted)
                         }
                         Switch(
                             checked = allowWhatsAppAlerts,
                             onCheckedChange = {
                                 allowWhatsAppAlerts = it
+                                isSavedState = false
                                 settingsPrefs.edit().putBoolean("allow_whatsapp", it).apply()
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = WorkoraOrange)
@@ -645,13 +662,14 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("New Job Sound Notification", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
-                            Text("नया काम आने पर घंटी बजे", fontSize = 10.sp, color = WorkoraTextMuted)
+                            Text(tr("नए काम की घंटी (साउंड अलर्ट)", "New Job Sound Notification", "New Job Sound Notification"), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = WorkoraTextDark)
+                            Text(tr("नया काम आने पर घंटी बजे", "Naya kaam aane par ghanti baje", "Play sound alert when a new job arrives"), fontSize = 10.sp, color = WorkoraTextMuted)
                         }
                         Switch(
                             checked = jobSoundAlerts,
                             onCheckedChange = {
                                 jobSoundAlerts = it
+                                isSavedState = false
                                 settingsPrefs.edit().putBoolean("job_sound_alerts", it).apply()
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = WorkoraOrange)
@@ -660,7 +678,7 @@ fun ProfileScreen(
                 }
             }
 
-            // ==================== 3. WORK SEARCH DISTANCE & LANGUAGE ====================
+            // ==================== SECTION 3: DISTANCE & LIVE LANGUAGE SWITCHER ====================
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -668,18 +686,24 @@ fun ProfileScreen(
                 border = BorderStroke(1.dp, WorkoraBorder)
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("3. Work Search Distance (काम की दूरी)", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Text(
+                        text = tr("3. काम की दूरी चुनें", "3. Work Search Distance (Kaam ki Doori)", "3. Work Search Distance"),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("5 KM", "10 KM", "25 KM", "All Area").forEach { radiusOption ->
                             val isSelected = selectedRadius == radiusOption
                             OutlinedButton(
                                 onClick = {
                                     selectedRadius = radiusOption
+                                    isSavedState = false
                                     settingsPrefs.edit().putString("search_radius", radiusOption).apply()
-                                    Toast.makeText(context, "Search Distance: $radiusOption ✓", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Distance: $radiusOption ✓", Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier.weight(1f).height(34.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = if (isSelected) WorkoraOrange else Color.White
@@ -697,19 +721,36 @@ fun ProfileScreen(
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-
-                    Text("4. App Language (भाषा चुनें)", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Text(
+                        text = tr("4. ऐप की भाषा चुनें (तुरंत बदलेगी)", "4. App Language (Tap karte hi badlegi)", "4. Select App Language (Instant Switch)"),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Hindi", "Hinglish", "English").forEach { lang ->
-                            val isSelected = selectedLanguage == lang
+                        listOf(
+                            "Hindi" to "हिंदी (Hindi)",
+                            "Hinglish" to "Hinglish",
+                            "English" to "English"
+                        ).forEach { (langKey, langLabel) ->
+                            val isSelected = selectedLanguage == langKey
                             OutlinedButton(
                                 onClick = {
-                                    selectedLanguage = lang
-                                    settingsPrefs.edit().putString("app_language", lang).apply()
-                                    Toast.makeText(context, "Language: $lang ✓", Toast.LENGTH_SHORT).show()
+                                    selectedLanguage = langKey
+                                    isSavedState = false
+                                    settingsPrefs.edit().putString("app_language", langKey).apply()
+                                    Toast.makeText(
+                                        context,
+                                        when (langKey) {
+                                            "Hindi" -> "ऐप की भाषा हिंदी कर दी गई है! ✓"
+                                            "English" -> "App Language changed to English! ✓"
+                                            else -> "App Language Hinglish ho gayi hai! ✓"
+                                        },
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 },
-                                modifier = Modifier.weight(1f).height(34.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                modifier = Modifier.weight(1f).height(36.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = if (isSelected) WorkoraNavy else Color.White
@@ -717,7 +758,7 @@ fun ProfileScreen(
                                 border = BorderStroke(1.dp, if (isSelected) WorkoraNavy else WorkoraBorder)
                             ) {
                                 Text(
-                                    text = lang,
+                                    text = langLabel,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isSelected) Color.White else WorkoraTextDark
@@ -728,7 +769,7 @@ fun ProfileScreen(
                 }
             }
 
-            // ==================== 5. SECURITY, CLOUD SYNC & ACCOUNT CONTROLS ====================
+            // ==================== SECTION 4: SECURITY, PASSWORD & ACCOUNT CONTROLS ====================
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -736,7 +777,12 @@ fun ProfileScreen(
                 border = BorderStroke(1.dp, WorkoraBorder)
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("5. Security, Cloud Sync & Account", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                    Text(
+                        text = tr("5. सुरक्षा, पासवर्ड और अकाउंट कंट्रोल", "5. Security, Cloud Sync & Account", "5. Security, Cloud Sync & Account"),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
@@ -748,7 +794,7 @@ fun ProfileScreen(
                         ) {
                             Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Change Password", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
+                            Text(tr("पासवर्ड बदलें", "Change Password", "Change Password"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraOrange)
                         }
 
                         OutlinedButton(
@@ -760,7 +806,7 @@ fun ProfileScreen(
                         ) {
                             Icon(Icons.Default.Email, contentDescription = null, tint = WorkoraNavy, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Open Live Chat", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                            Text(tr("व्हाट्सएप चैट्स खोलें", "Open All Chats", "Open All Chats"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
                         }
                     }
 
@@ -774,13 +820,13 @@ fun ProfileScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Sync to Cloud ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(tr("क्लाउड सिंक ✓", "Sync to Cloud ✓", "Sync to Cloud ✓"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
 
                         OutlinedButton(
                             onClick = {
                                 context.cacheDir.deleteRecursively()
-                                Toast.makeText(context, "App Cache Cleared! ✓", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, tr("कैश साफ़ हो गया! ✓", "App Cache Cleared! ✓", "App Cache Cleared! ✓"), Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.weight(1f).height(40.dp),
                             shape = RoundedCornerShape(8.dp),
@@ -789,20 +835,24 @@ fun ProfileScreen(
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null, tint = WorkoraTextDark, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Clear Cache", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraTextDark)
+                            Text(tr("कैश साफ़ करें", "Clear Cache", "Clear Cache"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraTextDark)
                         }
                     }
 
                     OutlinedButton(
                         onClick = onSwitchRole,
                         modifier = Modifier.fillMaxWidth().height(42.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, WorkoraNavy)
                     ) {
-                        Icon(imageVector = Icons.Default.SwapHoriz, tint = WorkoraNavy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = WorkoraNavy, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Switch to ${if (role == UserRole.CUSTOMER) "Labour / Worker Mode" else "Customer / Hirer Mode"}",
+                            text = if (role == UserRole.CUSTOMER) {
+                                tr("मजदूर / कारीगर मोड में बदलें", "Switch to Labour / Worker Mode", "Switch to Labour / Worker Mode")
+                            } else {
+                                tr("ग्राहक / काम देने वाले मोड में बदलें", "Switch to Customer / Hirer Mode", "Switch to Customer / Hirer Mode")
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = WorkoraNavy
@@ -811,31 +861,33 @@ fun ProfileScreen(
 
                     Button(
                         onClick = {
-                            authPrefs.edit().putBoolean("is_logged_in", false).apply()
+                            authPrefs.edit().putBoolean("is_logged_in", false).remove("saved_user_role").apply()
                             onLogout()
                         },
                         modifier = Modifier.fillMaxWidth().height(42.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
                     ) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.Logout, tint = Color.White, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Logout Account", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = tr("लॉगआउट करें", "Logout Account", "Logout Account"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
     if (showChangePasswordDialog) {
         AlertDialog(
             onDismissRequest = { showChangePasswordDialog = false },
-            title = { Text("Change Password", fontWeight = FontWeight.Bold) },
+            title = { Text(tr("पासवर्ड बदलें", "Change Password", "Change Password"), fontWeight = FontWeight.Bold, fontSize = 16.sp) },
             text = {
                 OutlinedTextField(
                     value = newPasswordInput,
                     onValueChange = { newPasswordInput = it },
-                    label = { Text("New Password (Min 6 chars)") },
+                    label = { Text(tr("नया पासवर्ड (कम से कम 6 अक्षर)", "New Password (Min 6 chars)", "New Password (Min 6 chars)")) },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp)
                 )
@@ -845,7 +897,7 @@ fun ProfileScreen(
                     onClick = {
                         val cleanNewPass = newPasswordInput.trim()
                         if (cleanNewPass.length < 6) {
-                            Toast.makeText(context, "Kam se kam 6 akshar dalein!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, tr("कम से कम 6 अक्षर डालें!", "Kam se kam 6 akshar dalein!", "Enter at least 6 characters!"), Toast.LENGTH_SHORT).show()
                         } else {
                             authPrefs.edit().putString("user_pass_$activeEmail", cleanNewPass).apply()
                             FirebaseManager.syncUserToFirebase(
@@ -858,17 +910,18 @@ fun ProfileScreen(
                             )
                             newPasswordInput = ""
                             showChangePasswordDialog = false
-                            Toast.makeText(context, "Password Saved on Cloud! ✓", Toast.LENGTH_SHORT).show()
+                            isSavedState = true
+                            Toast.makeText(context, tr("पासवर्ड बदल गया! ✓", "Password Updated! ✓", "Password Updated! ✓"), Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                 ) {
-                    Text("Save Password", fontWeight = FontWeight.Bold)
+                    Text(tr("सेव करें", "Save Password", "Save Password"), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showChangePasswordDialog = false }) {
-                    Text("Cancel")
+                    Text(tr("रद्द करें", "Cancel", "Cancel"))
                 }
             }
         )
