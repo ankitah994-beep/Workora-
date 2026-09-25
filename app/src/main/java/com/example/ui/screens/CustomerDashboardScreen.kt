@@ -184,7 +184,9 @@ fun CustomerDashboardScreen(
     onOpenFilters: () -> Unit = {},
     toastMessage: String? = null,
     onPostJobClick: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onOpenHistory: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
@@ -269,7 +271,8 @@ fun CustomerDashboardScreen(
         }
     }
 
-    var localTab by remember(activeTab) { mutableStateOf(if (activeTab in 0..1) activeTab else 0) }
+    // 0 = Menu (Home), 1 = Search Workers, 2 = History
+    var localTab by remember(activeTab) { mutableStateOf(if (activeTab in 0..2) activeTab else 0) }
     var localSearchQuery by remember(searchQuery) { mutableStateOf(searchQuery) }
     var activeCategoryFilter by remember(selectedCategory) { mutableStateOf(selectedCategory ?: "All") }
 
@@ -381,7 +384,7 @@ fun CustomerDashboardScreen(
         }
     }
 
-    val handleProfileNavigation: () -> Unit = {
+    val handleSettingsNavigation: () -> Unit = {
         onOpenProfile()
         onNavigateToProfile()
     }
@@ -394,47 +397,84 @@ fun CustomerDashboardScreen(
     Scaffold(
         containerColor = Color(0xFFF4F7FB),
         bottomBar = {
+            // Unified 5-Item Bottom Bar: Menu - History - +Post Work - Floating Live Chat - Settings
             Surface(
                 color = Color.White,
-                shadowElevation = 14.dp,
+                shadowElevation = 16.dp,
                 shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
+                        .navigationBarsPadding()
+                        .padding(vertical = 8.dp, horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 1. Menu
                     WorkoraBottomNavButton(
-                        icon = Icons.Default.Home,
-                        label = "Home",
-                        selected = localTab == 0,
+                        icon = Icons.Default.Menu,
+                        label = "Menu",
+                        selected = localTab == 0 || localTab == 1,
                         onClick = {
                             localTab = 0
                             onTabSelected(0)
                         }
                     )
+
+                    // 2. History
                     WorkoraBottomNavButton(
-                        icon = Icons.Default.Search,
-                        label = "Search",
-                        selected = localTab == 1,
+                        icon = Icons.Default.History,
+                        label = "History",
+                        selected = localTab == 2,
                         onClick = {
-                            localTab = 1
-                            onTabSelected(1)
+                            localTab = 2
+                            onTabSelected(2)
                         }
                     )
+
+                    // 3. + Post Work
                     WorkoraBottomNavButton(
                         icon = Icons.Default.AddCircle,
-                        label = "Post",
+                        label = "+Post Work",
                         selected = false,
                         onClick = handleOpenPostJob
                     )
+
+                    // 4. Floating Live Chat Option inside Bottom Bar
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = Color(0xFF0D253F),
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .clickable { onOpenChat() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = "Live Chat",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Live Chat",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // 5. Settings (Opens Profile & Settings)
                     WorkoraBottomNavButton(
-                        icon = Icons.Default.Person,
-                        label = "Profile",
+                        icon = Icons.Default.Settings,
+                        label = "Settings",
                         selected = false,
-                        onClick = handleProfileNavigation
+                        onClick = handleSettingsNavigation
                     )
                 }
             }
@@ -446,7 +486,7 @@ fun CustomerDashboardScreen(
                 .padding(innerPadding)
         ) {
             if (localTab == 0) {
-                // ==================== VIEW 0: HOME SCREEN ====================
+                // ==================== VIEW 0: MENU / HOME SCREEN ====================
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp)
@@ -904,7 +944,7 @@ fun CustomerDashboardScreen(
                         }
                     }
                 }
-            } else {
+            } else if (localTab == 1) {
                 // ==================== VIEW 1: AVAILABLE WORKERS SEARCH SCREEN ====================
                 Column(modifier = Modifier.fillMaxSize()) {
                     Surface(
@@ -1101,6 +1141,108 @@ fun CustomerDashboardScreen(
                         }
                     }
                 }
+            } else {
+                // ==================== VIEW 2: WORK & JOB POST HISTORY ====================
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Surface(
+                        color = Color.White,
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        localTab = 0
+                                        onTabSelected(0)
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color(0xFF0D253F)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Work History (${jobs.size})",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF0D253F)
+                                )
+                            }
+
+                            Button(
+                                onClick = handleOpenPostJob,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "+ Post Work",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        if (jobs.isEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(36.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = null,
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(52.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "अभी तक कोई काम हिस्ट्री में नहीं है",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF475569),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = handleOpenPostJob,
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F)),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("+ नया काम पोस्ट करें")
+                                    }
+                                }
+                            }
+                        } else {
+                            items(jobs) { job ->
+                                WorkoraRecentJobRowCard(
+                                    job = job,
+                                    onCompleteClick = {
+                                        val jobIdLong = extractSafeObjectField(job, "id", fallback = "0").toLongOrNull() ?: 0L
+                                        if (jobIdLong != 0L) onCompleteJob(jobIdLong)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1263,7 +1405,7 @@ fun CustomerDashboardScreen(
             containerColor = Color.White,
             title = {
                 Text(
-                    text = "नया काम पोस्ट करें (Post Job)",
+                    text = "नया काम पोस्ट करें (+Post Work)",
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF0D253F)
                 )
@@ -1591,22 +1733,23 @@ private fun WorkoraBottomNavButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-            color = tint
+            color = tint,
+            maxLines = 1
         )
     }
 }
