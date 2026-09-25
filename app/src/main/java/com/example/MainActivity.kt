@@ -52,7 +52,6 @@ import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.LanguageSelectionScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.NotificationScreen
-import com.example.ui.screens.PostJobScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SearchFilterScreen
 import com.example.ui.screens.SignUpScreen
@@ -85,6 +84,7 @@ fun WorkoraApp(
 ) {
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
+    val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
 
     val screenState by viewModel.screenState.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
@@ -137,11 +137,7 @@ fun WorkoraApp(
             onLanguageSelected = {
                 showGreenWelcomeScreen = false
                 if (!isDirectAdminPanelOpen) {
-                    if (authPrefs.getBoolean("is_logged_in", false)) {
-                        viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
-                    } else {
-                        viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
-                    }
+                    viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
                 }
             }
         )
@@ -257,7 +253,7 @@ fun WorkoraApp(
                         }
                     )
                 }
-                ScreenState.CUSTOMER_HOME -> {
+                ScreenState.CUSTOMER_HOME, ScreenState.POST_JOB -> {
                     CustomerDashboardScreen(
                         currentUser = null,
                         searchQuery = searchQuery,
@@ -268,11 +264,36 @@ fun WorkoraApp(
                         onCategorySelected = { viewModel.setCategoryFilter(it) },
                         activeTab = customerTab,
                         onTabSelected = { viewModel.setCustomerTab(it) },
-                        onPostJob = { _, _, _, _, _, _, _, _ ->
-                            viewModel.navigateTo(ScreenState.POST_JOB)
+                        onPostJob = { title, category, description, dailyRate, location, workersNeeded, urgency, dateTime ->
+                            // Directly submit from the first sheet without opening the second duplicate screen!
+                            viewModel.postJob(
+                                title = title,
+                                category = category,
+                                description = description,
+                                dailyRate = dailyRate,
+                                location = location,
+                                workersNeeded = workersNeeded,
+                                urgency = urgency,
+                                dateTime = dateTime
+                            )
+                            val cName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
+                            val cPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
+                            FirebaseManager.postJobToFirebase(
+                                title = title,
+                                category = category,
+                                description = description,
+                                dailyRate = dailyRate,
+                                location = location,
+                                workersNeeded = workersNeeded,
+                                urgency = urgency,
+                                customerName = cName,
+                                customerPhone = cPhone
+                            )
+                            Toast.makeText(context, "Work Request Sent Successfully! ✓", Toast.LENGTH_SHORT).show()
                         },
-                        onHireWorker = { _ ->
-                            viewModel.navigateTo(ScreenState.CHAT)
+                        onHireWorker = { worker ->
+                            viewModel.hireWorker(worker)
+                            Toast.makeText(context, "Direct Hire Request Sent to ${worker.name}! ✓", Toast.LENGTH_SHORT).show()
                         },
                         onCompleteJob = { jobId ->
                             viewModel.completeJob(jobId)
@@ -336,12 +357,6 @@ fun WorkoraApp(
                         onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) },
                         onOpenAdmin = { isDirectAdminPanelOpen = true },
                         onUpdateProfile = { _, _, _ -> }
-                    )
-                }
-                ScreenState.POST_JOB -> {
-                    PostJobScreen(
-                        onBack = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) },
-                        onSubmit = { viewModel.navigateTo(ScreenState.CUSTOMER_HOME) }
                     )
                 }
                 ScreenState.SEARCH_FILTER -> {
