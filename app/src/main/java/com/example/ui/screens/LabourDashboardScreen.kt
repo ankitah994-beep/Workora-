@@ -312,7 +312,6 @@ fun LabourDashboardScreen(
     Scaffold(
         containerColor = Color(0xFFF4F7FB),
         bottomBar = {
-            // Unified 5-Item Bottom Bar: Menu - History - +Post Work - Chat - Settings
             Surface(
                 color = Color.White,
                 shadowElevation = 16.dp,
@@ -326,7 +325,6 @@ fun LabourDashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. Menu
                     LabourBottomNavButton(
                         icon = Icons.Default.Menu,
                         label = "Menu",
@@ -337,7 +335,6 @@ fun LabourDashboardScreen(
                         }
                     )
 
-                    // 2. History
                     LabourBottomNavButton(
                         icon = Icons.Default.History,
                         label = "History",
@@ -348,10 +345,9 @@ fun LabourDashboardScreen(
                         }
                     )
 
-                    // 3. + Post Work
                     LabourBottomNavButton(
                         icon = Icons.Default.AddCircle,
-                        label = "+Post Work",
+                        label = "Post Skills",
                         selected = false,
                         onClick = {
                             localTab = 1
@@ -359,7 +355,6 @@ fun LabourDashboardScreen(
                         }
                     )
 
-                    // 4. Clean Simple Chat Icon inside Bottom Bar
                     LabourBottomNavButton(
                         icon = Icons.Default.Chat,
                         label = "Chat",
@@ -367,7 +362,6 @@ fun LabourDashboardScreen(
                         onClick = { onOpenChat() }
                     )
 
-                    // 5. Settings (Opens Profile & Settings)
                     LabourBottomNavButton(
                         icon = Icons.Default.Settings,
                         label = "Settings",
@@ -389,7 +383,6 @@ fun LabourDashboardScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    // 1. Top Branding & Duty Header
                     item {
                         Surface(
                             color = Color.White,
@@ -426,7 +419,6 @@ fun LabourDashboardScreen(
                                     }
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // Online / Offline Duty Toggle
                                         Surface(
                                             shape = RoundedCornerShape(50),
                                             color = if (isAvailable) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
@@ -495,7 +487,6 @@ fun LabourDashboardScreen(
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // Location Card
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = Color(0xFFF8FAFC),
@@ -543,7 +534,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 2. Hero Banner
                     item {
                         Card(
                             modifier = Modifier
@@ -627,7 +617,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 3. Popular Categories 3x2 Grid
                     item {
                         Column(
                             modifier = Modifier
@@ -703,7 +692,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 4. Green Shield Verified Trust Card
                     item {
                         Card(
                             modifier = Modifier
@@ -751,7 +739,6 @@ fun LabourDashboardScreen(
                         }
                     }
 
-                    // 5. Recent Available Jobs Header
                     item {
                         Row(
                             modifier = Modifier
