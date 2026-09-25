@@ -61,7 +61,6 @@ import com.example.viewmodel.WorkoraViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Remove initial white window flash by setting window background to Green immediately
         window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.parseColor("#15803D")))
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -98,45 +97,48 @@ fun WorkoraApp(
     val customerTab by viewModel.customerTab.collectAsStateWithLifecycle()
     val labourTab by viewModel.labourTab.collectAsStateWithLifecycle()
 
-    // Always show the Green Welcome Screen first when the app opens
     var showGreenWelcomeScreen by remember { mutableStateOf(true) }
 
     var isDirectAdminPanelOpen by remember {
-        mutableStateOf(authPrefs.getString("saved_user_role", null) == "ADMIN")
+        val isLogged = authPrefs.getBoolean("is_logged_in", false)
+        val savedRole = authPrefs.getString("saved_user_role", null)
+        mutableStateOf(isLogged && savedRole == "ADMIN")
     }
     var activeAdminEmail by remember {
-        val saved = authPrefs.getString("last_logged_in_email", "") ?: ""
-        mutableStateOf(if (saved.isNotBlank()) saved else "ankitah994@gmail.com")
+        mutableStateOf(authPrefs.getString("last_logged_in_email", "") ?: "")
     }
     var activeAdminTier by remember {
         mutableStateOf(authPrefs.getString("saved_admin_tier", "SUPER_ADMIN") ?: "SUPER_ADMIN")
     }
 
+    // Only verify Admin status if a user is actually logged in!
     LaunchedEffect(Unit) {
+        val isLogged = authPrefs.getBoolean("is_logged_in", false)
         val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
-        val emailToVerify = if (savedEmail.isNotBlank()) savedEmail else "ankitah994@gmail.com"
-
-        FirebaseManager.checkIfEmailIsAdminOnCloud(emailToVerify) { isAdmin, adminTier ->
-            if (isAdmin) {
-                authPrefs.edit()
-                    .putBoolean("is_logged_in", true)
-                    .putString("last_logged_in_email", emailToVerify)
-                    .putString("saved_user_role", "ADMIN")
-                    .putString("saved_admin_tier", adminTier)
-                    .apply()
-                activeAdminEmail = emailToVerify
-                activeAdminTier = adminTier
-                isDirectAdminPanelOpen = true
+        if (isLogged && savedEmail.isNotBlank()) {
+            FirebaseManager.checkIfEmailIsAdminOnCloud(savedEmail) { isAdmin, adminTier ->
+                if (isAdmin && authPrefs.getString("saved_user_role", null) == "ADMIN") {
+                    activeAdminEmail = savedEmail
+                    activeAdminTier = adminTier
+                    isDirectAdminPanelOpen = true
+                }
             }
+        } else {
+            isDirectAdminPanelOpen = false
         }
     }
 
-    // 1. First show Pure Green Welcome Screen (No white screen, no login buttons on it)
+    // 1. Pure Green Welcome Screen on startup
     if (showGreenWelcomeScreen) {
         LanguageSelectionScreen(
             onLanguageSelected = {
                 showGreenWelcomeScreen = false
-                if (!isDirectAdminPanelOpen) {
+                val isLogged = authPrefs.getBoolean("is_logged_in", false)
+                val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
+                if (!isLogged || savedEmail.isBlank()) {
+                    isDirectAdminPanelOpen = false
+                    viewModel.navigateTo(ScreenState.LOGIN)
+                } else if (!isDirectAdminPanelOpen) {
                     viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
                 }
             }
@@ -144,14 +146,20 @@ fun WorkoraApp(
         return
     }
 
-    // 2. After Welcome Screen finishes, if Admin is verified, open Admin Panel
+    // 2. Open Admin Panel ONLY when logged in and authorized
     if (isDirectAdminPanelOpen) {
         AdminDashboardScreen(
             adminEmail = activeAdminEmail,
             adminTier = activeAdminTier,
             onLogoutAdmin = {
                 isDirectAdminPanelOpen = false
-                viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                // Perform full logout and go to Login / Registration Screen
+                authPrefs.edit()
+                    .putBoolean("is_logged_in", false)
+                    .remove("last_logged_in_email")
+                    .remove("saved_user_role")
+                    .apply()
+                viewModel.navigateTo(ScreenState.LOGIN)
             }
         )
         return
@@ -168,25 +176,14 @@ fun WorkoraApp(
             label = "screen_transition"
         ) { currentScreen ->
             when (currentScreen) {
-                ScreenState.LANGUAGE -> {
-                    AccountSelectScreen(
-                        onSelectRole = { role ->
-                            viewModel.selectRole(role)
-                            authPrefs.edit().putString("saved_user_role", role.name).apply()
-                            if (role == UserRole.CUSTOMER) {
-                                viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
-                            } else {
-                                viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                            }
-                        },
-                        toastMessage = toastMessage
-                    )
-                }
-                ScreenState.LOGIN -> {
+                ScreenState.LANGUAGE, ScreenState.LOGIN -> {
                     LoginScreen(
                         onLogin = { emailInput, _ ->
                             val cleanEmail = emailInput.trim().lowercase()
-                            authPrefs.edit().putString("last_logged_in_email", cleanEmail).apply()
+                            authPrefs.edit()
+                                .putBoolean("is_logged_in", true)
+                                .putString("last_logged_in_email", cleanEmail)
+                                .apply()
                             activeAdminEmail = cleanEmail
                             FirebaseManager.checkIfEmailIsAdminOnCloud(cleanEmail) { isAdmin, adminTier ->
                                 if (isAdmin) {
@@ -197,6 +194,8 @@ fun WorkoraApp(
                                     activeAdminTier = adminTier
                                     isDirectAdminPanelOpen = true
                                 } else {
+                                    authPrefs.edit().remove("saved_user_role").apply()
+                                    isDirectAdminPanelOpen = false
                                     viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
                                 }
                             }
@@ -222,6 +221,8 @@ fun WorkoraApp(
                                     activeAdminTier = adminTier
                                     isDirectAdminPanelOpen = true
                                 } else {
+                                    authPrefs.edit().remove("saved_user_role").apply()
+                                    isDirectAdminPanelOpen = false
                                     viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
                                 }
                             }
@@ -249,7 +250,12 @@ fun WorkoraApp(
                         adminTier = activeAdminTier,
                         onLogoutAdmin = {
                             isDirectAdminPanelOpen = false
-                            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                            authPrefs.edit()
+                                .putBoolean("is_logged_in", false)
+                                .remove("last_logged_in_email")
+                                .remove("saved_user_role")
+                                .apply()
+                            viewModel.navigateTo(ScreenState.LOGIN)
                         }
                     )
                 }
@@ -265,7 +271,6 @@ fun WorkoraApp(
                         activeTab = customerTab,
                         onTabSelected = { viewModel.setCustomerTab(it) },
                         onPostJob = { title, category, description, dailyRate, location, workersNeeded, urgency, _ ->
-                            // Save directly from the first sheet without opening the second duplicate screen!
                             val cName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
                             val cPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
                             FirebaseManager.postJobToFirebase(
@@ -339,6 +344,7 @@ fun WorkoraApp(
                         onLogout = {
                             authPrefs.edit()
                                 .putBoolean("is_logged_in", false)
+                                .remove("last_logged_in_email")
                                 .remove("saved_user_role")
                                 .apply()
                             isDirectAdminPanelOpen = false
