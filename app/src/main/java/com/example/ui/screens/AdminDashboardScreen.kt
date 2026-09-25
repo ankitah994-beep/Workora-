@@ -1,9 +1,17 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,19 +34,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +68,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,6 +88,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -123,6 +134,27 @@ data class AdminJobItem(
     val status: String
 )
 
+private fun encodeBitmapToBase64(bitmap: Bitmap): String {
+    return try {
+        val scaled = Bitmap.createScaledBitmap(bitmap, 220, 220, true)
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
+        Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+private fun decodeBase64ToImageBitmap(base64Str: String): ImageBitmap? {
+    if (base64Str.isBlank()) return null
+    return try {
+        val bytes = Base64.decode(base64Str, Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    } catch (e: Exception) {
+        null
+    }
+}
+
 @Composable
 fun AdminDashboardScreen(
     adminEmail: String = "ankitah994@gmail.com",
@@ -131,41 +163,114 @@ fun AdminDashboardScreen(
 ) {
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
+    val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
     var isLoading by remember { mutableStateOf(true) }
     var activeTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // App Branding & Logo Editor States
+    var customAppName by remember { mutableStateOf(brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
+    var customAppTagline by remember { mutableStateOf(brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK.") }
+    var customWelcomeHeading by remember { mutableStateOf(brandPrefs.getString("welcome_heading", "What do you want to do?") ?: "What do you want to do?") }
+    var customSupportPhone by remember { mutableStateOf(brandPrefs.getString("support_phone", "+91 6265798340") ?: "+91 6265798340") }
+    var customBannerText by remember { mutableStateOf(brandPrefs.getString("banner_text", "Silwani & Raisen ke sabhi verified mistri aur workers ab online!") ?: "Silwani & Raisen ke sabhi verified mistri aur workers ab online!") }
+    var customCategoriesList by remember { mutableStateOf(brandPrefs.getString("service_categories", "Mistri, Electrician, Plumber, Painter, Carpenter, Welder, Farm Labour") ?: "Mistri, Electrician, Plumber, Painter, Carpenter, Welder, Farm Labour") }
+    var customLogoBase64 by remember { mutableStateOf(brandPrefs.getString("logo_base64", "") ?: "") }
+    var customLogoBitmap by remember { mutableStateOf<ImageBitmap?>(decodeBase64ToImageBitmap(customLogoBase64)) }
 
     val usersList = remember { mutableStateListOf<AdminUserItem>() }
     val workersList = remember { mutableStateListOf<AdminWorkerItem>() }
     val jobsList = remember { mutableStateListOf<AdminJobItem>() }
     val auditLogs = remember { mutableStateListOf<AdminAuditLog>() }
 
-    // Broadcast & Notification inputs
     var broadcastTitle by remember { mutableStateOf("") }
     var broadcastMessage by remember { mutableStateOf("") }
 
-    // Quick Job Post inputs
     var newJobTitle by remember { mutableStateOf("") }
     var newJobCategory by remember { mutableStateOf("Mistri / Construction") }
     var newJobWage by remember { mutableStateOf("600") }
     var newJobLocation by remember { mutableStateOf("Silwani, Raisen") }
 
-    // New Admin Management inputs
     var newAdminEmailInput by remember { mutableStateOf("") }
     var newAdminRoleInput by remember { mutableStateOf("SUPER_ADMIN") }
 
-    // Emergency System Controls
     var maintenanceMode by remember { mutableStateOf(false) }
     var allowRegistrations by remember { mutableStateOf(true) }
     var allowJobPosting by remember { mutableStateOf(true) }
 
     var showExitDialog by remember { mutableStateOf(false) }
 
+    // Gallery Picker for App Logo
+    val logoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val bmp = context.contentResolver.openInputStream(uri)?.use {
+                    BitmapFactory.decodeStream(it)
+                }
+                if (bmp != null) {
+                    val file = File(context.filesDir, "workora_custom_logo.jpg")
+                    FileOutputStream(file).use { out ->
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                    }
+                    val encoded = encodeBitmapToBase64(bmp)
+                    customLogoBase64 = encoded
+                    customLogoBitmap = bmp.asImageBitmap()
+                    brandPrefs.edit().putString("logo_base64", encoded).apply()
+                    Toast.makeText(context, "Naya App Logo Select Ho Gaya! Ab Niche Save Dabayein ✓", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Photo load nahi ho payi!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     fun loadAllLiveFirebaseData() {
         isLoading = true
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // 0. Fetch App Branding & Logo from Cloud
+                val bConn = (URL("$ADMIN_DB_URL/app_branding.json").openConnection() as HttpURLConnection)
+                if (bConn.responseCode in 200..299) {
+                    val text = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
+                    if (text.isNotBlank() && text != "null") {
+                        val obj = JSONObject(text)
+                        val cloudName = obj.optString("appName", customAppName)
+                        val cloudTagline = obj.optString("appTagline", customAppTagline)
+                        val cloudHeading = obj.optString("welcomeHeading", customWelcomeHeading)
+                        val cloudPhone = obj.optString("supportPhone", customSupportPhone)
+                        val cloudBanner = obj.optString("bannerText", customBannerText)
+                        val cloudCats = obj.optString("serviceCategories", customCategoriesList)
+                        val cloudLogo = obj.optString("logoBase64", customLogoBase64)
+
+                        brandPrefs.edit()
+                            .putString("app_name", cloudName)
+                            .putString("app_tagline", cloudTagline)
+                            .putString("welcome_heading", cloudHeading)
+                            .putString("support_phone", cloudPhone)
+                            .putString("banner_text", cloudBanner)
+                            .putString("service_categories", cloudCats)
+                            .putString("logo_base64", cloudLogo)
+                            .apply()
+
+                        withContext(Dispatchers.Main) {
+                            customAppName = cloudName
+                            customAppTagline = cloudTagline
+                            customWelcomeHeading = cloudHeading
+                            customSupportPhone = cloudPhone
+                            customBannerText = cloudBanner
+                            customCategoriesList = cloudCats
+                            if (cloudLogo.isNotBlank()) {
+                                customLogoBase64 = cloudLogo
+                                customLogoBitmap = decodeBase64ToImageBitmap(cloudLogo)
+                            }
+                        }
+                    }
+                }
+                bConn.disconnect()
+
                 // 1. Fetch Users
                 val loadedUsers = mutableListOf<AdminUserItem>()
                 val uConn = (URL("$ADMIN_DB_URL/users.json").openConnection() as HttpURLConnection)
@@ -309,6 +414,58 @@ fun AdminDashboardScreen(
         }
     }
 
+    fun saveAppBrandingToCloud() {
+        brandPrefs.edit()
+            .putString("app_name", customAppName.trim())
+            .putString("app_tagline", customAppTagline.trim())
+            .putString("welcome_heading", customWelcomeHeading.trim())
+            .putString("support_phone", customSupportPhone.trim())
+            .putString("banner_text", customBannerText.trim())
+            .putString("service_categories", customCategoriesList.trim())
+            .putString("logo_base64", customLogoBase64)
+            .apply()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val conn = (URL("$ADMIN_DB_URL/app_branding.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    setRequestProperty("Content-Type", "application/json")
+                    doOutput = true
+                }
+                val json = JSONObject().apply {
+                    put("appName", customAppName.trim())
+                    put("appTagline", customAppTagline.trim())
+                    put("welcomeHeading", customWelcomeHeading.trim())
+                    put("supportPhone", customSupportPhone.trim())
+                    put("bannerText", customBannerText.trim())
+                    put("serviceCategories", customCategoriesList.trim())
+                    put("logoBase64", customLogoBase64)
+                    put("updatedBy", adminEmail)
+                    put("updatedAt", System.currentTimeMillis())
+                }
+                OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
+                conn.responseCode
+                conn.disconnect()
+
+                FirebaseManager.recordAdminAuditLog(
+                    adminEmail = adminEmail,
+                    adminTier = adminTier,
+                    actionType = "APP_BRANDING_UPDATED",
+                    targetEntity = "AppConfig",
+                    details = "Updated App Logo & Branding (${customAppName.trim()})"
+                )
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "App Logo & Design Cloud Par Save Ho Gaya! ✓", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Local Save Hua, Internet Check Karein!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     fun updateFirebaseField(path: String, fieldName: String, value: Any, logAction: String, logDetails: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -396,17 +553,27 @@ fun AdminDashboardScreen(
                 }
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(WorkoraOrange),
+                        .background(WorkoraOrange)
+                        .clickable { activeTab = 0 },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    if (customLogoBitmap != null) {
+                        Image(
+                            bitmap = customLogoBitmap!!,
+                            contentDescription = "App Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "WORKORA ADMIN PANEL",
+                        text = "$customAppName ADMIN PANEL",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
@@ -438,7 +605,7 @@ fun AdminDashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. Live Interactive Stats Cards (Tap any card to open that section!)
+            // 1. Live Interactive Stats Cards
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -452,7 +619,7 @@ fun AdminDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "1. Live Cloud Control Center",
+                            text = "Live Cloud Control Center",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = WorkoraNavy
@@ -466,28 +633,29 @@ fun AdminDashboardScreen(
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AdminStatTile("Total Users", usersList.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 0 }
-                        AdminStatTile("Workers", workersList.size.toString(), WorkoraOrange, Modifier.weight(1f)) { activeTab = 1 }
-                        AdminStatTile("Total Jobs", jobsList.size.toString(), Color(0xFF0284C7), Modifier.weight(1f)) { activeTab = 2 }
+                        AdminStatTile("Edit App/Logo", "🎨", WorkoraOrange, Modifier.weight(1f)) { activeTab = 0 }
+                        AdminStatTile("Total Users", usersList.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 1 }
+                        AdminStatTile("Workers", workersList.size.toString(), Color(0xFF16A34A), Modifier.weight(1f)) { activeTab = 2 }
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AdminStatTile("Verified Workers", workersList.count { it.isVerified }.toString(), Color(0xFF16A34A), Modifier.weight(1f)) { activeTab = 1 }
-                        AdminStatTile("Blocked Users", usersList.count { it.accountStatus == "BLOCKED" }.toString(), Color(0xFFDC2626), Modifier.weight(1f)) { activeTab = 0 }
-                        AdminStatTile("Audit Logs", auditLogs.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 5 }
+                        AdminStatTile("Total Jobs", jobsList.size.toString(), Color(0xFF0284C7), Modifier.weight(1f)) { activeTab = 3 }
+                        AdminStatTile("Blocked Users", usersList.count { it.accountStatus == "BLOCKED" }.toString(), Color(0xFFDC2626), Modifier.weight(1f)) { activeTab = 1 }
+                        AdminStatTile("Audit Logs", auditLogs.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 6 }
                     }
                 }
             }
 
-            // 2. Interactive Action Tabs (Tap to use real tools!)
+            // 2. Control Tabs
             Text(
-                text = "Select Control Tool (बटन दबाकर इस्तेमाल करें):",
+                text = "Select Control Tool (बटन दबाकर ऐप एडिट या कंट्रोल करें):",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = WorkoraNavy
             )
 
             val tabs = listOf(
+                "🎨 Edit App & Logo",
                 "👥 Manage Users (${usersList.size})",
                 "🛠️ Verify Workers (${workersList.size})",
                 "📋 Manage Jobs (${jobsList.size})",
@@ -523,8 +691,158 @@ fun AdminDashboardScreen(
                 }
             }
 
+            // ==================== TAB 0: EDIT APP, LOGO & BRANDING ====================
+            if (activeTab == 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.5.dp, WorkoraOrange)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "🎨 Edit App Logo, Name & Branding",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = WorkoraNavy
+                        )
+                        Text(
+                            text = "यहाँ से ऐप का लोगो (Logo), नाम, टैगलाइन, बैनर और कैटेगरी बदलें। Save करते ही यह पूरे ऐप में बदल जाएगा!",
+                            fontSize = 12.sp,
+                            color = WorkoraTextMuted
+                        )
+
+                        // App Logo Upload Box
+                        Box(
+                            modifier = Modifier
+                                .size(110.dp)
+                                .clip(CircleShape)
+                                .background(WorkoraBgLight)
+                                .clickable { logoPickerLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (customLogoBitmap != null) {
+                                Image(
+                                    bitmap = customLogoBitmap!!,
+                                    contentDescription = "Custom App Logo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddAPhoto,
+                                        contentDescription = null,
+                                        tint = WorkoraOrange,
+                                        modifier = Modifier.size(34.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Change Logo", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                }
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = { logoPickerLauncher.launch("image/*") },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = WorkoraNavy)
+                            ) {
+                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Select New Logo from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            if (customLogoBitmap != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        customLogoBase64 = ""
+                                        customLogoBitmap = null
+                                        File(context.filesDir, "workora_custom_logo.jpg").delete()
+                                        brandPrefs.edit().remove("logo_base64").apply()
+                                        Toast.makeText(context, "Default Helmet Logo Restored!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Reset", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = customAppName,
+                            onValueChange = { customAppName = it },
+                            label = { Text("App Name (जैसे: WORKORA)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = customAppTagline,
+                            onValueChange = { customAppTagline = it },
+                            label = { Text("App Tagline (जैसे: FIND. HIRE. WORK.)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = customWelcomeHeading,
+                            onValueChange = { customWelcomeHeading = it },
+                            label = { Text("Home Heading (जैसे: What do you want to do?)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = customSupportPhone,
+                            onValueChange = { customSupportPhone = it },
+                            label = { Text("Admin Helpline / WhatsApp Number") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = customBannerText,
+                            onValueChange = { customBannerText = it },
+                            label = { Text("Top App Announcement Banner Text") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = customCategoriesList,
+                            onValueChange = { customCategoriesList = it },
+                            label = { Text("Work Categories (Comma se alag karein)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        Button(
+                            onClick = { saveAppBrandingToCloud() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save App Logo & Branding Live ✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        }
+                    }
+                }
+            }
+
             // Search Filter for Users / Workers / Jobs
-            if (activeTab in 0..2) {
+            if (activeTab in 1..3) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -536,8 +854,8 @@ fun AdminDashboardScreen(
                 )
             }
 
-            // ==================== TAB 0: REAL USER MANAGEMENT ====================
-            if (activeTab == 0) {
+            // ==================== TAB 1: REAL USER MANAGEMENT ====================
+            if (activeTab == 1) {
                 val filteredUsers = usersList.filter {
                     searchQuery.isBlank() ||
                             it.fullName.contains(searchQuery, true) ||
@@ -644,8 +962,8 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 1: REAL WORKER VERIFICATION ====================
-            if (activeTab == 1) {
+            // ==================== TAB 2: REAL WORKER VERIFICATION ====================
+            if (activeTab == 2) {
                 val filteredWorkers = workersList.filter {
                     searchQuery.isBlank() ||
                             it.name.contains(searchQuery, true) ||
@@ -748,8 +1066,8 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 2: REAL JOB MANAGEMENT & POSTING ====================
-            if (activeTab == 2) {
+            // ==================== TAB 3: REAL JOB MANAGEMENT & POSTING ====================
+            if (activeTab == 3) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -804,13 +1122,13 @@ fun AdminDashboardScreen(
                                     FirebaseManager.postJobToFirebase(
                                         title = newJobTitle.trim(),
                                         category = newJobCategory.trim(),
-                                        description = "Posted directly by Workora Admin ($adminEmail)",
+                                        description = "Posted directly by $customAppName Admin ($adminEmail)",
                                         dailyRate = newJobWage.toIntOrNull() ?: 600,
                                         location = newJobLocation.trim(),
                                         workersNeeded = 2,
                                         urgency = "Immediate",
-                                        customerName = "Workora Official Admin",
-                                        customerPhone = "+91 6265798340"
+                                        customerName = "$customAppName Official Admin",
+                                        customerPhone = customSupportPhone
                                     ) {
                                         newJobTitle = ""
                                         Toast.makeText(context, "Live Job Posted on Firebase! ✓", Toast.LENGTH_SHORT).show()
@@ -835,10 +1153,6 @@ fun AdminDashboardScreen(
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraNavy
                 )
-
-                if (jobsList.isEmpty()) {
-                    Text("Abhi koi Job post nahi hai. Upar form se pehli Job post karein!", fontSize = 13.sp, color = WorkoraTextMuted)
-                }
 
                 jobsList.forEach { job ->
                     Card(
@@ -906,8 +1220,8 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 3: LIVE BROADCAST NOTIFICATION ====================
-            if (activeTab == 3) {
+            // ==================== TAB 4: LIVE BROADCAST NOTIFICATION ====================
+            if (activeTab == 4) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -916,7 +1230,6 @@ fun AdminDashboardScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("📢 Send Live Broadcast Notification to All Users", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
-                        Text("यहाँ से भेजा गया मैसेज सभी ग्राहकों और मजदूरों के Live Chat और Notification में तुरंत दिखाई देगा।", fontSize = 12.sp, color = WorkoraTextMuted)
 
                         OutlinedTextField(
                             value = broadcastTitle,
@@ -943,7 +1256,7 @@ fun AdminDashboardScreen(
                                     val fullMsg = if (broadcastTitle.isNotBlank()) "📢 [${broadcastTitle.trim()}]: ${broadcastMessage.trim()}" else "📢 ${broadcastMessage.trim()}"
                                     val timeStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
                                     FirebaseManager.sendChatMessageToCloud(
-                                        senderName = "WORKORA ADMIN ✓",
+                                        senderName = "$customAppName ADMIN ✓",
                                         messageText = fullMsg,
                                         timeText = timeStr
                                     ) {
@@ -973,8 +1286,8 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 4: ADD / MANAGE ADMINS ====================
-            if (activeTab == 4) {
+            // ==================== TAB 5: ADD / MANAGE ADMINS ====================
+            if (activeTab == 5) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -983,7 +1296,6 @@ fun AdminDashboardScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("🛡️ Add or Promote Another Admin on Firebase", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
-                        Text("किसी भी ईमेल आईडी को यहाँ लिखकर सीधे SUPER_ADMIN या SUPPORT_ADMIN बनाएं।", fontSize = 12.sp, color = WorkoraTextMuted)
 
                         OutlinedTextField(
                             value = newAdminEmailInput,
@@ -1057,8 +1369,8 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // ==================== TAB 5: EMERGENCY CONTROLS & AUDIT LOGS ====================
-            if (activeTab == 5) {
+            // ==================== TAB 6: EMERGENCY CONTROLS & AUDIT LOGS ====================
+            if (activeTab == 6) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -1134,26 +1446,22 @@ fun AdminDashboardScreen(
                     border = BorderStroke(1.dp, WorkoraBorder)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("16. Live Admin Security Audit Logs (${auditLogs.size})", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
-                        if (auditLogs.isEmpty()) {
-                            Text("Abhi koi action log nahi hai. Jaise hi aap koi button dabayenge, uska record yahan aa jayega.", fontSize = 12.sp, color = WorkoraTextMuted)
-                        } else {
-                            auditLogs.take(15).forEach { log ->
-                                val timeText = remember(log.timestamp) {
-                                    SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(log.timestamp))
+                        Text("Live Admin Security Audit Logs (${auditLogs.size})", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                        auditLogs.take(15).forEach { log ->
+                            val timeText = remember(log.timestamp) {
+                                SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(log.timestamp))
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(WorkoraBgLight, shape = RoundedCornerShape(10.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("${log.actionType} • ${log.adminTier}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = WorkoraNavy)
+                                    Text(timeText, fontSize = 11.sp, color = WorkoraTextMuted)
                                 }
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(WorkoraBgLight, shape = RoundedCornerShape(10.dp))
-                                        .padding(10.dp)
-                                ) {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("${log.actionType} • ${log.adminTier}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = WorkoraNavy)
-                                        Text(timeText, fontSize = 11.sp, color = WorkoraTextMuted)
-                                    }
-                                    Text("${log.adminEmail}: ${log.details}", fontSize = 12.sp, color = WorkoraTextDark)
-                                }
+                                Text("${log.adminEmail}: ${log.details}", fontSize = 12.sp, color = WorkoraTextDark)
                             }
                         }
                     }
