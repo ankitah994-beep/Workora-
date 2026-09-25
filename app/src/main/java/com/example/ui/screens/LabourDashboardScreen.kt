@@ -769,7 +769,8 @@ fun LabourDashboardScreen(
                         text = "🌍 All Locations (${liveCloudJobs.size})",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (!filterOnlyMyLocation) Color.White else WorkoraNavy
+                        color = if (!filterOnlyMyLocation) Color.White else WorkoraNavy,
+                        maxLines = 1
                     )
                 }
 
@@ -1034,6 +1035,7 @@ fun LabourDashboardScreen(
                                 )
                             }
 
+                            // Fixed Full-Visibility Action Buttons (Single Line, No Clipping!)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1047,13 +1049,28 @@ fun LabourDashboardScreen(
                                             Toast.makeText(context, "Phone: ${job.customerPhone}", Toast.LENGTH_SHORT).show()
                                         }
                                     },
-                                    modifier = Modifier.weight(1f).height(42.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, WorkoraNavy)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(46.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.2.dp, WorkoraNavy),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                 ) {
-                                    Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraNavy, modifier = Modifier.size(16.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = null,
+                                        tint = WorkoraNavy,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Call Customer", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                    Text(
+                                        text = "Call Customer",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = WorkoraNavy,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
 
                                 if (!isAccepted) {
@@ -1065,13 +1082,28 @@ fun LabourDashboardScreen(
                                                 .apply()
                                             Toast.makeText(context, "Kaam Accept Ho Gaya! My Jobs tab dekhein ✓", Toast.LENGTH_SHORT).show()
                                         },
-                                        modifier = Modifier.weight(1f).height(42.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(46.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
-                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Accept Work ✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                        Text(
+                                            text = "Accept Work ✓",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 } else {
                                     Button(
@@ -1080,11 +1112,21 @@ fun LabourDashboardScreen(
                                             acceptedJobIds.remove(job.id)
                                             Toast.makeText(context, "Job Completed! ✓", Toast.LENGTH_SHORT).show()
                                         },
-                                        modifier = Modifier.weight(1f).height(42.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(46.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
-                                        Text("Mark Completed ✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                        Text(
+                                            text = "Mark Completed ✓",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 }
                             }
@@ -1093,7 +1135,8 @@ fun LabourDashboardScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(80.dp))
+            // Extra bottom space so cards easily scroll above the Floating Chat Button
+            Spacer(modifier = Modifier.height(120.dp))
         }
     }
 
@@ -1167,7 +1210,8 @@ fun LabourDashboardScreen(
                         },
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                     ) {
                         if (isDetectingGps) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -1176,7 +1220,7 @@ fun LabourDashboardScreen(
                         } else {
                             Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Use My Current Live GPS Location", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text("Use My Current Live GPS Location", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1)
                         }
                     }
 
