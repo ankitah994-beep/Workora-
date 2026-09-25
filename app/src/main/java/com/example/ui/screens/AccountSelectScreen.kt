@@ -68,6 +68,19 @@ fun AccountSelectScreen(
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
+
+    var appLang by remember {
+        mutableStateOf(settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish")
+    }
+
+    fun tr(hi: String, hinglish: String, en: String): String {
+        return when (appLang) {
+            "Hindi" -> hi
+            "English" -> en
+            else -> hinglish
+        }
+    }
 
     val activeEmail = remember {
         (authPrefs.getString("last_logged_in_email", "") ?: "").trim().lowercase()
@@ -92,14 +105,13 @@ fun AccountSelectScreen(
 
     var appName by remember { mutableStateOf(brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
     var appTagline by remember { mutableStateOf(brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK.") }
-    var welcomeHeading by remember { mutableStateOf(brandPrefs.getString("welcome_heading", "What do you want to do?") ?: "What do you want to do?") }
     var bannerText by remember { mutableStateOf(brandPrefs.getString("banner_text", "") ?: "") }
     var customLogoBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
     fun refreshLocalBranding() {
+        appLang = settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish"
         appName = brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA"
         appTagline = brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK."
-        welcomeHeading = brandPrefs.getString("welcome_heading", "What do you want to do?") ?: "What do you want to do?"
         bannerText = brandPrefs.getString("banner_text", "") ?: ""
         val base64 = brandPrefs.getString("logo_base64", "") ?: ""
         customLogoBitmap = if (base64.isNotBlank()) {
@@ -230,7 +242,7 @@ fun AccountSelectScreen(
 
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = welcomeHeading,
+                        text = tr("आप क्या करना चाहते हैं?", "Aap kya karna chahte hain?", "What do you want to do?"),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = WorkoraTextDark,
@@ -240,7 +252,7 @@ fun AccountSelectScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Select how you want to use the app",
+                        text = tr("चुनें कि आप ऐप का उपयोग कैसे करना चाहते हैं", "Chunein ki aap app kaise use karna chahte hain", "Select how you want to use the app"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = WorkoraTextMuted
@@ -304,14 +316,14 @@ fun AccountSelectScreen(
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column {
                                         Text(
-                                            text = "$appName Admin Panel",
+                                            text = tr("$appName एडमिन पैनल", "$appName Admin Panel", "$appName Admin Panel"),
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = Color.White
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "Edit App Logo, Users, Jobs & Controls",
+                                            text = tr("ऐप लोगो, यूज़र्स, जॉब्स और कंट्रोल एडिट करें", "Edit App Logo, Users, Jobs & Controls", "Edit App Logo, Users, Jobs & Controls"),
                                             fontSize = 12.sp,
                                             color = Color.White.copy(alpha = 0.85f)
                                         )
