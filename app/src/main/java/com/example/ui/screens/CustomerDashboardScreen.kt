@@ -89,9 +89,9 @@ fun CustomerDashboardScreen(
     onCategorySelected: (String) -> Unit = {},
     activeTab: Int = 0,
     onTabSelected: (Int) -> Unit = {},
-    onPostJob: (String, String, String, Int, String, Int, String, Long) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    onPostJob: (String, String, String, Int, String, Int, String, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onHireWorker: (Worker) -> Unit = {},
-    onCompleteJob: (String) -> Unit = {},
+    onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
@@ -755,8 +755,8 @@ fun CustomerDashboardScreen(
                             WorkoraRecentJobRowCard(
                                 job = job,
                                 onCompleteClick = {
-                                    val jobId = extractSafeObjectField(job, "id", fallback = "")
-                                    if (jobId.isNotEmpty()) onCompleteJob(jobId)
+                                    val jobIdLong = extractSafeObjectField(job, "id", fallback = "0").toLongOrNull() ?: 0L
+                                    if (jobIdLong != 0L) onCompleteJob(jobIdLong)
                                 }
                             )
                         }
@@ -960,7 +960,6 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Location Update Dialog
     if (showLocationDialog) {
         AlertDialog(
             onDismissRequest = { showLocationDialog = false },
@@ -1000,7 +999,6 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // Post New Job Dialog (Calls onPostJob with exact 8 parameters expected by MainActivity)
     if (showPostJobDialog) {
         AlertDialog(
             onDismissRequest = { showPostJobDialog = false },
@@ -1066,7 +1064,7 @@ fun CustomerDashboardScreen(
                             currentLocation,
                             finalWorkers,
                             jobUrgencyInput,
-                            System.currentTimeMillis()
+                            ""
                         )
                         jobTitleInput = ""
                         jobDescInput = ""
