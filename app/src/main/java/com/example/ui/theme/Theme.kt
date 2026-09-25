@@ -2,42 +2,43 @@ package com.example.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Exact Original Workora Theme Colors converted from styles.css (:root)
-val WorkoraNavy = Color(0xFF083D91)          // --navy: #083D91
-val WorkoraNavyLight = Color(0xFF0B4AA4)     // .wave-blue: #0b4aa4
-val WorkoraOrange = Color(0xFFFF8C00)        // --orange: #FF8C00
-val WorkoraOrangeLight = Color(0xFFFFF0DE)   // .category:nth-child(2n): #fff0de
-val WorkoraWhite = Color(0xFFFFFFFF)         // --white: #fff
-val WorkoraBgLight = Color(0xFFF8FAFC)       // --bg: #F8FAFC
-val WorkoraShellBg = Color(0xFFE9EEF5)       // body background: #e9eef5
-val WorkoraTextDark = Color(0xFF102A43)      // --text: #102A43
-val WorkoraTextMuted = Color(0xFF667085)     // --muted: #667085
-val WorkoraBorder = Color(0xFFE5E7EB)        // --border: #E5E7EB
-val WorkoraSuccessGreen = Color(0xFF22A06B)  // --green: #22A06B
-val WorkoraErrorRed = Color(0xFFB42318)      // reject/danger text: #b42318
-val WorkoraPendingBg = Color(0xFFFFF0C9)     // .badge.pending: #fff0c9
-val WorkoraPendingText = Color(0xFF9B6A00)   // .badge.pending text: #9b6a00
-val WorkoraChipBg = Color(0xFFEDF3FF)        // .chips span: #edf3ff
+private val LightColorScheme = lightColorScheme(
+    primary = Color(0xFF0D47A1),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE3F2FD),
+    onPrimaryContainer = Color(0xFF0D47A1),
+    secondary = Color(0xFFFF6F00),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFF8E1),
+    onSecondaryContainer = Color(0xFFE65100),
+    background = Color(0xFFF4F7FB),
+    onBackground = Color(0xFF1E293B),
+    surface = Color.White,
+    onSurface = Color(0xFF1E293B),
+    surfaceVariant = Color(0xFFF1F5F9),
+    onSurfaceVariant = Color(0xFF64748B),
+    outline = Color(0xFFCBD5E1)
+)
 
-private val WorkoraLightColorScheme = lightColorScheme(
-    primary = WorkoraNavy,
-    onPrimary = WorkoraWhite,
-    secondary = WorkoraOrange,
-    onSecondary = WorkoraWhite,
-    tertiary = WorkoraSuccessGreen,
-    background = WorkoraBgLight,
-    onBackground = WorkoraTextDark,
-    surface = WorkoraWhite,
-    onSurface = WorkoraTextDark,
-    surfaceVariant = WorkoraChipBg,
-    onSurfaceVariant = WorkoraTextMuted,
-    outline = WorkoraBorder,
-    error = WorkoraErrorRed,
-    onError = WorkoraWhite
+private val DarkColorScheme = darkColorScheme(
+    primary = Color(0xFF64B5F6),
+    onPrimary = Color(0xFF0D47A1),
+    primaryContainer = Color(0xFF1565C0),
+    onPrimaryContainer = Color.White,
+    secondary = Color(0xFFFFB74D),
+    onSecondary = Color(0xFF1E293B),
+    background = Color(0xFF0F172A),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF1E293B),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF334155),
+    onSurfaceVariant = Color(0xFF94A3B8),
+    outline = Color(0xFF475569)
 )
 
 @Composable
@@ -45,8 +46,10 @@ fun WorkoraTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
     MaterialTheme(
-        colorScheme = WorkoraLightColorScheme,
+        colorScheme = colorScheme,
         content = content
     )
 }
