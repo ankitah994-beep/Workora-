@@ -1,9 +1,20 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.Uri
+import android.os.Bundle
+import android.os.Looper
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -37,8 +48,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.model.JobPost
 import com.example.model.Worker
+import java.util.Locale
 
 private data class PrototypeWorkerItem(
     val id: String,
@@ -77,6 +90,79 @@ private fun extractSafeJobPay(job: JobPost): String {
     }
 }
 
+@SuppressLint("MissingPermission")
+private fun fetchCustomerRealGpsAddress(
+    context: Context,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+) {
+    try {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val isNetEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+
+        if (!isGpsEnabled && !isNetEnabled) {
+            onError("कृपया फोन का GPS / Location चालू करें")
+            return
+        }
+
+        val decodeLocation: (Location) -> Unit = { loc ->
+            Thread {
+                try {
+                    val geocoder = Geocoder(context, Locale.getDefault())
+                    @Suppress("DEPRECATION")
+                    val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                    val addr = addresses?.firstOrNull()
+                    val formatted = if (addr != null) {
+                        val subLoc = addr.subLocality ?: addr.locality ?: addr.subAdminArea ?: ""
+                        val city = addr.locality ?: addr.subAdminArea ?: ""
+                        val dist = addr.subAdminArea ?: addr.adminArea ?: ""
+                        listOf(subLoc, city, dist)
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .distinct()
+                            .joinToString(", ")
+                            .ifEmpty { "Silwani, Raisen (MP)" }
+                    } else {
+                        "Lat: ${String.format(Locale.US, "%.4f", loc.latitude)}, Lng: ${String.format(Locale.US, "%.4f", loc.longitude)}"
+                    }
+                    android.os.Handler(Looper.getMainLooper()).post {
+                        onSuccess(formatted)
+                    }
+                } catch (e: Exception) {
+                    android.os.Handler(Looper.getMainLooper()).post {
+                        onSuccess("Silwani, Raisen (MP)")
+                    }
+                }
+            }.start()
+        }
+
+        val lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+        if (lastLoc != null) {
+            decodeLocation(lastLoc)
+        } else {
+            val provider = if (isNetEnabled) LocationManager.NETWORK_PROVIDER else LocationManager.GPS_PROVIDER
+            locationManager.requestSingleUpdate(
+                provider,
+                object : LocationListener {
+                    override fun onLocationChanged(location: Location) {
+                        decodeLocation(location)
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                },
+                Looper.getMainLooper()
+            )
+        }
+    } catch (e: Exception) {
+        onError("लोकेशन प्राप्त करने में समस्या आई")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDashboardScreen(
@@ -112,6 +198,62 @@ fun CustomerDashboardScreen(
     }
     var showLocationDialog by remember { mutableStateOf(false) }
     var tempLocationInput by remember { mutableStateOf(currentLocation) }
+    var isDetectingGps by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            isDetectingGps = true
+            fetchCustomerRealGpsAddress(
+                context = context,
+                onSuccess = { detectedAddr ->
+                    isDetectingGps = false
+                    tempLocationInput = detectedAddr
+                    currentLocation = detectedAddr
+                    profilePrefs.edit().putString("user_location", detectedAddr).apply()
+                    Toast.makeText(context, "Live GPS Location: $detectedAddr ✓", Toast.LENGTH_SHORT).show()
+                },
+                onError = { errMsg ->
+                    isDetectingGps = false
+                    Toast.makeText(context, errMsg, Toast.LENGTH_SHORT).show()
+                }
+            )
+        } else {
+            Toast.makeText(context, "GPS के लिए Location Permission आवश्यक है", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val triggerRealGpsDetection: () -> Unit = {
+        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (hasFine || hasCoarse) {
+            isDetectingGps = true
+            fetchCustomerRealGpsAddress(
+                context = context,
+                onSuccess = { detectedAddr ->
+                    isDetectingGps = false
+                    tempLocationInput = detectedAddr
+                    currentLocation = detectedAddr
+                    profilePrefs.edit().putString("user_location", detectedAddr).apply()
+                    Toast.makeText(context, "Live GPS Location: $detectedAddr ✓", Toast.LENGTH_SHORT).show()
+                },
+                onError = { errMsg ->
+                    isDetectingGps = false
+                    Toast.makeText(context, errMsg, Toast.LENGTH_SHORT).show()
+                }
+            )
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
 
     var showPostJobDialog by remember { mutableStateOf(false) }
     var jobTitleInput by remember { mutableStateOf("") }
@@ -814,7 +956,10 @@ fun CustomerDashboardScreen(
                                         shape = RoundedCornerShape(50),
                                         color = Color(0xFFFFF8E1),
                                         border = BorderStroke(1.dp, Color(0xFFFFE082)),
-                                        modifier = Modifier.clickable { showLocationDialog = true }
+                                        modifier = Modifier.clickable {
+                                            tempLocationInput = currentLocation
+                                            showLocationDialog = true
+                                        }
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -960,23 +1105,135 @@ fun CustomerDashboardScreen(
         }
     }
 
+    // Real GPS + Quick City Chips Location Dialog
     if (showLocationDialog) {
+        val quickLocations = listOf(
+            "Silwani, Raisen (MP)",
+            "Raisen, MP",
+            "Begamganj, Raisen",
+            "Gairatganj, Raisen",
+            "Udaipura, Raisen",
+            "Bareli, Raisen",
+            "Bhopal, MP",
+            "Sagar, MP",
+            "Vidisha, MP"
+        )
+
         AlertDialog(
             onDismissRequest = { showLocationDialog = false },
+            containerColor = Color.White,
             title = {
-                Text(
-                    text = "अपनी लोकेशन अपडेट करें",
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = Color(0xFFFF6F00)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "अपनी लोकेशन अपडेट करें",
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0D253F),
+                        fontSize = 18.sp
+                    )
+                }
             },
             text = {
-                OutlinedTextField(
-                    value = tempLocationInput,
-                    onValueChange = { tempLocationInput = it },
-                    label = { Text("शहर / गाँव / तहसील (जैसे: Silwani, Raisen)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Real Live GPS Detection Button
+                    Button(
+                        onClick = triggerRealGpsDetection,
+                        enabled = !isDetectingGps,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE8F5E9),
+                            contentColor = Color(0xFF1B5E20)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isDetectingGps) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF1B5E20)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "GPS से लोकेशन खोजी जा रही है...",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.MyLocation,
+                                contentDescription = "GPS",
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Use Current GPS Location (मेरी लाइव लोकेशन)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = tempLocationInput,
+                        onValueChange = { tempLocationInput = it },
+                        label = { Text("शहर / गाँव / तहसील (जैसे: Silwani, Raisen)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            focusedBorderColor = Color(0xFF1565C0),
+                            unfocusedBorderColor = Color(0xFF94A3B8)
+                        )
+                    )
+
+                    Text(
+                        text = "तुरंत चुनें (Popular Locations):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF475569)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        quickLocations.forEach { loc ->
+                            val isSelected = tempLocationInput.equals(loc, ignoreCase = true)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    tempLocationInput = loc
+                                    currentLocation = loc
+                                    profilePrefs.edit().putString("user_location", loc).apply()
+                                    showLocationDialog = false
+                                },
+                                label = {
+                                    Text(
+                                        text = loc,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF0D253F),
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
             },
             confirmButton = {
                 Button(
@@ -986,14 +1243,15 @@ fun CustomerDashboardScreen(
                             profilePrefs.edit().putString("user_location", currentLocation).apply()
                         }
                         showLocationDialog = false
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F))
                 ) {
-                    Text("Save")
+                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLocationDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -1002,6 +1260,7 @@ fun CustomerDashboardScreen(
     if (showPostJobDialog) {
         AlertDialog(
             onDismissRequest = { showPostJobDialog = false },
+            containerColor = Color.White,
             title = {
                 Text(
                     text = "नया काम पोस्ट करें (Post Job)",
