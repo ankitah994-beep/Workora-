@@ -4,39 +4,24 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Halo glow -->
+    <!-- Outer Orange Ring -->
     <path
-        android:pathData="M54,52m-28,0a28,28 0 1,0 56,0a28,28 0 1,0 -56,0"
-        android:fillColor="#33FF8C00" />
-
-    <!-- Helmet Group scaled to fit within adaptive icon safe zone -->
-    <group
-        android:translateX="18.0"
-        android:translateY="20.0"
-        android:scaleX="0.72"
-        android:scaleY="0.72">
-        
-        <!-- Helmet Dome -->
-        <path
-            android:fillColor="#FF8C00"
-            android:pathData="M18,56C18,36.67 33.67,21 53,21C72.33,21 88,36.67 88,56H18Z" />
-        
-        <!-- Helmet Top Ridge -->
-        <path
-            android:fillColor="#FFA500"
-            android:pathData="M47,16H59V32C59,32 55.5,33 53,33C50.5,33 47,32 47,32V16Z" />
-        
-        <!-- Front Brim / Visor Base -->
-        <path
-            android:fillColor="#E57D00"
-            android:pathData="M12,56C12,53.79 13.79,52 16,52H90C92.21,52 94,53.79 94,56C94,58.21 92.21,60 90,60H16C13.79,60 12,58.21 12,56Z" />
-        
-        <!-- Reflector Badge -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:fillAlpha="0.95"
-            android:pathData="M49.5,38H56.5C58.43,38 60,39.57 60,41.5C60,43.43 58.43,45 56.5,45H49.5C47.57,45 46,43.43 46,41.5C46,39.57 47.57,38 49.5,38Z" />
-    </group>
+        android:fillColor="#FF6B00"
+        android:pathData="M54,24A30,30 0,1 0,84 54A30,30 0,0 0,54 24ZM54,79A25,25 0,1 1,79 54A25,25 0,0 1,54 79Z" />
+    <!-- Workora Engineer Helmet Dome -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M34,56 C34,41 42,33 54,33 C66,33 74,41 74,56 Z" />
+    <!-- Helmet Top Ridge -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,31h8v12h-8z" />
+    <!-- Helmet Visor Brim -->
+    <path
+        android:fillColor="#FFA552"
+        android:pathData="M29,55h50v6h-50z" />
+    <!-- W Letter Badge at Bottom -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,64 L47,73 L54,66 L61,73 L65,64 L61,64 L59,69 L54,64 L49,69 L47,64 Z" />
 </vector>
-
