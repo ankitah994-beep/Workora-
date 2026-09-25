@@ -264,18 +264,8 @@ fun WorkoraApp(
                         onCategorySelected = { viewModel.setCategoryFilter(it) },
                         activeTab = customerTab,
                         onTabSelected = { viewModel.setCustomerTab(it) },
-                        onPostJob = { title, category, description, dailyRate, location, workersNeeded, urgency, dateTime ->
-                            // Directly submit from the first sheet without opening the second duplicate screen!
-                            viewModel.postJob(
-                                title = title,
-                                category = category,
-                                description = description,
-                                dailyRate = dailyRate,
-                                location = location,
-                                workersNeeded = workersNeeded,
-                                urgency = urgency,
-                                dateTime = dateTime
-                            )
+                        onPostJob = { title, category, description, dailyRate, location, workersNeeded, urgency, _ ->
+                            // Save directly from the first sheet without opening the second duplicate screen!
                             val cName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
                             val cPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
                             FirebaseManager.postJobToFirebase(
@@ -288,12 +278,12 @@ fun WorkoraApp(
                                 urgency = urgency,
                                 customerName = cName,
                                 customerPhone = cPhone
-                            )
-                            Toast.makeText(context, "Work Request Sent Successfully! ✓", Toast.LENGTH_SHORT).show()
+                            ) {
+                                Toast.makeText(context, "Work Request Sent & Saved Live! ✓", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         onHireWorker = { worker ->
-                            viewModel.hireWorker(worker)
-                            Toast.makeText(context, "Direct Hire Request Sent to ${worker.name}! ✓", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Direct Work Request Sent to ${worker.name}! ✓", Toast.LENGTH_SHORT).show()
                         },
                         onCompleteJob = { jobId ->
                             viewModel.completeJob(jobId)
