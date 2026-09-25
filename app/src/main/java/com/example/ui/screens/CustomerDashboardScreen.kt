@@ -160,6 +160,20 @@ fun CustomerDashboardScreen(
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val brandPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
+
+    // Read Global App Language selected in Settings ("Hindi", "Hinglish", "English")
+    var appLang by remember {
+        mutableStateOf(settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish")
+    }
+
+    fun tr(hi: String, hinglish: String, en: String): String {
+        return when (appLang) {
+            "Hindi" -> hi
+            "English" -> en
+            else -> hinglish
+        }
+    }
 
     val appName = remember { brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA" }
     val bannerText = remember { brandPrefs.getString("banner_text", "") ?: "" }
@@ -406,21 +420,18 @@ fun CustomerDashboardScreen(
                             currentRealLocation = resolvedName
                             profilePrefs.edit().putString("user_location", resolvedName).apply()
                             showLocationModal = false
-                            Toast.makeText(context, "Live GPS Location Set: $resolvedName ✓", Toast.LENGTH_LONG).show()
-                        } else {
-                            Toast.makeText(context, "Niche list se apna Gaon/Shahar select karein!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Live GPS: $resolvedName ✓", Toast.LENGTH_LONG).show()
                         }
                     }
                 } else {
                     withContext(Dispatchers.Main) {
                         isDetectingGps = false
-                        Toast.makeText(context, "Phone ka GPS On karein ya Search box mein Gaon/Shahar likhein!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, tr("फोन का GPS चालू करें या नीचे नाम लिखें!", "Phone ka GPS On karein ya Search box mein likhein!", "Turn on GPS or search below!"), Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     isDetectingGps = false
-                    Toast.makeText(context, "Search box mein apna Gaon/Shahar likh kar chunein!", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -433,8 +444,6 @@ fun CustomerDashboardScreen(
                 perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
             detectRealCustomerGpsLocation()
-        } else {
-            Toast.makeText(context, "Aap search box mein Gaon/Shahar likh kar location chun sakte hain!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -476,6 +485,8 @@ fun CustomerDashboardScreen(
     }
 
     LaunchedEffect(Unit) {
+        appLang = settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish"
+        currentRealLocation = profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)"
         loadLiveWorkersAndJobsFromCloud()
     }
 
@@ -534,7 +545,7 @@ fun CustomerDashboardScreen(
                                 .padding(horizontal = 7.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "HIRER",
+                                text = tr("ग्राहक", "HIRER", "HIRER"),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = WorkoraOrange
@@ -542,7 +553,7 @@ fun CustomerDashboardScreen(
                         }
                     }
                     Text(
-                        text = "Find & Hire Skilled Labour",
+                        text = tr("कुशल कारीगर और मजदूर खोजें", "Kushal Mistri & Workers Khojein", "Find & Hire Skilled Labour"),
                         fontSize = 11.sp,
                         color = WorkoraTextMuted
                     )
@@ -559,7 +570,7 @@ fun CustomerDashboardScreen(
                 ) {
                     Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = WorkoraNavy, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                    Text(tr("मोड बदलें", "Role", "Role"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
                 }
 
                 IconButton(
@@ -623,7 +634,7 @@ fun CustomerDashboardScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Tap to select Village/City or Live GPS 📍",
+                                text = tr("गाँव/शहर बदलने या Live GPS के लिए टैप करें 📍", "Gaon/Shahar badalne ya Live GPS ke liye tap karein 📍", "Tap to select Village/City or Live GPS 📍"),
                                 fontSize = 10.sp,
                                 color = WorkoraTextMuted
                             )
@@ -632,7 +643,7 @@ fun CustomerDashboardScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Change",
+                            text = tr("बदलें", "Badlein", "Change"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = WorkoraOrange
@@ -674,7 +685,12 @@ fun CustomerDashboardScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChanged,
-                placeholder = { Text("Search worker by name, skill (Mistri, Electrician) or village...", fontSize = 12.sp) },
+                placeholder = {
+                    Text(
+                        text = tr("नाम, काम (मिस्त्री, इलेक्ट्रीशियन) या गाँव से खोजें...", "Naam, kaam (Mistri, Electrician) ya gaon se khojein...", "Search worker by name, skill or village..."),
+                        fontSize = 12.sp
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WorkoraOrange) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -698,10 +714,16 @@ fun CustomerDashboardScreen(
                 Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Post New Work Requirement in ${primaryPlaceKeyword.ifBlank { "Your Area" }}",
+                    text = tr(
+                        "${primaryPlaceKeyword.ifBlank { "अपने क्षेत्र" }} में नया काम पोस्ट करें",
+                        "${primaryPlaceKeyword.ifBlank { "Apne Area" }} mein Naya Kaam Post Karein",
+                        "Post New Work in ${primaryPlaceKeyword.ifBlank { "Your Area" }}"
+                    ),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -729,7 +751,7 @@ fun CustomerDashboardScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "In ${primaryPlaceKeyword.ifBlank { "My Area" }}",
+                        text = tr("${primaryPlaceKeyword.ifBlank { "मेरे पास" }} में", "Near ${primaryPlaceKeyword.ifBlank { "Me" }}", "In ${primaryPlaceKeyword.ifBlank { "My Area" }}"),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (filterBySelectedLocation) Color.White else WorkoraNavy,
@@ -749,17 +771,18 @@ fun CustomerDashboardScreen(
                     contentPadding = PaddingValues(horizontal = 8.dp)
                 ) {
                     Text(
-                        text = "🌍 All Areas (${liveWorkersList.size})",
+                        text = tr("🌍 सभी क्षेत्र (${liveWorkersList.size})", "🌍 Sabhi Area (${liveWorkersList.size})", "🌍 All Areas (${liveWorkersList.size})"),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (!filterBySelectedLocation) Color.White else WorkoraNavy
+                        color = if (!filterBySelectedLocation) Color.White else WorkoraNavy,
+                        maxLines = 1
                     )
                 }
 
                 IconButton(
                     onClick = {
                         loadLiveWorkersAndJobsFromCloud()
-                        Toast.makeText(context, "Refreshing Workers & Jobs...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, tr("रिफ्रेश हो रहा है...", "Refreshing...", "Refreshing..."), Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
                         .size(38.dp)
@@ -778,8 +801,8 @@ fun CustomerDashboardScreen(
                     .padding(4.dp)
             ) {
                 val tabs = listOf(
-                    "Available Workers (${filteredWorkers.size})",
-                    "My Posted Jobs (${livePostedJobs.size})"
+                    tr("उपलब्ध कारीगर (${filteredWorkers.size})", "Uplabdh Workers (${filteredWorkers.size})", "Available Workers (${filteredWorkers.size})"),
+                    tr("मेरे पोस्ट किए काम (${livePostedJobs.size})", "Mere Post Kiye Kaam (${livePostedJobs.size})", "My Posted Jobs (${livePostedJobs.size})")
                 )
                 tabs.forEachIndexed { idx, title ->
                     val isSelected = activeTab == idx
@@ -794,9 +817,10 @@ fun CustomerDashboardScreen(
                     ) {
                         Text(
                             text = title,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (isSelected) Color.White else WorkoraTextMuted
+                            color = if (isSelected) Color.White else WorkoraTextMuted,
+                            maxLines = 1
                         )
                     }
                 }
@@ -821,7 +845,7 @@ fun CustomerDashboardScreen(
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
-                        text = "All",
+                        text = tr("सभी (All)", "Sabhi (All)", "All"),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isAllSelected) Color.White else WorkoraTextDark
@@ -863,7 +887,11 @@ fun CustomerDashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         CircularProgressIndicator(color = WorkoraOrange, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                        Text("Loading verified workers near $currentRealLocation...", fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                        Text(
+                            text = tr("कारीगरों की सूची लोड हो रही है...", "Workers load ho rahe hain...", "Loading verified workers..."),
+                            fontWeight = FontWeight.Bold,
+                            color = WorkoraNavy
+                        )
                     }
                 }
             } else if (activeTab == 0) {
@@ -883,13 +911,13 @@ fun CustomerDashboardScreen(
                         ) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(40.dp))
                             Text(
-                                text = "Is location ($currentRealLocation) mein abhi koi worker nahi mila",
+                                text = tr("इस स्थान ($currentRealLocation) में अभी कोई कारीगर नहीं मिला", "Is location ($currentRealLocation) mein abhi koi worker nahi mila", "No worker found in $currentRealLocation"),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = WorkoraNavy
                             )
                             OutlinedButton(onClick = { filterBySelectedLocation = false }) {
-                                Text("Show Workers from All Areas 🌍", fontWeight = FontWeight.Bold, color = WorkoraOrange)
+                                Text(tr("सभी क्षेत्रों के कारीगर देखें 🌍", "Sabhi Areas ke Workers Dekhein 🌍", "Show Workers from All Areas 🌍"), fontWeight = FontWeight.Bold, color = WorkoraOrange)
                             }
                         }
                     }
@@ -958,7 +986,7 @@ fun CustomerDashboardScreen(
 
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = "₹${worker.dailyWage}/day",
+                                            text = "₹${worker.dailyWage}/${tr("दिन", "day", "day")}",
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = WorkoraNavy
@@ -999,7 +1027,7 @@ fun CustomerDashboardScreen(
                                         )
                                     }
                                     Text(
-                                        text = if (worker.isAvailableToday) "● Available Today • Map 🗺️" else "○ Busy • Map 🗺️",
+                                        text = if (worker.isAvailableToday) tr("● आज उपलब्ध • मैप 🗺️", "● Aaj Uplabdh • Map 🗺️", "● Available Today • Map 🗺️") else tr("○ व्यस्त • मैप 🗺️", "○ Busy • Map 🗺️", "○ Busy • Map 🗺️"),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = if (worker.isAvailableToday) Color(0xFF16A34A) else WorkoraTextMuted
@@ -1019,22 +1047,36 @@ fun CustomerDashboardScreen(
                                                 Toast.makeText(context, "Call: ${worker.phone}", Toast.LENGTH_SHORT).show()
                                             }
                                         },
-                                        modifier = Modifier.weight(1f).height(42.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, WorkoraNavy)
+                                        modifier = Modifier.weight(1f).height(46.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.2.dp, WorkoraNavy),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
                                         Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraNavy, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Call Now", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                        Text(
+                                            text = tr("कॉल करें", "Call Karein", "Call Now"),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = WorkoraNavy,
+                                            maxLines = 1
+                                        )
                                     }
 
                                     Button(
                                         onClick = { openHireOrPostForm(worker) },
-                                        modifier = Modifier.weight(1f).height(42.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
+                                        modifier = Modifier.weight(1f).height(46.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
-                                        Text("Hire ${worker.name.split(" ").first()}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                        Text(
+                                            text = tr("काम पर रखें ✓", "Hire ${worker.name.split(" ").first()}", "Hire ${worker.name.split(" ").first()}"),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White,
+                                            maxLines = 1
+                                        )
                                     }
                                 }
                             }
@@ -1057,12 +1099,12 @@ fun CustomerDashboardScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(Icons.Default.Build, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(40.dp))
-                            Text("Abhi tak koi kaam post nahi kiya gaya", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                            Text(tr("अभी तक कोई काम पोस्ट नहीं किया गया", "Abhi tak koi kaam post nahi kiya gaya", "No work posted yet"), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
                             Button(
                                 onClick = { openHireOrPostForm(null) },
                                 colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                             ) {
-                                Text("+ Post First Work Request", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(tr("+ पहला काम पोस्ट करें", "+ Pehla Kaam Post Karein", "+ Post First Work Request"), fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
                     }
@@ -1091,7 +1133,7 @@ fun CustomerDashboardScreen(
                                         color = if (job.status == "COMPLETED") Color(0xFF16A34A) else WorkoraOrange
                                     )
                                 }
-                                Text("${job.category} • ₹${job.dailyRate}/day • 📍 ${job.location}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                                Text("${job.category} • ₹${job.dailyRate}/${tr("दिन", "day", "day")} • 📍 ${job.location}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
                                 if (job.description.isNotBlank()) {
                                     Text(job.description, fontSize = 12.sp, color = WorkoraTextMuted)
                                 }
@@ -1103,15 +1145,15 @@ fun CustomerDashboardScreen(
                                         onClick = {
                                             onCompleteJob(job.id)
                                             livePostedJobs.remove(job)
-                                            Toast.makeText(context, "Job Marked Completed ✓", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, tr("काम पूरा हो गया ✓", "Job Marked Completed ✓", "Job Marked Completed ✓"), Toast.LENGTH_SHORT).show()
                                         },
                                         shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.height(34.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)
+                                        modifier = Modifier.height(36.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                                     ) {
                                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Mark Completed", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+                                        Text(tr("पूरा हुआ मार्क करें", "Mark Completed", "Mark Completed"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
                                     }
                                 }
                             }
@@ -1120,7 +1162,7 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(120.dp))
         }
     }
 
@@ -1136,13 +1178,13 @@ fun CustomerDashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = if (w != null) "Hire ${w.name}" else "Post Work Requirement",
-                            fontSize = 19.sp,
+                            text = if (w != null) tr("${w.name} को काम पर रखें", "Hire ${w.name}", "Hire ${w.name}") else tr("नया काम पोस्ट करें", "Naya Kaam Post Karein", "Post Work Requirement"),
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = WorkoraTextDark
                         )
                         Text(
-                            text = if (w != null) "Send direct work details to this worker" else "Find available workers in your selected location",
+                            text = tr("कारीगर को सीधे काम का विवरण भेजें", "Worker ko seedhe kaam ki jankari bhejein", "Send direct work details to this worker"),
                             fontSize = 11.sp,
                             color = WorkoraTextMuted
                         )
@@ -1162,7 +1204,7 @@ fun CustomerDashboardScreen(
                     OutlinedTextField(
                         value = formWorkTitle,
                         onValueChange = { formWorkTitle = it },
-                        label = { Text("Work Title (e.g. Wall Plastering)", fontSize = 12.sp) },
+                        label = { Text(tr("काम का नाम (जैसे: दीवार प्लास्टर)", "Work Title (e.g. Wall Plastering)", "Work Title (e.g. Wall Plastering)"), fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -1171,7 +1213,7 @@ fun CustomerDashboardScreen(
                     OutlinedTextField(
                         value = formWorkCategory,
                         onValueChange = { formWorkCategory = it },
-                        label = { Text("Work Type / Skill Required", fontSize = 12.sp) },
+                        label = { Text(tr("कारीगर का प्रकार (जैसे: मिस्त्री)", "Work Type / Skill Required", "Work Type / Skill Required"), fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -1180,38 +1222,11 @@ fun CustomerDashboardScreen(
                     OutlinedTextField(
                         value = formWorkDateTime,
                         onValueChange = { formWorkDateTime = it },
-                        label = { Text("Work Date & Time", fontSize = 12.sp) },
+                        label = { Text(tr("तारीख और समय", "Work Date & Time", "Work Date & Time"), fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Today, 9:00 AM", "Today, 2:00 PM", "Tomorrow, 9:00 AM").forEach { slot ->
-                            val isSelected = formWorkDateTime == slot
-                            Button(
-                                onClick = { formWorkDateTime = slot },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) WorkoraNavy else WorkoraBgLight
-                                ),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Text(
-                                    text = slot,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else WorkoraTextDark
-                                )
-                            }
-                        }
-                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1220,7 +1235,7 @@ fun CustomerDashboardScreen(
                         OutlinedTextField(
                             value = formOfferedWage,
                             onValueChange = { formOfferedWage = it },
-                            label = { Text("Offered Wage (₹/day)", fontSize = 11.sp) },
+                            label = { Text(tr("दिहाड़ी (₹/दिन)", "Offered Wage (₹/day)", "Offered Wage (₹/day)"), fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             modifier = Modifier.weight(1f),
@@ -1230,7 +1245,7 @@ fun CustomerDashboardScreen(
                         OutlinedTextField(
                             value = formWorkLocation,
                             onValueChange = { formWorkLocation = it },
-                            label = { Text("Work Location", fontSize = 11.sp) },
+                            label = { Text(tr("काम का स्थान", "Work Location", "Work Location"), fontSize = 11.sp) },
                             leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(16.dp)) },
                             singleLine = true,
                             modifier = Modifier.weight(1.3f),
@@ -1238,39 +1253,10 @@ fun CustomerDashboardScreen(
                         )
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("Quick Wage:", fontSize = 11.sp, color = WorkoraTextMuted)
-                        listOf("600", "700", "850", "1000").forEach { wageChip ->
-                            val isSelected = formOfferedWage == wageChip
-                            Button(
-                                onClick = { formOfferedWage = wageChip },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) WorkoraOrange else WorkoraBgLight
-                                ),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                modifier = Modifier.height(30.dp)
-                            ) {
-                                Text(
-                                    text = "₹$wageChip",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else WorkoraTextDark
-                                )
-                            }
-                        }
-                    }
-
                     OutlinedTextField(
                         value = formJobDetails,
                         onValueChange = { formJobDetails = it },
-                        label = { Text("Job Details & Requirements", fontSize = 12.sp) },
+                        label = { Text(tr("काम का पूरा विवरण", "Job Details & Requirements", "Job Details & Requirements"), fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -1305,7 +1291,7 @@ fun CustomerDashboardScreen(
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Send Work Request",
+                            text = tr("काम की रिक्वेस्ट भेजें ✓", "Send Work Request ✓", "Send Work Request ✓"),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
@@ -1352,7 +1338,7 @@ fun CustomerDashboardScreen(
                         Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Select Real Location 📍",
+                            text = tr("असली लोकेशन चुनें 📍", "Select Real Location 📍", "Select Real Location 📍"),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = WorkoraNavy
@@ -1387,16 +1373,17 @@ fun CustomerDashboardScreen(
                         },
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                     ) {
                         if (isDetectingGps) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Detecting Live GPS...", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(tr("GPS खोजा जा रहा है...", "Detecting Live GPS...", "Detecting Live GPS..."), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         } else {
                             Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Use My Current Live GPS Location", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text(tr("मेरी लाइव GPS लोकेशन चुनें", "Use My Current Live GPS Location", "Use My Current Live GPS Location"), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1)
                         }
                     }
 
@@ -1408,7 +1395,7 @@ fun CustomerDashboardScreen(
                                 searchOnlineRealPlaces(it)
                             }
                         },
-                        label = { Text("Gaon, Tehsil ya Shahar ka naam likhein...", fontSize = 12.sp) },
+                        label = { Text(tr("गाँव, तहसील या शहर का नाम लिखें...", "Gaon, Tehsil ya Shahar ka naam likhein...", "Type Village, Tehsil or City..."), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WorkoraOrange) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -1433,7 +1420,7 @@ fun CustomerDashboardScreen(
                             border = BorderStroke(1.dp, WorkoraOrange)
                         ) {
                             Text(
-                                text = "✔ Set '${locationSearchInput.trim()}' as My Location",
+                                text = "✔ Set '${locationSearchInput.trim()}'",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = WorkoraOrange
@@ -1441,16 +1428,7 @@ fun CustomerDashboardScreen(
                         }
                     }
 
-                    if (isSearchingOnline) {
-                        Text("Searching real villages & cities in India...", fontSize = 11.sp, color = WorkoraOrange)
-                    }
                     if (onlinePlaceResults.isNotEmpty()) {
-                        Text(
-                            text = "Live Verified Locations (India):",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF16A34A)
-                        )
                         onlinePlaceResults.forEach { place ->
                             Row(
                                 modifier = Modifier
@@ -1472,13 +1450,6 @@ fun CustomerDashboardScreen(
                             }
                         }
                     }
-
-                    Text(
-                        text = "Popular Real Locations (Tap to Select):",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WorkoraNavy
-                    )
 
                     matchingPresetLocations.forEach { loc ->
                         val isSelected = currentRealLocation.equals(loc, ignoreCase = true)
