@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AdminAuditLog
+import com.example.model.UserRole
 import com.example.ui.theme.WorkoraBgLight
 import com.example.ui.theme.WorkoraBorder
 import com.example.ui.theme.WorkoraNavy
@@ -166,6 +168,7 @@ fun AdminDashboardScreen(
     var isLoading by remember { mutableStateOf(true) }
     var activeTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
+    var isProfileAndSettingsOpen by remember { mutableStateOf(false) }
 
     // Track whether branding is saved (false = Orange Save Icon, true = White Save Icon)
     var isBrandingSaved by remember { mutableStateOf(false) }
@@ -526,6 +529,26 @@ fun AdminDashboardScreen(
         loadAllLiveFirebaseData()
     }
 
+    // Open Unified Settings & Profile Edit Screen directly for Admin
+    if (isProfileAndSettingsOpen) {
+        ProfileScreen(
+            role = UserRole.CUSTOMER,
+            userName = "Ankit Ahirwar",
+            userPhone = customSupportPhone,
+            userLocation = "Silwani, Raisen",
+            onBack = { isProfileAndSettingsOpen = false },
+            onSwitchRole = {
+                isProfileAndSettingsOpen = false
+                onLogoutAdmin()
+            },
+            onLogout = {
+                isProfileAndSettingsOpen = false
+                onLogoutAdmin()
+            }
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -533,7 +556,7 @@ fun AdminDashboardScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // Compact Top Header Bar with proper statusBarsPadding so text never clips
+        // Compact Top Header Bar with Settings Icon (⚙️) + Refresh + Logout
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -549,14 +572,14 @@ fun AdminDashboardScreen(
             ) {
                 IconButton(
                     onClick = { onLogoutAdmin() },
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
                         .background(Color.White)
                         .clickable { activeTab = 0 },
@@ -570,40 +593,47 @@ fun AdminDashboardScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(18.dp))
                     }
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
                         text = "$customAppName ADMIN PANEL",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
                     Text(
                         text = "$adminTier • $adminEmail",
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         color = Color.White.copy(alpha = 0.85f)
                     )
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Settings & Profile Edit Icon in Admin Header
+                IconButton(
+                    onClick = { isProfileAndSettingsOpen = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings & Profile", tint = Color.White, modifier = Modifier.size(19.dp))
+                }
                 IconButton(
                     onClick = {
                         Toast.makeText(context, "Refreshing Firebase...", Toast.LENGTH_SHORT).show()
                         loadAllLiveFirebaseData()
                     },
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = WorkoraOrange, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = WorkoraOrange, modifier = Modifier.size(19.dp))
                 }
                 IconButton(
                     onClick = { showExitDialog = true },
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Exit", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Exit", tint = Color.White, modifier = Modifier.size(19.dp))
                 }
             }
         }
@@ -649,13 +679,13 @@ fun AdminDashboardScreen(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         AdminStatTile("Total Jobs", jobsList.size.toString(), Color(0xFF0284C7), Modifier.weight(1f)) { activeTab = 3 }
-                        AdminStatTile("Blocked Users", usersList.count { it.accountStatus == "BLOCKED" }.toString(), Color(0xFFDC2626), Modifier.weight(1f)) { activeTab = 1 }
+                        AdminStatTile("Settings/Profile", "⚙️", WorkoraOrange, Modifier.weight(1f)) { isProfileAndSettingsOpen = true }
                         AdminStatTile("Audit Logs", auditLogs.size.toString(), WorkoraNavy, Modifier.weight(1f)) { activeTab = 6 }
                     }
                 }
             }
 
-            // 2. Left-Aligned Numbered Vertical Rows for "Select Control Tool"
+            // 2. Left-Aligned Numbered Vertical Rows for "Select Control Tool" (1 to 8)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -666,7 +696,7 @@ fun AdminDashboardScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text(
                         text = "Select Control Tool (नंबर पर टैप करें):",
@@ -683,7 +713,8 @@ fun AdminDashboardScreen(
                         "4. Manage Jobs (${jobsList.size})",
                         "5. Send Notification",
                         "6. Add Admin",
-                        "7. Emergency & Logs"
+                        "7. Emergency & Logs",
+                        "8. Settings & Profile Edit ⚙️"
                     )
 
                     numberedTools.forEachIndexed { index, toolTitle ->
@@ -693,14 +724,20 @@ fun AdminDashboardScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) WorkoraNavy else WorkoraBgLight)
-                                .clickable { activeTab = index }
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                .clickable {
+                                    if (index == 7) {
+                                        isProfileAndSettingsOpen = true
+                                    } else {
+                                        activeTab = index
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
                                 text = toolTitle,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
                                 color = if (isSelected) Color.White else WorkoraTextDark
                             )
@@ -736,7 +773,6 @@ fun AdminDashboardScreen(
                             modifier = Modifier.align(Alignment.Start)
                         )
 
-                        // Compact App Logo Upload Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -905,7 +941,6 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // Search Filter for Users / Workers / Jobs
             if (activeTab in 1..3) {
                 OutlinedTextField(
                     value = searchQuery,
