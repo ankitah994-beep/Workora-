@@ -49,35 +49,51 @@ private data class PrototypeWorkerItem(
     val phone: String,
     val rating: String,
     val jobsDone: Int,
-    val avatarKey: String
+    val avatarKey: String,
+    val originalWorker: Worker? = null
 )
 
-private fun extractSafeJobPay(job: JobPost): String {
-    val fieldNames = listOf("dailyWage", "budget", "wage", "pay", "salary", "amount", "rate")
+private fun extractSafeObjectField(obj: Any, vararg fieldNames: String, fallback: String = ""): String {
     for (name in fieldNames) {
         try {
-            val field = job.javaClass.getDeclaredField(name)
+            val field = obj.javaClass.getDeclaredField(name)
             field.isAccessible = true
-            val value = field.get(job)?.toString()?.trim() ?: ""
-            if (value.isNotEmpty() && value != "0") {
-                return if (value.startsWith("₹")) value else "₹$value"
+            val value = field.get(obj)?.toString()?.trim() ?: ""
+            if (value.isNotEmpty() && value != "null") {
+                return value
             }
         } catch (_: Exception) {
         }
     }
-    return "₹600/दिन"
+    return fallback
+}
+
+private fun extractSafeJobPay(job: JobPost): String {
+    val raw = extractSafeObjectField(job, "dailyWage", "budget", "wage", "pay", "salary", "amount", "rate", fallback = "600")
+    return when {
+        raw.isEmpty() || raw == "0" -> "₹600/दिन"
+        raw.startsWith("₹") -> raw
+        else -> "₹$raw"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDashboardScreen(
-    workers: List<Worker>,
-    jobs: List<JobPost>,
-    selectedCategory: String?,
-    onCategorySelected: (String) -> Unit,
-    onPostJobClick: () -> Unit,
-    onNavigateToProfile: () -> Unit,
-    onSwitchRole: () -> Unit
+    workers: List<Worker> = emptyList(),
+    jobs: List<JobPost> = emptyList(),
+    selectedCategory: String? = null,
+    onCategorySelected: (String) -> Unit = {},
+    onPostJobClick: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
+    onSwitchRole: () -> Unit = {},
+    onPostJob: (String, String, String, String, String, String, String) -> Unit = { _, _, _, _, _, _, _ -> },
+    onHireWorker: (Worker) -> Unit = {},
+    onCompleteJob: (String) -> Unit = {},
+    onOpenProfile: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
+    onOpenFilters: () -> Unit = {},
+    toastMessage: String? = null
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
@@ -91,6 +107,12 @@ fun CustomerDashboardScreen(
     }
     var showLocationDialog by remember { mutableStateOf(false) }
     var tempLocationInput by remember { mutableStateOf(currentLocation) }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrBlank()) {
+            Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // 0 = Home View, 1 = Available Workers Search View
     var currentTab by remember { mutableStateOf(0) }
@@ -147,11 +169,12 @@ fun CustomerDashboardScreen(
 
         val liveMapped = workers.mapIndexed { index, w ->
             val avatarKeys = listOf("ramesh", "mohan", "mahesh", "suresh")
-            val rawName = w.name.toString().trim()
-            val rawSkill = w.skill.toString().trim()
-            val rawLoc = w.location.toString().trim()
-            val rawWage = w.dailyWage.toString().trim()
-            val rawPhone = w.phone.toString().trim()
+            val rawName = extractSafeObjectField(w, "name", "fullName", "workerName", fallback = "कुशल कारीगर")
+            val rawSkill = extractSafeObjectField(w, "category", "skill", "role", "profession", "trade", fallback = "General Worker")
+            val rawLoc = extractSafeObjectField(w, "location", "city", "area", "address", fallback = "Silwani, Raisen (MP)")
+            val rawWage = extractSafeObjectField(w, "dailyWage", "wage", "rate", "pay", "price", fallback = "500")
+            val rawPhone = extractSafeObjectField(w, "phone", "mobile", "contactPhone", "phoneNumber", fallback = "6265798340")
+            val rawRating = extractSafeObjectField(w, "rating", fallback = "4.8")
 
             val formattedWage = when {
                 rawWage.isEmpty() || rawWage == "0" -> "₹500/दिन"
@@ -161,14 +184,15 @@ fun CustomerDashboardScreen(
 
             PrototypeWorkerItem(
                 id = "live_${index}_$rawName",
-                name = if (rawName.isEmpty()) "कुशल कारीगर" else rawName,
-                skill = if (rawSkill.isEmpty()) "General Worker" else rawSkill,
-                location = if (rawLoc.isEmpty()) "Silwani, Raisen (MP)" else rawLoc,
+                name = rawName,
+                skill = rawSkill,
+                location = rawLoc,
                 dailyWage = formattedWage,
-                phone = if (rawPhone.isEmpty()) "6265798340" else rawPhone,
-                rating = "4.8",
+                phone = rawPhone,
+                rating = rawRating,
                 jobsDone = 25 + (index * 7),
-                avatarKey = avatarKeys[index % avatarKeys.size]
+                avatarKey = avatarKeys[index % avatarKeys.size],
+                originalWorker = w
             )
         }
 
@@ -201,6 +225,11 @@ fun CustomerDashboardScreen(
             }
             matchesCategory && matchesSearch
         }
+    }
+
+    val handleProfileClick: () -> Unit = {
+        onOpenProfile()
+        onNavigateToProfile()
     }
 
     Scaffold(
@@ -240,7 +269,7 @@ fun CustomerDashboardScreen(
                         icon = Icons.Default.Person,
                         label = "Profile",
                         selected = false,
-                        onClick = onNavigateToProfile
+                        onClick = handleProfileClick
                     )
                 }
             }
@@ -293,29 +322,38 @@ fun CustomerDashboardScreen(
                                         }
                                     }
 
-                                    Surface(
-                                        shape = RoundedCornerShape(50),
-                                        color = Color(0xFFEFF6FF),
-                                        border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
-                                        modifier = Modifier.clickable { onSwitchRole() }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = onOpenNotifications) {
                                             Icon(
-                                                imageVector = Icons.Default.SwapHoriz,
-                                                contentDescription = "Switch Role",
-                                                tint = Color(0xFF1D4ED8),
-                                                modifier = Modifier.size(16.dp)
+                                                imageVector = Icons.Default.Notifications,
+                                                contentDescription = "Notifications",
+                                                tint = Color(0xFF0D253F)
                                             )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "Switch Role",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF1D4ED8)
-                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = Color(0xFFEFF6FF),
+                                            border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                                            modifier = Modifier.clickable { onSwitchRole() }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.SwapHoriz,
+                                                    contentDescription = "Switch Role",
+                                                    tint = Color(0xFF1D4ED8),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Switch Role",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1D4ED8)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -615,7 +653,10 @@ fun CustomerDashboardScreen(
                     items(allDisplayWorkers.take(4)) { workerItem ->
                         WorkoraPrototypeWorkerCard(
                             worker = workerItem,
-                            context = context
+                            context = context,
+                            onHireClick = {
+                                workerItem.originalWorker?.let(onHireWorker)
+                            }
                         )
                     }
 
@@ -679,7 +720,13 @@ fun CustomerDashboardScreen(
                         }
                     } else {
                         items(jobs.take(5)) { job ->
-                            WorkoraRecentJobRowCard(job = job)
+                            WorkoraRecentJobRowCard(
+                                job = job,
+                                onCompleteClick = {
+                                    val jobId = extractSafeObjectField(job, "id", fallback = "")
+                                    if (jobId.isNotEmpty()) onCompleteJob(jobId)
+                                }
+                            )
                         }
                     }
                 }
@@ -720,29 +767,38 @@ fun CustomerDashboardScreen(
                                     )
                                 }
 
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = Color(0xFFFFF8E1),
-                                    border = BorderStroke(1.dp, Color(0xFFFFE082)),
-                                    modifier = Modifier.clickable { showLocationDialog = true }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = onOpenFilters) {
                                         Icon(
-                                            imageVector = Icons.Default.LocationOn,
-                                            contentDescription = null,
-                                            tint = Color(0xFFFF6F00),
-                                            modifier = Modifier.size(14.dp)
+                                            imageVector = Icons.Default.FilterList,
+                                            contentDescription = "Filters",
+                                            tint = Color(0xFF0D253F)
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = currentLocation.take(14),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFE65100)
-                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFFFFF8E1),
+                                        border = BorderStroke(1.dp, Color(0xFFFFE082)),
+                                        modifier = Modifier.clickable { showLocationDialog = true }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFF6F00),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = currentLocation.take(14),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFE65100)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -850,7 +906,10 @@ fun CustomerDashboardScreen(
                             items(filteredWorkers) { workerItem ->
                                 WorkoraPrototypeWorkerCard(
                                     worker = workerItem,
-                                    context = context
+                                    context = context,
+                                    onHireClick = {
+                                        workerItem.originalWorker?.let(onHireWorker)
+                                    }
                                 )
                             }
                         }
@@ -1007,7 +1066,8 @@ private fun WorkoraWorkerAvatarCanvas(
 @Composable
 private fun WorkoraPrototypeWorkerCard(
     worker: PrototypeWorkerItem,
-    context: Context
+    context: Context,
+    onHireClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -1116,6 +1176,7 @@ private fun WorkoraPrototypeWorkerCard(
             ) {
                 Button(
                     onClick = {
+                        onHireClick()
                         val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
                         context.startActivity(intent)
                     },
@@ -1425,16 +1486,20 @@ private fun WorkoraHeroWorkerCanvas(size: Dp = 98.dp) {
 }
 
 @Composable
-private fun WorkoraRecentJobRowCard(job: JobPost) {
+private fun WorkoraRecentJobRowCard(
+    job: JobPost,
+    onCompleteClick: () -> Unit = {}
+) {
     val payDisplay = remember(job) { extractSafeJobPay(job) }
-    val rawTitle = job.title.toString().trim()
-    val rawCategory = job.category.toString().trim()
-    val rawLocation = job.location.toString().trim()
+    val rawTitle = extractSafeObjectField(job, "title", fallback = "काम उपलब्ध है")
+    val rawCategory = extractSafeObjectField(job, "category", fallback = "General")
+    val rawLocation = extractSafeObjectField(job, "location", fallback = "Silwani")
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clickable { onCompleteClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -1448,7 +1513,7 @@ private fun WorkoraRecentJobRowCard(job: JobPost) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (rawTitle.isEmpty()) "काम उपलब्ध है" else rawTitle,
+                    text = rawTitle,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF0D253F)
