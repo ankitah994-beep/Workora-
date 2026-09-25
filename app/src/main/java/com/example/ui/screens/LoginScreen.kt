@@ -37,7 +37,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -65,6 +64,9 @@ import com.example.ui.theme.WorkoraOrange
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
 
+private const val MASTER_ADMIN_EMAIL = "ankitah994@gmail.com"
+private const val MASTER_ADMIN_PHONE = "6265798340"
+
 @Composable
 fun LoginScreen(
     onLogin: (email: String, password: String) -> Unit,
@@ -78,16 +80,13 @@ fun LoginScreen(
     val appName = remember { brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA" }
     val appTagline = remember { brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK." }
 
-    // 0 = Log In / Sign In, 1 = Mobile Number & Email Registration (Sign Up)
     var activeAuthTab by remember { mutableIntStateOf(0) }
 
-    // Log In states
     var emailOrPhone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isVerifying by remember { mutableStateOf(false) }
 
-    // Mobile Registration / Sign Up states
     var regFullName by remember { mutableStateOf("") }
     var regMobileNumber by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
@@ -131,7 +130,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Top Switch Tabs: "Log In / Sign In" vs "Mobile Registration"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -175,7 +173,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // ==================== TAB 0: LOG IN / SIGN IN (MOBILE OR EMAIL) ====================
+            // ==================== TAB 0: LOG IN / SIGN IN ====================
             if (activeAuthTab == 0) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -250,11 +248,44 @@ fun LoginScreen(
                                     return@Button
                                 }
 
-                                // Support both Mobile Number and Email ID login seamlessly
-                                val cleanIdentifier = if (!rawInput.contains("@") && rawInput.any { it.isDigit() }) {
-                                    val digits = rawInput.filter { it.isDigit() }.takeLast(10)
-                                    val mappedEmail = authPrefs.getString("phone_to_email_$digits", null)
-                                    mappedEmail ?: "${digits}@workora.in"
+                                val inputDigits = rawInput.filter { it.isDigit() }.takeLast(10)
+                                val isMasterAdminLogin = rawInput == MASTER_ADMIN_EMAIL ||
+                                        rawInput.contains("ankitah994") ||
+                                        inputDigits == MASTER_ADMIN_PHONE
+
+                                // 1. Direct Super Admin Access for Ankit's Admin Email or Phone
+                                if (isMasterAdminLogin) {
+                                    authPrefs.edit()
+                                        .putBoolean("is_logged_in", true)
+                                        .putString("last_logged_in_email", MASTER_ADMIN_EMAIL)
+                                        .putString("user_pass_$MASTER_ADMIN_EMAIL", cleanPass)
+                                        .putString("saved_user_role", "ADMIN")
+                                        .putString("saved_admin_tier", "SUPER_ADMIN")
+                                        .apply()
+
+                                    profilePrefs.edit()
+                                        .putString("user_name", "Ankit Ahirwar")
+                                        .putString("user_phone", "+91 $MASTER_ADMIN_PHONE")
+                                        .apply()
+
+                                    FirebaseManager.syncUserToFirebase(
+                                        context = context,
+                                        name = "Ankit Ahirwar",
+                                        email = MASTER_ADMIN_EMAIL,
+                                        phone = "+91 $MASTER_ADMIN_PHONE",
+                                        password = cleanPass,
+                                        role = "ADMIN"
+                                    )
+
+                                    Toast.makeText(context, "Welcome Super Admin Ankit Ahirwar! ✓", Toast.LENGTH_SHORT).show()
+                                    onLogin(MASTER_ADMIN_EMAIL, cleanPass)
+                                    return@Button
+                                }
+
+                                // 2. Normal User Login (via Mobile or Email)
+                                val cleanIdentifier = if (!rawInput.contains("@") && inputDigits.isNotEmpty()) {
+                                    val mappedEmail = authPrefs.getString("phone_to_email_$inputDigits", null)
+                                    mappedEmail ?: "${inputDigits}@workora.in"
                                 } else {
                                     rawInput
                                 }
@@ -281,7 +312,7 @@ fun LoginScreen(
                                                 .putString("saved_user_role", "ADMIN")
                                                 .putString("saved_admin_tier", adminTier ?: "SUPER_ADMIN")
                                                 .apply()
-                                            Toast.makeText(context, "Welcome Workora Admin ($cloudName) ✓", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Welcome Admin ($cloudName) ✓", Toast.LENGTH_SHORT).show()
                                         } else {
                                             authPrefs.edit().remove("saved_user_role").apply()
                                             Toast.makeText(context, "Welcome $cloudName! ✓", Toast.LENGTH_SHORT).show()
@@ -413,25 +444,40 @@ fun LoginScreen(
                                 val cleanPhone = regMobileNumber.trim()
                                 val digits = cleanPhone.filter { it.isDigit() }.takeLast(10)
                                 val cleanPass = regPassword.trim()
+                                val cleanRegEmail = regEmail.trim().lowercase()
 
                                 if (cleanName.isBlank() || digits.length < 10 || cleanPass.length < 4) {
                                     Toast.makeText(context, "Kripya Naam, 10 digit Mobile Number aur Password dalein!", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
 
-                                val finalEmail = if (regEmail.trim().contains("@")) {
-                                    regEmail.trim().lowercase()
+                                val isMasterAdminReg = cleanRegEmail == MASTER_ADMIN_EMAIL ||
+                                        cleanRegEmail.contains("ankitah994") ||
+                                        digits == MASTER_ADMIN_PHONE
+
+                                val finalEmail = if (isMasterAdminReg) {
+                                    MASTER_ADMIN_EMAIL
+                                } else if (cleanRegEmail.contains("@")) {
+                                    cleanRegEmail
                                 } else {
                                     "${digits}@workora.in"
                                 }
 
-                                authPrefs.edit()
-                                    .putBoolean("is_logged_in", true)
-                                    .putString("last_logged_in_email", finalEmail)
-                                    .putString("user_pass_$finalEmail", cleanPass)
-                                    .putString("phone_to_email_$digits", finalEmail)
-                                    .remove("saved_user_role")
-                                    .apply()
+                                val assignedRole = if (isMasterAdminReg) "ADMIN" else "CUSTOMER"
+
+                                authPrefs.edit().apply {
+                                    putBoolean("is_logged_in", true)
+                                    putString("last_logged_in_email", finalEmail)
+                                    putString("user_pass_$finalEmail", cleanPass)
+                                    putString("phone_to_email_$digits", finalEmail)
+                                    if (isMasterAdminReg) {
+                                        putString("saved_user_role", "ADMIN")
+                                        putString("saved_admin_tier", "SUPER_ADMIN")
+                                    } else {
+                                        remove("saved_user_role")
+                                    }
+                                    apply()
+                                }
 
                                 profilePrefs.edit()
                                     .putString("user_name", cleanName)
@@ -445,10 +491,14 @@ fun LoginScreen(
                                     email = finalEmail,
                                     phone = "+91 $digits",
                                     password = cleanPass,
-                                    role = "CUSTOMER"
+                                    role = assignedRole
                                 )
 
-                                Toast.makeText(context, "Mobile Registration Successful! Welcome $cleanName ✓", Toast.LENGTH_LONG).show()
+                                Toast.makeText(
+                                    context,
+                                    if (isMasterAdminReg) "Welcome Admin $cleanName! ✓" else "Registration Successful! Welcome $cleanName ✓",
+                                    Toast.LENGTH_LONG
+                                ).show()
                                 onLogin(finalEmail, cleanPass)
                             },
                             modifier = Modifier
