@@ -1,6 +1,9 @@
 package com.example.ui.screens
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -18,18 +21,24 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,6 +46,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -56,6 +66,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationCompat
 import com.example.ui.components.WorkoraHelmetLogo
 import com.example.ui.theme.WorkoraBgLight
 import com.example.ui.theme.WorkoraBorder
@@ -63,9 +74,76 @@ import com.example.ui.theme.WorkoraNavy
 import com.example.ui.theme.WorkoraOrange
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.random.Random
 
+private const val AUTH_DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 private const val MASTER_ADMIN_EMAIL = "ankitah994@gmail.com"
 private const val MASTER_ADMIN_PHONE = "6265798340"
+
+// Workora Practical Password Rule Validator
+data class PasswordRuleStatus(
+    val hasMin8Chars: Boolean,
+    val hasLetter: Boolean,
+    val hasNumber: Boolean,
+    val hasSpecialChar: Boolean
+) {
+    val isMandatoryValid: Boolean
+        get() = hasMin8Chars && hasLetter && hasNumber
+}
+
+private fun checkWorkoraPasswordRules(password: String): PasswordRuleStatus {
+    val clean = password.trim()
+    return PasswordRuleStatus(
+        hasMin8Chars = clean.length >= 8,
+        hasLetter = clean.any { it.isLetter() },
+        hasNumber = clean.any { it.isDigit() },
+        hasSpecialChar = clean.any { !it.isLetterOrDigit() && !it.isWhitespace() }
+    )
+}
+
+private fun sendOtpNotificationToPhone(context: Context, target: String, otpCode: String) {
+    try {
+        val channelId = "workora_otp_security_channel"
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Workora OTP Verification",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "6-Digit OTP for Workora Login & Registration"
+            }
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setContentTitle("🔐 Workora Verification OTP: $otpCode")
+            .setContentText("Aapka $target ke liye 6-digit OTP $otpCode hai. Ise kisi ke saath share na karein.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Aapka Workora Account ($target) verify karne ke liye 6-digit OTP hai: $otpCode\nYeh OTP 5 minute tak valid hai."
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        manager.notify(Random.nextInt(1000, 9999), notification)
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
 
 @Composable
 fun LoginScreen(
@@ -80,18 +158,192 @@ fun LoginScreen(
     val appName = remember { brandPrefs.getString("app_name", "WORKORA") ?: "WORKORA" }
     val appTagline = remember { brandPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK." }
 
+    // 0 = Sign In, 1 = Mobile Registration with Practical Password Rules + OTP
     var activeAuthTab by remember { mutableIntStateOf(0) }
 
+    // Sign In States
     var emailOrPhone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isVerifying by remember { mutableStateOf(false) }
 
+    // Registration States
     var regFullName by remember { mutableStateOf("") }
     var regMobileNumber by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
-    var regVillageCity by remember { mutableStateOf("Silwani, Raisen") }
+    var regVillageCity by remember { mutableStateOf("Silwani, Raisen (MP)") }
     var regPassword by remember { mutableStateOf("") }
+    var regPasswordVisible by remember { mutableStateOf(false) }
+
+    // Evaluate Practical Password Rules live as user types
+    val regPasswordRules = remember(regPassword) { checkWorkoraPasswordRules(regPassword) }
+
+    // OTP Verification States for Registration
+    var isRegOtpSent by remember { mutableStateOf(false) }
+    var generatedRegOtp by remember { mutableStateOf("") }
+    var enteredRegOtp by remember { mutableStateOf("") }
+    var isSendingOtp by remember { mutableStateOf(false) }
+
+    // Forgot / Reset Password via OTP Dialog States
+    var showForgotDialog by remember { mutableStateOf(false) }
+    var forgotIdentifier by remember { mutableStateOf("") }
+    var forgotGeneratedOtp by remember { mutableStateOf("") }
+    var forgotEnteredOtp by remember { mutableStateOf("") }
+    var forgotNewPassword by remember { mutableStateOf("") }
+    var isForgotOtpSent by remember { mutableStateOf(false) }
+    val forgotPasswordRules = remember(forgotNewPassword) { checkWorkoraPasswordRules(forgotNewPassword) }
+
+    fun generateAndSendOtp(targetIdentifier: String, onOtpReady: (String) -> Unit) {
+        isSendingOtp = true
+        val otp = Random.nextInt(100000, 999999).toString()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val safeKey = targetIdentifier.lowercase()
+                    .replace(".", "_")
+                    .replace("@", "_at_")
+                    .replace("+", "")
+                    .replace(" ", "_")
+                val conn = (URL("$AUTH_DB_URL/otps/$safeKey.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    setRequestProperty("Content-Type", "application/json")
+                    doOutput = true
+                }
+                val json = JSONObject().apply {
+                    put("target", targetIdentifier)
+                    put("otp", otp)
+                    put("timestamp", System.currentTimeMillis())
+                }
+                OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            withContext(Dispatchers.Main) {
+                isSendingOtp = false
+                sendOtpNotificationToPhone(context, targetIdentifier, otp)
+                Toast.makeText(
+                    context,
+                    "📩 6-Digit OTP Sent to $targetIdentifier! (OTP: $otp)",
+                    Toast.LENGTH_LONG
+                ).show()
+                onOtpReady(otp)
+            }
+        }
+    }
+
+    fun performStrictCloudLogin(rawIdentifier: String, enteredPass: String) {
+        isVerifying = true
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val inputDigits = rawIdentifier.filter { it.isDigit() }.takeLast(10)
+                val conn = (URL("$AUTH_DB_URL/users.json").openConnection() as HttpURLConnection)
+                var matchedEmail = ""
+                var matchedName = ""
+                var matchedPhone = ""
+                var matchedRole = "CUSTOMER"
+                var matchedStatus = "ACTIVE"
+                var savedCloudPassword = ""
+                var userFound = false
+
+                if (conn.responseCode in 200..299) {
+                    val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                    if (text.isNotBlank() && text != "null") {
+                        val root = JSONObject(text)
+                        val keys = root.keys()
+                        while (keys.hasNext()) {
+                            val k = keys.next()
+                            val obj = root.optJSONObject(k) ?: continue
+                            val uEmail = obj.optString("email", "").trim().lowercase()
+                            val uPhone = obj.optString("phone", "").filter { it.isDigit() }.takeLast(10)
+
+                            val emailMatches = uEmail.isNotBlank() && uEmail == rawIdentifier
+                            val phoneMatches = inputDigits.length == 10 && uPhone == inputDigits
+
+                            if (emailMatches || phoneMatches) {
+                                userFound = true
+                                matchedEmail = uEmail.ifBlank { "${inputDigits}@workora.in" }
+                                matchedName = obj.optString("fullName", "User")
+                                matchedPhone = obj.optString("phone", "+91 $inputDigits")
+                                matchedRole = obj.optString("role", "CUSTOMER")
+                                matchedStatus = obj.optString("accountStatus", "ACTIVE")
+                                savedCloudPassword = obj.optString("password", "")
+                                break
+                            }
+                        }
+                    }
+                }
+                conn.disconnect()
+
+                withContext(Dispatchers.Main) {
+                    isVerifying = false
+
+                    if (!userFound) {
+                        Toast.makeText(
+                            context,
+                            "❌ Yeh Mobile Number ya Email registered nahi hai! Pehle 'Mobile Registration' tab se OTP verify karke account banayein.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@withContext
+                    }
+
+                    if (matchedStatus.equals("BLOCKED", ignoreCase = true)) {
+                        Toast.makeText(
+                            context,
+                            "🚫 Aapka account Admin dwara Block kiya gaya hai!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@withContext
+                    }
+
+                    if (savedCloudPassword != enteredPass) {
+                        Toast.makeText(
+                            context,
+                            "❌ Galat Password! Kripya sahi password dalein ya niche 'Forgot Password (OTP)' par tap karein.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@withContext
+                    }
+
+                    val isMasterAdmin = matchedEmail == MASTER_ADMIN_EMAIL ||
+                            matchedPhone.filter { it.isDigit() }.takeLast(10) == MASTER_ADMIN_PHONE ||
+                            matchedRole.equals("ADMIN", ignoreCase = true)
+
+                    authPrefs.edit().apply {
+                        putBoolean("is_logged_in", true)
+                        putString("last_logged_in_email", matchedEmail)
+                        putString("user_pass_$matchedEmail", enteredPass)
+                        if (isMasterAdmin) {
+                            putString("saved_user_role", "ADMIN")
+                            putString("saved_admin_tier", "SUPER_ADMIN")
+                        } else {
+                            remove("saved_user_role")
+                        }
+                        apply()
+                    }
+
+                    profilePrefs.edit()
+                        .putString("user_name", matchedName)
+                        .putString("user_phone", matchedPhone)
+                        .apply()
+
+                    Toast.makeText(
+                        context,
+                        if (isMasterAdmin) "✅ Welcome Super Admin $matchedName!" else "✅ Welcome $matchedName!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    onLogin(matchedEmail, enteredPass)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isVerifying = false
+                    Toast.makeText(context, "Network Error: Internet check karein!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -130,6 +382,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // Top Tabs: "Log In / Sign In" vs "Mobile Registration"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -173,7 +426,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // ==================== TAB 0: LOG IN / SIGN IN ====================
+            // ==================== TAB 0: STRICT SIGN IN ====================
             if (activeAuthTab == 0) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -194,8 +447,8 @@ fun LoginScreen(
                             color = WorkoraTextDark
                         )
                         Text(
-                            text = "अपना मोबाइल नंबर या ईमेल और पासवर्ड डालकर लॉग इन करें",
-                            fontSize = 12.sp,
+                            text = "Apna registered Mobile Number ya Email aur sahi Password daal kar Log In karein",
+                            fontSize = 11.sp,
                             color = WorkoraTextMuted
                         )
 
@@ -216,7 +469,7 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it },
-                            label = { Text("Password (पासवर्ड)") },
+                            label = { Text("Password") },
                             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
                             trailingIcon = {
                                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -238,6 +491,25 @@ fun LoginScreen(
                             )
                         )
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Text(
+                                text = "Forgot Password? (OTP se Reset karein)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = WorkoraOrange,
+                                modifier = Modifier.clickable {
+                                    forgotIdentifier = emailOrPhone
+                                    isForgotOtpSent = false
+                                    forgotEnteredOtp = ""
+                                    forgotNewPassword = ""
+                                    showForgotDialog = true
+                                }
+                            )
+                        }
+
                         Button(
                             onClick = {
                                 val rawInput = emailOrPhone.trim().lowercase()
@@ -248,93 +520,7 @@ fun LoginScreen(
                                     return@Button
                                 }
 
-                                val inputDigits = rawInput.filter { it.isDigit() }.takeLast(10)
-                                val isMasterAdminLogin = rawInput == MASTER_ADMIN_EMAIL ||
-                                        rawInput.contains("ankitah994") ||
-                                        inputDigits == MASTER_ADMIN_PHONE
-
-                                // 1. Direct Super Admin Access for Ankit's Admin Email or Phone
-                                if (isMasterAdminLogin) {
-                                    authPrefs.edit()
-                                        .putBoolean("is_logged_in", true)
-                                        .putString("last_logged_in_email", MASTER_ADMIN_EMAIL)
-                                        .putString("user_pass_$MASTER_ADMIN_EMAIL", cleanPass)
-                                        .putString("saved_user_role", "ADMIN")
-                                        .putString("saved_admin_tier", "SUPER_ADMIN")
-                                        .apply()
-
-                                    profilePrefs.edit()
-                                        .putString("user_name", "Ankit Ahirwar")
-                                        .putString("user_phone", "+91 $MASTER_ADMIN_PHONE")
-                                        .apply()
-
-                                    FirebaseManager.syncUserToFirebase(
-                                        context = context,
-                                        name = "Ankit Ahirwar",
-                                        email = MASTER_ADMIN_EMAIL,
-                                        phone = "+91 $MASTER_ADMIN_PHONE",
-                                        password = cleanPass,
-                                        role = "ADMIN"
-                                    )
-
-                                    Toast.makeText(context, "Welcome Super Admin Ankit Ahirwar! ✓", Toast.LENGTH_SHORT).show()
-                                    onLogin(MASTER_ADMIN_EMAIL, cleanPass)
-                                    return@Button
-                                }
-
-                                // 2. Normal User Login (via Mobile or Email)
-                                val cleanIdentifier = if (!rawInput.contains("@") && inputDigits.isNotEmpty()) {
-                                    val mappedEmail = authPrefs.getString("phone_to_email_$inputDigits", null)
-                                    mappedEmail ?: "${inputDigits}@workora.in"
-                                } else {
-                                    rawInput
-                                }
-
-                                isVerifying = true
-                                FirebaseManager.verifyUserAndRoleFromFirebase(cleanIdentifier, cleanPass) { isSuccess, cloudName, cloudPhone, isAdmin, adminTier, errorMsg ->
-                                    isVerifying = false
-                                    if (isSuccess) {
-                                        authPrefs.edit()
-                                            .putBoolean("is_logged_in", true)
-                                            .putString("last_logged_in_email", cleanIdentifier)
-                                            .putString("user_pass_$cleanIdentifier", cleanPass)
-                                            .apply()
-
-                                        if (!cloudName.isNullOrBlank()) {
-                                            profilePrefs.edit().putString("user_name", cloudName).apply()
-                                        }
-                                        if (!cloudPhone.isNullOrBlank()) {
-                                            profilePrefs.edit().putString("user_phone", cloudPhone).apply()
-                                        }
-
-                                        if (isAdmin) {
-                                            authPrefs.edit()
-                                                .putString("saved_user_role", "ADMIN")
-                                                .putString("saved_admin_tier", adminTier ?: "SUPER_ADMIN")
-                                                .apply()
-                                            Toast.makeText(context, "Welcome Admin ($cloudName) ✓", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            authPrefs.edit().remove("saved_user_role").apply()
-                                            Toast.makeText(context, "Welcome $cloudName! ✓", Toast.LENGTH_SHORT).show()
-                                        }
-                                        onLogin(cleanIdentifier, cleanPass)
-                                    } else {
-                                        val savedLocalPass = authPrefs.getString("user_pass_$cleanIdentifier", null)
-                                        if (savedLocalPass != null && savedLocalPass == cleanPass) {
-                                            authPrefs.edit()
-                                                .putBoolean("is_logged_in", true)
-                                                .putString("last_logged_in_email", cleanIdentifier)
-                                                .apply()
-                                            onLogin(cleanIdentifier, cleanPass)
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                errorMsg ?: "Account nahi mila! Naya account banane ke liye Mobile Registration tab dabayein.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
-                                }
+                                performStrictCloudLogin(rawInput, cleanPass)
                             },
                             enabled = !isVerifying,
                             modifier = Modifier
@@ -351,8 +537,8 @@ fun LoginScreen(
                                 )
                             } else {
                                 Text(
-                                    text = "Log In / Sign In ✓",
-                                    fontSize = 16.sp,
+                                    text = "Verify Password & Log In ✓",
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
                                 )
@@ -361,7 +547,7 @@ fun LoginScreen(
                     }
                 }
             } else {
-                // ==================== TAB 1: MOBILE NUMBER & EMAIL REGISTRATION ====================
+                // ==================== TAB 1: SIGNUP WITH PRACTICAL PASSWORD RULES + 6-DIGIT OTP ====================
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -375,23 +561,24 @@ fun LoginScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "New Mobile Number Registration",
+                            text = "New Registration (OTP Verification)",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = WorkoraNavy
                         )
                         Text(
-                            text = "नया अकाउंट बनाने के लिए अपना नाम और मोबाइल नंबर दर्ज करें",
-                            fontSize = 12.sp,
+                            text = "Naya account banane ke liye details bharein aur 6-digit OTP verify karein",
+                            fontSize = 11.sp,
                             color = WorkoraTextMuted
                         )
 
                         OutlinedTextField(
                             value = regFullName,
                             onValueChange = { regFullName = it },
-                            label = { Text("Full Name (आपका पूरा नाम)") },
+                            label = { Text("Full Name (Aapka Poora Naam)") },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange) },
                             singleLine = true,
+                            enabled = !isRegOtpSent,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -399,9 +586,10 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = regMobileNumber,
                             onValueChange = { regMobileNumber = it },
-                            label = { Text("Mobile Number (10 अंकों का मोबाइल नंबर)") },
+                            label = { Text("Mobile Number (10-Digit Number)") },
                             leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange) },
                             singleLine = true,
+                            enabled = !isRegOtpSent,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
@@ -410,9 +598,10 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = regEmail,
                             onValueChange = { regEmail = it },
-                            label = { Text("Email ID (Optional / वैकल्पिक)") },
+                            label = { Text("Gmail / Email ID") },
                             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = WorkoraOrange) },
                             singleLine = true,
+                            enabled = !isRegOtpSent,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
@@ -421,9 +610,10 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = regVillageCity,
                             onValueChange = { regVillageCity = it },
-                            label = { Text("Village / City (गाँव या शहर)") },
+                            label = { Text("Village / City (Gaon ya Shahar)") },
                             leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange) },
                             singleLine = true,
+                            enabled = !isRegOtpSent,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -431,88 +621,277 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = regPassword,
                             onValueChange = { regPassword = it },
-                            label = { Text("Create Password (नया पासवर्ड बनाएं)") },
+                            label = { Text("Create Password (e.g. Ankit123)") },
                             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
+                            trailingIcon = {
+                                IconButton(onClick = { regPasswordVisible = !regPasswordVisible }) {
+                                    Icon(
+                                        imageVector = if (regPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = null,
+                                        tint = WorkoraTextMuted
+                                    )
+                                }
+                            },
+                            visualTransformation = if (regPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             singleLine = true,
+                            enabled = !isRegOtpSent,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        Button(
-                            onClick = {
-                                val cleanName = regFullName.trim()
-                                val cleanPhone = regMobileNumber.trim()
-                                val digits = cleanPhone.filter { it.isDigit() }.takeLast(10)
-                                val cleanPass = regPassword.trim()
-                                val cleanRegEmail = regEmail.trim().lowercase()
-
-                                if (cleanName.isBlank() || digits.length < 10 || cleanPass.length < 4) {
-                                    Toast.makeText(context, "Kripya Naam, 10 digit Mobile Number aur Password dalein!", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-
-                                val isMasterAdminReg = cleanRegEmail == MASTER_ADMIN_EMAIL ||
-                                        cleanRegEmail.contains("ankitah994") ||
-                                        digits == MASTER_ADMIN_PHONE
-
-                                val finalEmail = if (isMasterAdminReg) {
-                                    MASTER_ADMIN_EMAIL
-                                } else if (cleanRegEmail.contains("@")) {
-                                    cleanRegEmail
-                                } else {
-                                    "${digits}@workora.in"
-                                }
-
-                                val assignedRole = if (isMasterAdminReg) "ADMIN" else "CUSTOMER"
-
-                                authPrefs.edit().apply {
-                                    putBoolean("is_logged_in", true)
-                                    putString("last_logged_in_email", finalEmail)
-                                    putString("user_pass_$finalEmail", cleanPass)
-                                    putString("phone_to_email_$digits", finalEmail)
-                                    if (isMasterAdminReg) {
-                                        putString("saved_user_role", "ADMIN")
-                                        putString("saved_admin_tier", "SUPER_ADMIN")
-                                    } else {
-                                        remove("saved_user_role")
-                                    }
-                                    apply()
-                                }
-
-                                profilePrefs.edit()
-                                    .putString("user_name", cleanName)
-                                    .putString("user_phone", "+91 $digits")
-                                    .putString("user_location", regVillageCity.trim())
-                                    .apply()
-
-                                FirebaseManager.syncUserToFirebase(
-                                    context = context,
-                                    name = cleanName,
-                                    email = finalEmail,
-                                    phone = "+91 $digits",
-                                    password = cleanPass,
-                                    role = assignedRole
-                                )
-
-                                Toast.makeText(
-                                    context,
-                                    if (isMasterAdminReg) "Welcome Admin $cleanName! ✓" else "Registration Successful! Welcome $cleanName ✓",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                onLogin(finalEmail, cleanPass)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
+                        // LIVE WORKORA PRACTICAL PASSWORD RULES CHECKLIST
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                        ) {
-                            Text(
-                                text = "Register Mobile Number & Continue ✓",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
+                            colors = CardDefaults.cardColors(containerColor = WorkoraBgLight),
+                            border = BorderStroke(
+                                1.dp,
+                                if (regPasswordRules.isMandatoryValid) Color(0xFF16A34A) else WorkoraBorder
                             )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Password Rules:",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = WorkoraNavy
+                                    )
+                                    val strengthLabel = when {
+                                        regPasswordRules.isMandatoryValid && regPasswordRules.hasSpecialChar -> "💪 Strong Password"
+                                        regPasswordRules.isMandatoryValid -> "✔ Good (Valid)"
+                                        else -> "⏳ Incomplete"
+                                    }
+                                    val strengthColor = when {
+                                        regPasswordRules.isMandatoryValid -> Color(0xFF16A34A)
+                                        else -> WorkoraOrange
+                                    }
+                                    Text(
+                                        text = strengthLabel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = strengthColor
+                                    )
+                                }
+
+                                PasswordRuleRow(
+                                    label = "Minimum 8 characters (Kam se kam 8 akshar)",
+                                    isMet = regPasswordRules.hasMin8Chars,
+                                    isOptional = false
+                                )
+                                PasswordRuleRow(
+                                    label = "At least 1 letter (Kam se kam 1 letter A-Z / a-z)",
+                                    isMet = regPasswordRules.hasLetter,
+                                    isOptional = false
+                                )
+                                PasswordRuleRow(
+                                    label = "At least 1 number (Kam se kam 1 number 0-9)",
+                                    isMet = regPasswordRules.hasDigitNumber(),
+                                    isOptional = false
+                                )
+                                PasswordRuleRow(
+                                    label = "Special character (@, #, $ etc.) — Optional / Recommended",
+                                    isMet = regPasswordRules.hasSpecialChar,
+                                    isOptional = true
+                                )
+                            }
+                        }
+
+                        if (!isRegOtpSent) {
+                            // STEP 1: SEND 6-DIGIT OTP BUTTON
+                            Button(
+                                onClick = {
+                                    val cleanName = regFullName.trim()
+                                    val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
+
+                                    if (cleanName.isBlank() || digits.length < 10) {
+                                        Toast.makeText(context, "Kripya apna Naam aur 10-digit Mobile Number sahi dalein!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+
+                                    if (!regPasswordRules.isMandatoryValid) {
+                                        Toast.makeText(
+                                            context,
+                                            "Password mein kam se kam 8 characters, 1 letter aur 1 number hona zaroori hai!",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        return@Button
+                                    }
+
+                                    val targetDisplay = if (regEmail.trim().contains("@")) {
+                                        "+91 $digits & ${regEmail.trim()}"
+                                    } else {
+                                        "+91 $digits"
+                                    }
+
+                                    generateAndSendOtp(targetDisplay) { otp ->
+                                        generatedRegOtp = otp
+                                        enteredRegOtp = ""
+                                        isRegOtpSent = true
+                                    }
+                                },
+                                enabled = !isSendingOtp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (regPasswordRules.isMandatoryValid) WorkoraOrange else Color(0xFF94A3B8)
+                                )
+                            ) {
+                                if (isSendingOtp) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Send 6-Digit OTP to Mobile / Gmail",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        } else {
+                            // STEP 2: ENTER & VERIFY 6-DIGIT OTP BOX
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                                border = BorderStroke(1.5.dp, Color(0xFF16A34A))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = "📩 6-Digit OTP Sent! (Upar Notification bar mein aaya OTP dalein)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF16A34A)
+                                    )
+
+                                    OutlinedTextField(
+                                        value = enteredRegOtp,
+                                        onValueChange = { if (it.length <= 6) enteredRegOtp = it.filter { c -> c.isDigit() } },
+                                        label = { Text("Enter 6-Digit OTP Code") },
+                                        leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A)) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
+                                                generateAndSendOtp("+91 $digits") { otp ->
+                                                    generatedRegOtp = otp
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f).height(44.dp),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Resend OTP", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                if (enteredRegOtp.trim() != generatedRegOtp || generatedRegOtp.isBlank()) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "❌ Galat OTP! Kripya sahi 6-digit OTP dalein.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                    return@Button
+                                                }
+
+                                                val cleanName = regFullName.trim()
+                                                val digits = regMobileNumber.filter { it.isDigit() }.takeLast(10)
+                                                val cleanPass = regPassword.trim()
+                                                val cleanRegEmail = regEmail.trim().lowercase()
+
+                                                val isMasterAdminReg = cleanRegEmail == MASTER_ADMIN_EMAIL ||
+                                                        digits == MASTER_ADMIN_PHONE
+
+                                                val finalEmail = if (isMasterAdminReg) {
+                                                    MASTER_ADMIN_EMAIL
+                                                } else if (cleanRegEmail.contains("@")) {
+                                                    cleanRegEmail
+                                                } else {
+                                                    "${digits}@workora.in"
+                                                }
+
+                                                val assignedRole = if (isMasterAdminReg) "ADMIN" else "CUSTOMER"
+
+                                                authPrefs.edit().apply {
+                                                    putBoolean("is_logged_in", true)
+                                                    putString("last_logged_in_email", finalEmail)
+                                                    putString("user_pass_$finalEmail", cleanPass)
+                                                    putString("phone_to_email_$digits", finalEmail)
+                                                    if (isMasterAdminReg) {
+                                                        putString("saved_user_role", "ADMIN")
+                                                        putString("saved_admin_tier", "SUPER_ADMIN")
+                                                    } else {
+                                                        remove("saved_user_role")
+                                                    }
+                                                    apply()
+                                                }
+
+                                                profilePrefs.edit()
+                                                    .putString("user_name", cleanName)
+                                                    .putString("user_phone", "+91 $digits")
+                                                    .putString("user_location", regVillageCity.trim())
+                                                    .apply()
+
+                                                FirebaseManager.syncUserToFirebase(
+                                                    context = context,
+                                                    name = cleanName,
+                                                    email = finalEmail,
+                                                    phone = "+91 $digits",
+                                                    password = cleanPass,
+                                                    role = assignedRole
+                                                )
+
+                                                Toast.makeText(
+                                                    context,
+                                                    "✅ OTP Verified! Account Created Successfully!",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                                onLogin(finalEmail, cleanPass)
+                                            },
+                                            modifier = Modifier.weight(1.3f).height(44.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                                        ) {
+                                            Text("Verify OTP & Register ✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                        }
+                                    }
+
+                                    Text(
+                                        text = "← Edit Mobile Number / Details",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = WorkoraNavy,
+                                        modifier = Modifier
+                                            .align(Alignment.CenterHorizontally)
+                                            .clickable { isRegOtpSent = false }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -530,7 +909,7 @@ fun LoginScreen(
                     color = WorkoraTextMuted
                 )
                 Text(
-                    text = if (activeAuthTab == 0) "Mobile Registration karein" else "Log In karein",
+                    text = if (activeAuthTab == 0) "Mobile Registration (OTP) karein" else "Log In karein",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraOrange,
@@ -540,5 +919,166 @@ fun LoginScreen(
                 )
             }
         }
+    }
+
+    // ==================== FORGOT / RESET PASSWORD VIA 6-DIGIT OTP DIALOG ====================
+    if (showForgotDialog) {
+        AlertDialog(
+            onDismissRequest = { showForgotDialog = false },
+            title = {
+                Text(
+                    text = "🔐 Reset Password via OTP",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = WorkoraNavy
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Apna registered Mobile Number ya Email dalein, us par 6-digit OTP aayega:",
+                        fontSize = 12.sp,
+                        color = WorkoraTextMuted
+                    )
+
+                    OutlinedTextField(
+                        value = forgotIdentifier,
+                        onValueChange = { forgotIdentifier = it },
+                        label = { Text("Mobile Number or Email ID") },
+                        singleLine = true,
+                        enabled = !isForgotOtpSent,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (!isForgotOtpSent) {
+                        Button(
+                            onClick = {
+                                val cleanTarget = forgotIdentifier.trim()
+                                if (cleanTarget.length < 5) {
+                                    Toast.makeText(context, "Kripya sahi Mobile Number ya Email dalein!", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                generateAndSendOtp(cleanTarget) { otp ->
+                                    forgotGeneratedOtp = otp
+                                    isForgotOtpSent = true
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
+                        ) {
+                            Text("Send 6-Digit OTP", fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = forgotEnteredOtp,
+                            onValueChange = { if (it.length <= 6) forgotEnteredOtp = it.filter { c -> c.isDigit() } },
+                            label = { Text("Enter 6-Digit OTP") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = forgotNewPassword,
+                            onValueChange = { forgotNewPassword = it },
+                            label = { Text("New Password (8+ chars, 1 letter, 1 number)") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            PasswordRuleRow("Min 8 characters", forgotPasswordRules.hasMin8Chars, false)
+                            PasswordRuleRow("At least 1 letter & 1 number", forgotPasswordRules.hasLetter && forgotPasswordRules.hasNumber, false)
+                            PasswordRuleRow("Special character (Optional/Recommended)", forgotPasswordRules.hasSpecialChar, true)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (isForgotOtpSent) {
+                    Button(
+                        onClick = {
+                            if (forgotEnteredOtp.trim() != forgotGeneratedOtp || forgotGeneratedOtp.isBlank()) {
+                                Toast.makeText(context, "❌ Galat OTP! Sahi 6-digit OTP dalein.", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (!forgotPasswordRules.isMandatoryValid) {
+                                Toast.makeText(
+                                    context,
+                                    "Password mein kam se kam 8 characters, 1 letter aur 1 number zaroori hai!",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                return@Button
+                            }
+
+                            val rawTarget = forgotIdentifier.trim().lowercase()
+                            val digits = rawTarget.filter { it.isDigit() }.takeLast(10)
+                            val isMaster = rawTarget == MASTER_ADMIN_EMAIL || digits == MASTER_ADMIN_PHONE
+                            val targetEmail = if (isMaster) MASTER_ADMIN_EMAIL else if (rawTarget.contains("@")) rawTarget else "${digits}@workora.in"
+                            val cleanNewPass = forgotNewPassword.trim()
+
+                            authPrefs.edit().putString("user_pass_$targetEmail", cleanNewPass).apply()
+
+                            FirebaseManager.syncUserToFirebase(
+                                context = context,
+                                name = if (isMaster) "Ankit Ahirwar" else (profilePrefs.getString("user_name", "User") ?: "User"),
+                                email = targetEmail,
+                                phone = if (digits.length == 10) "+91 $digits" else "+91 $MASTER_ADMIN_PHONE",
+                                password = cleanNewPass,
+                                role = if (isMaster) "ADMIN" else "CUSTOMER"
+                            )
+
+                            emailOrPhone = targetEmail
+                            password = cleanNewPass
+                            showForgotDialog = false
+                            Toast.makeText(context, "✅ Password Reset Successful! Ab Log In karein.", Toast.LENGTH_LONG).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                    ) {
+                        Text("Verify OTP & Save Password ✓", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showForgotDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+private fun PasswordRuleStatus.hasDigitNumber(): Boolean = this.hasNumber
+
+@Composable
+private fun PasswordRuleRow(
+    label: String,
+    isMet: Boolean,
+    isOptional: Boolean
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            imageVector = if (isOptional) Icons.Default.Star else Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = when {
+                isMet -> Color(0xFF16A34A)
+                isOptional -> WorkoraOrange
+                else -> Color(0xFF94A3B8)
+            },
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = if (isMet) FontWeight.Bold else FontWeight.Medium,
+            color = if (isMet) Color(0xFF16A34A) else WorkoraTextMuted
+        )
     }
 }
