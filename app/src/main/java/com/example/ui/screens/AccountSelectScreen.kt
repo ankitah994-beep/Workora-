@@ -1,143 +1,474 @@
 package com.example.ui.screens
-
+import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.UserRole
-import com.example.ui.components.RoleCard
-import com.example.ui.components.WorkoraHelmetLogo
-import com.example.ui.components.WorkoraToast
+import com.example.model.AdminAuditLog
 import com.example.ui.theme.WorkoraBgLight
+import com.example.ui.theme.WorkoraBorder
 import com.example.ui.theme.WorkoraNavy
 import com.example.ui.theme.WorkoraOrange
 import com.example.ui.theme.WorkoraTextDark
 import com.example.ui.theme.WorkoraTextMuted
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+data class AdminModuleSpec(
+    val id: Int,
+    val title: String,
+    val subtitle: String,
+    val phaseStatus: String,
+    val capabilities: List<String>,
+    val icon: ImageVector
+)
 
 @Composable
-fun AccountSelectScreen(
-    onSelectRole: (UserRole) -> Unit,
-    toastMessage: String?,
-    modifier: Modifier = Modifier
+fun AdminDashboardScreen(
+    adminEmail: String = "ankitah994@gmail.com",
+    adminTier: String = "SUPER_ADMIN",
+    onLogoutAdmin: () -> Unit = {}
 ) {
-    Box(
-        modifier = modifier
+    val context = LocalContext.current
+    val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
+
+    var isLoadingMetrics by remember { mutableStateOf(true) }
+    var metrics by remember { mutableStateOf(LiveAdminMetrics()) }
+    val auditLogs = remember { mutableStateListOf<AdminAuditLog>() }
+    var selectedModuleIndex by remember { mutableIntStateOf(0) }
+    var pendingDestructiveConfirm by remember { mutableStateOf<String?>(null) }
+
+    val adminModules = remember {
+        listOf(
+            AdminModuleSpec(1, "1. Dashboard Overview", "Live Users, Workers, Jobs & Activity", "LIVE IN PHASE 1", listOf("Total Users", "Total Workers", "Total Customers", "Active Workers", "Active Jobs", "Completed Jobs", "Pending Requests", "Reports / Complaints"), Icons.Default.VerifiedUser),
+            AdminModuleSpec(2, "2. User Management", "Search, Filter, Suspend, Block & Delete Users", "PHASE 2", listOf("All Users", "Customers & Workers", "Search & Filter", "Edit / Suspend / Block / Unblock / Delete User", "User Activity"), Icons.Default.Person),
+            AdminModuleSpec(3, "3. Worker Management", "Verify Documents, Approve, Reject & Manage Skills", "PHASE 2", listOf("Pending Verification", "Verified & Rejected Workers", "Skills & Location", "Approve / Reject / Suspend Worker"), Icons.Default.Build),
+            AdminModuleSpec(4, "4. Customer Management", "Customer Profiles, Booking History & Controls", "PHASE 2", listOf("All Customers", "Booking History", "Active & Cancelled Jobs", "Suspend / Block Customer"), Icons.Default.Person),
+            AdminModuleSpec(5, "5. Job Management", "Full Lifecycle Control over All Posted Jobs", "PHASE 3", listOf("Pending / Accepted / Active / Completed Jobs", "Customer & Worker Details", "Job Status Control"), Icons.Default.CheckCircle),
+            AdminModuleSpec(6, "6. Service & Categories", "Add, Edit, Order & Enable/Disable Categories", "PHASE 3", listOf("All Categories", "Add / Edit / Delete Category", "Enable / Disable Service", "Category Ordering"), Icons.Default.Build),
+            AdminModuleSpec(7, "7. Location Management", "Manage Cities, Serviceable Areas & Distribution", "PHASE 3", listOf("Cities & Areas", "Enable / Disable Serviceable Area", "Worker Distribution by Area"), Icons.Default.LocationOn),
+            AdminModuleSpec(8, "8. Reports & Complaints", "Investigate & Resolve User, Job & Fraud Reports", "PHASE 4", listOf("User & Worker Reports", "Job Complaints", "Abuse & Fraud Reports", "Investigate / Resolve / Close"), Icons.Default.Warning),
+            AdminModuleSpec(9, "9. Support Management", "Customer & Worker Support Tickets & Replies", "PHASE 4", listOf("Open / Pending / Resolved Tickets", "Customer & Worker Support", "Reply to User"), Icons.Default.Info),
+            AdminModuleSpec(10, "10. Notifications", "Broadcast to All Users, Customers or Workers", "PHASE 4", listOf("Send to All / Customers / Workers / Specific User", "Scheduled Notifications", "Notification History"), Icons.Default.Notifications),
+            AdminModuleSpec(11, "11. App Content (CMS)", "Welcome Screen, Announcements, FAQ & Policies", "PHASE 5", listOf("Welcome Content", "App Announcements", "FAQ & Help Center", "Terms & Privacy Policy"), Icons.Default.Info),
+            AdminModuleSpec(12, "12. Analytics", "User Growth, Daily/Monthly Jobs & Retention", "PHASE 5", listOf("User / Worker / Customer Growth", "Jobs Per Day & Month", "Popular Services & Areas"), Icons.Default.CheckCircle),
+            AdminModuleSpec(13, "13. Security Center", "Admin 2FA, Sessions, Login History & Alerts", "LIVE IN PHASE 1", listOf("Admin Login Verification", "Admin Activity Logs", "Suspicious Activity", "Blocked Accounts"), Icons.Default.Lock),
+            AdminModuleSpec(14, "14. Admin Management", "Super Admin, Support Admin & Moderator RBAC", "LIVE IN PHASE 1", listOf("Super Admin / Support Admin / Moderator", "Roles & Permissions", "Add / Remove Admin"), Icons.Default.VerifiedUser),
+            AdminModuleSpec(15, "15. System Settings", "Maintenance Mode, Registration Toggles & Config", "PHASE 5", listOf("Maintenance Mode", "Registration On/Off", "Worker & Customer Registration Toggle"), Icons.Default.Settings),
+            AdminModuleSpec(16, "16. Audit Logs", "Immutable Record of Who Changed What & When", "LIVE IN PHASE 1", listOf("Admin Account & Timestamp", "User / Worker / Job / Settings Changes"), Icons.Default.Lock),
+            AdminModuleSpec(17, "17. Emergency Controls", "Kill-Switches for Registrations, Jobs & Areas", "PHASE 5", listOf("Disable New Registrations", "Disable New Job Requests", "Emergency Announcement"), Icons.Default.Warning),
+            AdminModuleSpec(18, "18. Data Management", "Database Collections, Export & Backup Status", "PHASE 5", listOf("Users / Workers / Jobs Data", "Data Export", "Firebase Backup Status"), Icons.Default.CheckCircle),
+            AdminModuleSpec(19, "19. Quick Actions", "One-Tap Shortcuts for Frequent Admin Operations", "LIVE IN PHASE 1", listOf("Verify Worker", "Manage Users", "Manage Jobs", "Emergency Controls"), Icons.Default.Settings)
+        )
+    }
+
+    fun refreshAdminData() {
+        isLoadingMetrics = true
+        FirebaseManager.fetchLiveAdminMetrics { liveMetrics, logs ->
+            metrics = liveMetrics
+            auditLogs.clear()
+            auditLogs.addAll(logs)
+            isLoadingMetrics = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        authPrefs.edit()
+            .putString("saved_user_role", "ADMIN")
+            .putString("saved_admin_tier", adminTier)
+            .apply()
+        refreshAdminData()
+    }
+
+    Column(
+        modifier = Modifier
             .fillMaxSize()
             .background(WorkoraBgLight)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
     ) {
-        Column(
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 20.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth()
+                .background(WorkoraNavy)
+                .padding(horizontal = 12.dp, vertical = 14.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Mini Helmet Logo
-                WorkoraHelmetLogo(
-                    size = 50.dp,
-                    showHalo = false
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Mini App Title
-                Text(
-                    text = "WORKORA",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = WorkoraNavy,
-                    letterSpacing = 1.5.sp
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                // Mini Tagline
-                Text(
-                    text = "FIND. HIRE. WORK.",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraOrange,
-                    letterSpacing = 1.2.sp
-                )
-
-                Spacer(modifier = Modifier.height(36.dp))
-
-                // Selection Header
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "What do you want to do?",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WorkoraTextDark,
-                        lineHeight = 30.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Select how you want to use the app",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = WorkoraTextMuted
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onLogoutAdmin() }) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Cards Container
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(WorkoraOrange),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Option 1: I Want to Hire (Customer)
-                    RoleCard(
-                        role = UserRole.CUSTOMER,
-                        onClick = { onSelectRole(UserRole.CUSTOMER) }
+                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "WORKORA ADMIN PANEL",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
                     )
-
-                    // Option 2: I Want to Work (Labour)
-                    RoleCard(
-                        role = UserRole.LABOUR,
-                        onClick = { onSelectRole(UserRole.LABOUR) }
+                    Text(
+                        text = "$adminTier • $adminEmail",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.8f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { refreshAdminData() }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = WorkoraOrange)
+                }
+                IconButton(
+                    onClick = {
+                        pendingDestructiveConfirm = "LOGOUT_ADMIN"
+                    }
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout", tint = Color.White)
+                }
+            }
         }
 
-        // Floating Toast Notification at bottom
-        WorkoraToast(
-            message = toastMessage,
+        Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp)
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, WorkoraBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "1. Live Cloud Activity Overview",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = WorkoraNavy
+                        )
+                        Text(
+                            text = if (isLoadingMetrics) "Syncing..." else "● Firebase Live",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF16A34A)
+                        )
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AdminStatTile("Total Users", metrics.totalUsers.toString(), WorkoraNavy, Modifier.weight(1f))
+                        AdminStatTile("Total Workers", metrics.totalWorkers.toString(), WorkoraOrange, Modifier.weight(1f))
+                        AdminStatTile("Customers", metrics.totalCustomers.toString(), Color(0xFF0284C7), Modifier.weight(1f))
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AdminStatTile("Active Workers", metrics.activeWorkers.toString(), Color(0xFF16A34A), Modifier.weight(1f))
+                        AdminStatTile("Active Jobs", metrics.activeJobs.toString(), WorkoraOrange, Modifier.weight(1f))
+                        AdminStatTile("Completed", metrics.completedJobs.toString(), WorkoraNavy, Modifier.weight(1f))
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AdminStatTile("Pending Jobs", metrics.pendingRequests.toString(), Color(0xFFD97706), Modifier.weight(1f))
+                        AdminStatTile("Open Reports", metrics.reportsCount.toString(), Color(0xFFDC2626), Modifier.weight(1f))
+                        AdminStatTile("Security Status", "Protected", Color(0xFF16A34A), Modifier.weight(1f))
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, WorkoraBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "19. Admin Quick Actions",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "Verify Worker" to 2,
+                            "Manage Users" to 1,
+                            "Manage Jobs" to 4,
+                            "Add Service" to 5,
+                            "View Reports" to 7,
+                            "Send Notification" to 9,
+                            "Emergency Controls" to 16
+                        ).forEach { (label, targetIdx) ->
+                            OutlinedButton(
+                                onClick = { selectedModuleIndex = targetIdx },
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, WorkoraOrange),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text(
+                text = "All 19 Admin Control Modules (Tap to Inspect)",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = WorkoraNavy
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                adminModules.forEachIndexed { index, module ->
+                    val isSelected = selectedModuleIndex == index
+                    Button(
+                        onClick = { selectedModuleIndex = index },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) WorkoraNavy else Color.White
+                        ),
+                        border = BorderStroke(1.dp, if (isSelected) WorkoraNavy else WorkoraBorder),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = module.title,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) Color.White else WorkoraTextDark
+                        )
+                    }
+                }
+            }
+
+            val activeModule = adminModules[selectedModuleIndex]
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.5.dp, WorkoraOrange)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(activeModule.icon, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = activeModule.title,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = WorkoraNavy
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (activeModule.phaseStatus.contains("LIVE")) Color(0xFF16A34A).copy(alpha = 0.15f)
+                                    else WorkoraOrange.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = activeModule.phaseStatus,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (activeModule.phaseStatus.contains("LIVE")) Color(0xFF16A34A) else WorkoraOrange
+                            )
+                        }
+                    }
+
+                    Text(text = activeModule.subtitle, fontSize = 13.sp, color = WorkoraTextMuted)
+
+                    activeModule.capabilities.forEach { cap ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = cap, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = WorkoraTextDark)
+                        }
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, WorkoraBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "16. Recent Security & Admin Audit Logs (/audit_logs)",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WorkoraNavy
+                    )
+
+                    if (auditLogs.isEmpty()) {
+                        Text(
+                            text = "No audit entries recorded yet. Every Admin login and state change is automatically logged here.",
+                            fontSize = 12.sp,
+                            color = WorkoraTextMuted
+                        )
+                    } else {
+                        auditLogs.take(5).forEach { log ->
+                            val formattedTime = remember(log.timestamp) {
+                                SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(log.timestamp))
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(WorkoraBgLight, shape = RoundedCornerShape(10.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = "${log.actionType} • ${log.adminTier}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = WorkoraNavy)
+                                    Text(text = formattedTime, fontSize = 11.sp, color = WorkoraTextMuted)
+                                }
+                                Text(text = "${log.adminEmail}: ${log.details}", fontSize = 12.sp, color = WorkoraTextDark)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (pendingDestructiveConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDestructiveConfirm = null },
+            title = { Text("Exit Admin Panel", fontWeight = FontWeight.Bold) },
+            text = { Text("Do you want to return to Role Selection or Log Out?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FirebaseManager.recordAdminAuditLog(
+                            adminEmail = adminEmail,
+                            adminTier = adminTier,
+                            actionType = "ADMIN_LOGOUT",
+                            targetEntity = "AdminSession",
+                            details = "Admin exited Admin Panel"
+                        )
+                        authPrefs.edit()
+                            .remove("saved_user_role")
+                            .apply()
+                        pendingDestructiveConfirm = null
+                        onLogoutAdmin()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Text("Exit Admin Panel", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingDestructiveConfirm = null }) {
+                    Text("Stay Here")
+                }
+            }
         )
+    }
+}
+
+@Composable
+private fun AdminStatTile(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(WorkoraBgLight, shape = RoundedCornerShape(12.dp))
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = accent)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WorkoraTextMuted)
     }
 }
