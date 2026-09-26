@@ -37,6 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.model.User
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -173,14 +175,23 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
         authPrefs.getString("last_logged_in_email", if (isHindi) "कारीगर" else "Worker")?.substringBefore("@") ?: "Worker"
     } ?: "Worker"
     val workerSkill = profilePrefs.getString("user_skill", "")?.ifBlank { if (isHindi) "कुशल कारीगर" else "Skilled Worker" } ?: "Skilled Worker"
-    val workerArea = profilePrefs.getString("user_location", "")?.ifBlank { if (isHindi) "स्थानीय क्षेत्र" else "Local Area" } ?: "Local Area"
+    var workerArea by remember {
+        mutableStateOf(
+            profilePrefs.getString("user_location", "")?.ifBlank { "Silwani, Raisen" } ?: "Silwani, Raisen"
+        )
+    }
     val workerExp = profilePrefs.getString("user_experience", "")?.ifBlank { if (isHindi) "अनुभवी" else "Experienced" } ?: "Experienced"
     val workerRate = profilePrefs.getString("user_rate", "")?.ifBlank { "600" } ?: "600"
     val workerProfilePhoto = profilePrefs.getString("user_profile_photo", "") ?: ""
 
+    // Active Location Filter State for Worker Home Screen
+    var activeJobLocationFilter by remember { mutableStateOf("All Locations") }
+    var filterByWorkerLocation by remember { mutableStateOf(false) }
+    var showWorkerLocationModal by remember { mutableStateOf(false) }
+
     var localSearchQuery by remember { mutableStateOf("") }
     var selectedCategoryFilter by remember { mutableStateOf("All") }
-    var sortMode by remember { mutableStateOf("DEFAULT") } // DEFAULT, HIGH_RATE, URGENT_FIRST
+    var sortMode by remember { mutableStateOf("DEFAULT") }
     var showSortDialog by remember { mutableStateOf(false) }
     var selectedCustomerRequestForProfile by remember { mutableStateOf<LabourWorkRequestItem?>(null) }
 
@@ -297,11 +308,18 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
         }
     }
 
-    // Real-time reactive filtering without stale remember cache
     val filteredRequests = workRequestsList
         .filter { req ->
             val matchCat = selectedCategoryFilter == "All" || req.category.equals(selectedCategoryFilter, ignoreCase = true)
-            matchCat && matchesLabourSmartSearch(req, localSearchQuery)
+            val matchLoc = if (!filterByWorkerLocation || activeJobLocationFilter.equals("All Locations", true) || activeJobLocationFilter.isBlank()) {
+                true
+            } else {
+                val tokens = activeJobLocationFilter.split(",", " ").map { it.trim().lowercase(Locale.US) }.filter { it.length >= 3 }
+                tokens.isEmpty() || tokens.any { tk ->
+                    req.location.lowercase(Locale.US).contains(tk) || req.stateName.lowercase(Locale.US).contains(tk)
+                }
+            }
+            matchCat && matchLoc && matchesLabourSmartSearch(req, localSearchQuery)
         }
         .let { list ->
             when (sortMode) {
@@ -377,6 +395,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         onClick = {
                             selectedCategoryFilter = "All"
                             localSearchQuery = ""
+                            filterByWorkerLocation = false
                         }
                     )
                     LabourBottomNavItem(
@@ -386,6 +405,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         onClick = {
                             selectedCategoryFilter = "All"
                             localSearchQuery = ""
+                            filterByWorkerLocation = false
                         }
                     )
                     LabourBottomNavItem(
@@ -411,7 +431,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Top Navy Header + Real Working Search Bar
+            // Top Navy Header + Restored Live Location Bar + Search Bar
             item {
                 Column(
                     modifier = Modifier
@@ -459,7 +479,66 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // RESTORED WORKER HOME SCREEN LIVE LOCATION BAR
+                    Surface(
+                        color = Color(0xFF1E40AF),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showWorkerLocationModal = true }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = "Location",
+                                    tint = LabourOrangeAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (!filterByWorkerLocation || activeJobLocationFilter == "All Locations") {
+                                        if (isHindi) "लोकेशन: सभी क्षेत्र ($workerArea)" else "Location: All Areas ($workerArea)"
+                                    } else {
+                                        "📍 $activeJobLocationFilter"
+                                    },
+                                    color = LabourWhite,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (isHindi) "बदलें" else "Change",
+                                    color = Color(0xFFFDE047),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFDE047),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = localSearchQuery,
@@ -471,7 +550,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         },
                         placeholder = {
                             Text(
-                                text = if (isHindi) "काम या ग्राहक खोजें (जैसे mason, cleaner, Silwani...)" else "Search work or customer (e.g. mason, cleaner, Silwani...)",
+                                text = if (isHindi) "काम या शहर खोजें..." else "Search work or location...",
                                 fontSize = 13.sp,
                                 color = LabourSecondaryText
                             )
@@ -652,6 +731,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         modifier = Modifier.clickable {
                             selectedCategoryFilter = "All"
                             localSearchQuery = ""
+                            filterByWorkerLocation = false
                             sortMode = "DEFAULT"
                         }
                     )
@@ -682,7 +762,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (isHindi) "कोई काम की रिक्वेस्ट नहीं मिली" else "No work requests found",
+                                text = if (isHindi) "इस खोज या लोकेशन के लिए कोई काम नहीं मिला" else "No work requests found for this location",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = LabourMainText
@@ -692,6 +772,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                                 onClick = {
                                     localSearchQuery = ""
                                     selectedCategoryFilter = "All"
+                                    filterByWorkerLocation = false
                                     sortMode = "DEFAULT"
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = LabourOrangeAccent)
@@ -717,6 +798,116 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                             openDirectLiveChatWithCustomer(req)
                         }
                     )
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // WORKER LIVE LOCATION PICKER MODAL WITH REAL AUTO-SUGGESTIONS
+    // =========================================================================
+    if (showWorkerLocationModal) {
+        var tempLocInput by remember {
+            mutableStateOf(if (activeJobLocationFilter == "All Locations") workerArea else activeJobLocationFilter)
+        }
+
+        Dialog(
+            onDismissRequest = { showWorkerLocationModal = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = LabourWhite)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = LabourOrangeAccent)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isHindi) "काम की लोकेशन चुनें (Live Location)" else "Select Work Location",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = LabourMainText
+                            )
+                        }
+                        IconButton(onClick = { showWorkerLocationModal = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = LabourSecondaryText)
+                        }
+                    }
+
+                    Text(
+                        text = if (isHindi) "अपना शहर, तहसील या गाँव लिखें — नीचे असली लोकेशन सजेस्ट होंगी:" else "Type your city, tehsil or village — real locations will suggest below:",
+                        fontSize = 12.sp,
+                        color = LabourSecondaryText
+                    )
+
+                    LiveLocationAutoCompleteField(
+                        value = tempLocInput,
+                        onValueChange = { tempLocInput = it },
+                        onLocationSelected = { fullLoc, areaPart, statePart ->
+                            workerArea = areaPart
+                            activeJobLocationFilter = fullLoc
+                            filterByWorkerLocation = true
+                            profilePrefs.edit()
+                                .putString("user_location", areaPart)
+                                .putString("user_state", statePart)
+                                .apply()
+                            Toast.makeText(context, "Location: $fullLoc ✓", Toast.LENGTH_SHORT).show()
+                            showWorkerLocationModal = false
+                        },
+                        label = if (isHindi) "शहर / गाँव / एरिया खोजें" else "Search City / Village / Area"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                activeJobLocationFilter = "All Locations"
+                                filterByWorkerLocation = false
+                                showWorkerLocationModal = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (isHindi) "सभी क्षेत्र (All)" else "All Locations", color = LabourNavyPrimary, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                if (tempLocInput.isNotBlank()) {
+                                    workerArea = tempLocInput.trim()
+                                    activeJobLocationFilter = tempLocInput.trim()
+                                    filterByWorkerLocation = true
+                                    profilePrefs.edit().putString("user_location", workerArea).apply()
+                                } else {
+                                    activeJobLocationFilter = "All Locations"
+                                    filterByWorkerLocation = false
+                                }
+                                showWorkerLocationModal = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = LabourOrangeAccent),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (isHindi) "लोकेशन लागू करें" else "Apply Location", color = LabourWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -770,6 +961,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         sortMode = "DEFAULT"
                         selectedCategoryFilter = "All"
                         localSearchQuery = ""
+                        filterByWorkerLocation = false
                         showSortDialog = false
                     }
                 ) {
@@ -810,7 +1002,7 @@ internal fun CustomerWorkRequestCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Box(
                     modifier = Modifier
@@ -846,18 +1038,19 @@ internal fun CustomerWorkRequestCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
-                            tint = LabourSecondaryText,
+                            tint = LabourOrangeAccent,
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${request.location} • ${request.date}",
+                            text = "${request.location}, ${request.stateName} • ${request.date}",
                             fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = LabourSecondaryText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -1022,7 +1215,7 @@ internal fun CustomerAndJobDetailProfileScreen(
                                 color = LabourSuccessGreen
                             )
                             Text(
-                                text = "📍 ${request.location}",
+                                text = "📍 ${request.location}, ${request.stateName}",
                                 fontSize = 13.sp,
                                 color = LabourSecondaryText
                             )
