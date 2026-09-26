@@ -82,7 +82,7 @@ fun SignUpScreen(
             .fillMaxSize()
             .background(SignUpBgLight)
     ) {
-        // Same Bottom Navy & Orange Wave Design
+        // Bottom Navy & Orange Wave Design
         SignUpBottomWaveCanvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -176,7 +176,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // White Registration Card
+            // White Registration Form Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -513,6 +513,14 @@ private fun SignUpBottomWaveCanvas(modifier: Modifier = Modifier) {
     }
 }
 
+private fun formatSignUpSafeKey(identifier: String): String {
+    return identifier.trim().lowercase(Locale.US)
+        .replace(".", "_")
+        .replace("@", "_at_")
+        .replace("+", "")
+        .replace(" ", "")
+}
+
 private fun registerNewUserToFirebase(
     name: String,
     phone: String,
@@ -524,7 +532,7 @@ private fun registerNewUserToFirebase(
 ) {
     Thread {
         try {
-            val key = FirebaseManager.safeKey(email)
+            val key = formatSignUpSafeKey(email)
             val url = URL("https://workora-d8b51-default-rtdb.firebaseio.com/users/$key.json")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "PUT"
