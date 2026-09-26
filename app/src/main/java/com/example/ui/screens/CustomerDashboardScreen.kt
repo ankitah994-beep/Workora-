@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.model.Job
 import com.example.model.User
 import com.example.model.Worker
 import org.json.JSONObject
@@ -87,19 +86,19 @@ internal data class CustFeaturedWorkerProfile(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <CatT, TabT> CustomerDashboardScreen(
+fun <JobT, CatT, TabT> CustomerDashboardScreen(
     currentUser: User? = null,
     searchQuery: String = "",
     onSearchQueryChanged: (String) -> Unit = {},
     workers: List<Worker> = emptyList(),
-    jobs: List<Job> = emptyList(),
+    jobs: List<JobT> = emptyList(),
     selectedCategory: CatT,
     onCategorySelected: (CatT) -> Unit = {},
     activeTab: TabT,
     onTabSelected: (TabT) -> Unit = {},
     onPostJob: (String, String, String, Int, String, Int, String, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onHireWorker: (Worker) -> Unit = {},
-    onCompleteJob: (String) -> Unit = {},
+    onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
