@@ -459,7 +459,7 @@ fun SignUpScreen(
                     HorizontalDivider(color = SignUpBorderColor)
 
                     // =====================================================
-                    // PERSONAL & LOCATION DETAILS
+                    // PERSONAL & LIVE LOCATION DETAILS
                     // =====================================================
                     OutlinedTextField(
                         value = fullName,
@@ -514,6 +514,22 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    // LIVE REAL LOCATION AUTO-SUGGESTION FIELD FOR CITY / AREA & STATE
+                    LiveLocationAutoCompleteField(
+                        value = areaLocation,
+                        onValueChange = {
+                            areaLocation = it
+                            errorMessage = null
+                        },
+                        onLocationSelected = { _, areaPart, statePart ->
+                            areaLocation = areaPart
+                            stateName = statePart
+                            errorMessage = null
+                        },
+                        label = if (isHindi) "शहर / गाँव / एरिया (Live Location) *" else "City / Area / Village (Live Location) *",
+                        placeholder = if (isHindi) "शहर या गाँव लिखें (नीचे असली लोकेशन दिखेंगी)" else "Type city or village for live suggestions"
+                    )
+
                     OutlinedTextField(
                         value = stateName,
                         onValueChange = {
@@ -521,26 +537,9 @@ fun SignUpScreen(
                             errorMessage = null
                         },
                         label = { Text(if (isHindi) "राज्य (State) *" else "State (राज्य) *") },
-                        placeholder = { Text(if (isHindi) "अपने राज्य का नाम लिखें" else "Enter your state", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        placeholder = { Text(if (isHindi) "अपने राज्य का नाम" else "Enter your state", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Map, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = areaLocation,
-                        onValueChange = {
-                            areaLocation = it
-                            errorMessage = null
-                        },
-                        label = { Text(if (isHindi) "शहर / गाँव / एरिया (City / Area) *" else "City / Area / Village (शहर / गाँव) *") },
-                        placeholder = { Text(if (isHindi) "अपने शहर, तहसील या गाँव का नाम" else "Enter your city, tehsil or area", color = SignUpSecondaryText, fontSize = 13.sp) },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -745,8 +744,8 @@ fun SignUpScreen(
                             val cleanPhone = phoneNumber.trim()
                             val digitsInPhone = cleanPhone.filter { it.isDigit() }
                             val cleanEmail = emailAddress.trim().lowercase(Locale.US)
-                            val cleanState = stateName.trim()
                             val cleanArea = areaLocation.trim()
+                            val cleanState = stateName.trim().ifEmpty { "Madhya Pradesh" }
                             val cleanAddress = fullAddress.trim()
                             val cleanCategory = workerCategory.trim()
                             val cleanExp = workerExperienceYears.trim()
@@ -764,9 +763,6 @@ fun SignUpScreen(
                                 }
                                 cleanEmail.isEmpty() || !cleanEmail.contains("@") -> {
                                     errorMessage = "कृपया अपना सही ईमेल पता (Email Address) भरें।"
-                                }
-                                cleanState.isEmpty() -> {
-                                    errorMessage = "कृपया अपने राज्य का नाम (State) भरें।"
                                 }
                                 cleanArea.isEmpty() -> {
                                     errorMessage = "कृपया अपने शहर / गाँव / एरिया (City / Area) का नाम भरें।"
