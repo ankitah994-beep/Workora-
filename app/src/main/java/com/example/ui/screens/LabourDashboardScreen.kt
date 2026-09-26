@@ -94,6 +94,43 @@ private fun translateLabourCategory(category: String, isHindi: Boolean): String 
     }
 }
 
+private fun matchesLabourSmartSearch(req: LabourWorkRequestItem, rawQuery: String): Boolean {
+    val q = rawQuery.trim().lowercase(Locale.US)
+    if (q.isEmpty()) return true
+
+    val hindiCat = translateLabourCategory(req.category, true).lowercase(Locale.US)
+    val synonyms = when (req.category.trim().lowercase(Locale.US)) {
+        "mason" -> "राजमिस्त्री मिस्त्री प्लास्टर ईंट चुनाई mistri brick plaster"
+        "electrician" -> "इलेक्ट्रीशियन बिजली वायरिंग पंखा लाइट स्विच bijli wiring fan light"
+        "plumber" -> "प्लंबर नल पाइप टंकी फिटिंग मोटर nal pipe tank fitting"
+        "painter" -> "पेंटर पुट्टी पेंट रंगाई कलर putty paint color"
+        "carpenter" -> "बढ़ई फर्नीचर लकड़ी दरवाजा खिड़की badhai wood door furniture"
+        "general labour" -> "मजदूर लेबर हेल्पर लोडिंग खुदाई majdur labour helper"
+        "tile worker" -> "टाइल्स पत्थर मार्बल ग्रेनाइट फर्श tile tiles marble granite worker"
+        "cleaner" -> "सफाई क्लीनर झाड़ू पोछा टैंक safai cleaner cleaning"
+        "farm worker" -> "कृषि खेती किसान फसल कटाई kheti farm kisan"
+        else -> ""
+    }
+
+    val blob = buildString {
+        append(req.title.lowercase(Locale.US)).append(" ")
+        append(req.category.lowercase(Locale.US)).append(" ")
+        append(hindiCat).append(" ")
+        append(synonyms).append(" ")
+        append(req.description.lowercase(Locale.US)).append(" ")
+        append(req.customerName.lowercase(Locale.US)).append(" ")
+        append(req.customerPhone.lowercase(Locale.US)).append(" ")
+        append(req.location.lowercase(Locale.US)).append(" ")
+        append(req.stateName.lowercase(Locale.US)).append(" ")
+        append(req.dailyRate.toString()).append(" ")
+        append("work job kaam काम वर्कर")
+    }
+
+    if (blob.contains(q)) return true
+    val words = q.split("\\s+".toRegex()).filter { it.isNotBlank() }
+    return words.isNotEmpty() && words.all { blob.contains(it) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <JobT, CatT, TabT> LabourDashboardScreen(
@@ -139,8 +176,12 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
     val workerArea = profilePrefs.getString("user_location", "")?.ifBlank { if (isHindi) "स्थानीय क्षेत्र" else "Local Area" } ?: "Local Area"
     val workerExp = profilePrefs.getString("user_experience", "")?.ifBlank { if (isHindi) "अनुभवी" else "Experienced" } ?: "Experienced"
     val workerRate = profilePrefs.getString("user_rate", "")?.ifBlank { "600" } ?: "600"
+    val workerProfilePhoto = profilePrefs.getString("user_profile_photo", "") ?: ""
 
+    var localSearchQuery by remember { mutableStateOf("") }
     var selectedCategoryFilter by remember { mutableStateOf("All") }
+    var sortMode by remember { mutableStateOf("DEFAULT") } // DEFAULT, HIGH_RATE, URGENT_FIRST
+    var showSortDialog by remember { mutableStateOf(false) }
     var selectedCustomerRequestForProfile by remember { mutableStateOf<LabourWorkRequestItem?>(null) }
 
     val defaultCustomerRequests = remember {
@@ -204,6 +245,36 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                 date = "26 Sep 2026",
                 status = "PENDING",
                 urgency = "Normal"
+            ),
+            LabourWorkRequestItem(
+                id = "req_5",
+                title = "Floor Vitrified Tile Fitting",
+                category = "Tile Worker",
+                description = "Need experienced tile worker for hall and kitchen floor tile fitting.",
+                customerName = "Sandeep Jain",
+                customerPhone = "+91 9826112233",
+                location = "Main Road, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 900,
+                workersNeeded = 1,
+                date = "Today",
+                status = "PENDING",
+                urgency = "Urgent"
+            ),
+            LabourWorkRequestItem(
+                id = "req_6",
+                title = "Full House & Water Tank Cleaning",
+                category = "Cleaner",
+                description = "Deep cleaning of 3 rooms and overhead water tank cleaning work.",
+                customerName = "Neha Dubey",
+                customerPhone = "+91 9755112244",
+                location = "Station Road, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 550,
+                workersNeeded = 1,
+                date = "Today",
+                status = "PENDING",
+                urgency = "Normal"
             )
         )
     }
@@ -226,10 +297,19 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
         }
     }
 
-    val filteredRequests = remember(workRequestsList.size, selectedCategoryFilter) {
-        if (selectedCategoryFilter == "All") workRequestsList
-        else workRequestsList.filter { it.category.equals(selectedCategoryFilter, ignoreCase = true) }
-    }
+    // Real-time reactive filtering without stale remember cache
+    val filteredRequests = workRequestsList
+        .filter { req ->
+            val matchCat = selectedCategoryFilter == "All" || req.category.equals(selectedCategoryFilter, ignoreCase = true)
+            matchCat && matchesLabourSmartSearch(req, localSearchQuery)
+        }
+        .let { list ->
+            when (sortMode) {
+                "HIGH_RATE" -> list.sortedByDescending { it.dailyRate }
+                "URGENT_FIRST" -> list.sortedByDescending { it.urgency.equals("Urgent", true) }
+                else -> list
+            }
+        }
 
     val openDirectLiveChatWithCustomer: (LabourWorkRequestItem) -> Unit = { req ->
         chatPrefs.edit()
@@ -294,13 +374,19 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         icon = Icons.Default.Home,
                         label = if (isHindi) "होम" else "Home",
                         isSelected = true,
-                        onClick = { selectedCategoryFilter = "All" }
+                        onClick = {
+                            selectedCategoryFilter = "All"
+                            localSearchQuery = ""
+                        }
                     )
                     LabourBottomNavItem(
                         icon = Icons.Outlined.WorkOutline,
                         label = if (isHindi) "मेरे काम" else "My Jobs",
                         isSelected = false,
-                        onClick = { selectedCategoryFilter = "All" }
+                        onClick = {
+                            selectedCategoryFilter = "All"
+                            localSearchQuery = ""
+                        }
                     )
                     LabourBottomNavItem(
                         icon = Icons.Outlined.Chat,
@@ -325,51 +411,102 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Top Navy Header + Real Working Search Bar
             item {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(LabourNavyPrimary)
                         .statusBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "Workora",
-                            color = LabourWhite,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            text = if (isHindi) "कारीगर डैशबोर्ड" else "Worker Dashboard",
-                            color = Color(0xFFCBD5E1),
-                            fontSize = 12.sp
-                        )
-                    }
-
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            color = LabourOrangeAccent,
-                            shape = RoundedCornerShape(50),
-                            modifier = Modifier.clickable { onSwitchRole() }
-                        ) {
+                        Column {
                             Text(
-                                text = if (isHindi) "कस्टमर मोड" else "Customer Mode",
+                                text = "Workora",
                                 color = LabourWhite,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = if (isHindi) "कारीगर डैशबोर्ड" else "Worker Dashboard",
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 12.sp
                             )
                         }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                color = LabourOrangeAccent,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.clickable { onSwitchRole() }
+                            ) {
+                                Text(
+                                    text = if (isHindi) "कस्टमर मोड" else "Customer Mode",
+                                    color = LabourWhite,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = localSearchQuery,
+                        onValueChange = { query ->
+                            localSearchQuery = query
+                            if (query.isNotBlank() && selectedCategoryFilter != "All") {
+                                selectedCategoryFilter = "All"
+                            }
+                        },
+                        placeholder = {
+                            Text(
+                                text = if (isHindi) "काम या ग्राहक खोजें (जैसे mason, cleaner, Silwani...)" else "Search work or customer (e.g. mason, cleaner, Silwani...)",
+                                fontSize = 13.sp,
+                                color = LabourSecondaryText
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Search, contentDescription = null, tint = LabourSecondaryText)
+                        },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (localSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { localSearchQuery = "" }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = LabourSecondaryText)
+                                    }
+                                }
+                                IconButton(onClick = { showSortDialog = true }) {
+                                    Icon(Icons.Outlined.Tune, contentDescription = "Filter", tint = LabourNavyPrimary)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = LabourWhite,
+                            unfocusedContainerColor = LabourWhite,
+                            focusedBorderColor = LabourOrangeAccent,
+                            unfocusedBorderColor = LabourWhite,
+                            focusedTextColor = LabourMainText,
+                            unfocusedTextColor = LabourMainText
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
+            // Worker Summary + Availability Card
             item {
                 Card(
                     modifier = Modifier
@@ -382,7 +519,11 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CustomerHardHatAvatar(size = 68.dp)
+                            if (workerProfilePhoto.isNotBlank()) {
+                                UserProfilePhotoView(base64Photo = workerProfilePhoto, size = 68.dp)
+                            } else {
+                                CustomerHardHatAvatar(size = 68.dp)
+                            }
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -451,8 +592,12 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                 }
             }
 
+            // Category Filter Chips
             item {
-                val cats = listOf("All", "Mason", "Electrician", "Plumber", "Painter", "Carpenter", "General Labour")
+                val cats = listOf(
+                    "All", "Mason", "Electrician", "Plumber", "Painter",
+                    "Carpenter", "General Labour", "Tile Worker", "Cleaner", "Farm Worker"
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -466,7 +611,12 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                             color = if (selected) LabourNavyPrimary else LabourWhite,
                             shape = RoundedCornerShape(50),
                             border = BorderStroke(1.dp, if (selected) LabourNavyPrimary else LabourBorder),
-                            modifier = Modifier.clickable { selectedCategoryFilter = c }
+                            modifier = Modifier.clickable {
+                                selectedCategoryFilter = c
+                                if (localSearchQuery.isNotBlank()) {
+                                    localSearchQuery = ""
+                                }
+                            }
                         ) {
                             Text(
                                 text = translateLabourCategory(c, isHindi),
@@ -499,28 +649,139 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = LabourNavyPrimary,
-                        modifier = Modifier.clickable { selectedCategoryFilter = "All" }
+                        modifier = Modifier.clickable {
+                            selectedCategoryFilter = "All"
+                            localSearchQuery = ""
+                            sortMode = "DEFAULT"
+                        }
                     )
                 }
             }
 
-            items(filteredRequests, key = { it.id }) { req ->
-                CustomerWorkRequestCard(
-                    request = req,
-                    isHindi = isHindi,
-                    onCardClick = {
-                        selectedCustomerRequestForProfile = req
-                    },
-                    onCallCustomerClick = {
-                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
-                        context.startActivity(dialIntent)
-                    },
-                    onMessageIconClick = {
-                        openDirectLiveChatWithCustomer(req)
+            if (filteredRequests.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = LabourWhite),
+                        border = BorderStroke(1.dp, LabourBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.SearchOff,
+                                contentDescription = null,
+                                tint = LabourSecondaryText,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isHindi) "कोई काम की रिक्वेस्ट नहीं मिली" else "No work requests found",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = LabourMainText
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    localSearchQuery = ""
+                                    selectedCategoryFilter = "All"
+                                    sortMode = "DEFAULT"
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = LabourOrangeAccent)
+                            ) {
+                                Text(if (isHindi) "सभी काम दिखाएं" else "Show All Work Requests", color = LabourWhite, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
-                )
+                }
+            } else {
+                items(filteredRequests, key = { it.id }) { req ->
+                    CustomerWorkRequestCard(
+                        request = req,
+                        isHindi = isHindi,
+                        onCardClick = {
+                            selectedCustomerRequestForProfile = req
+                        },
+                        onCallCustomerClick = {
+                            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
+                            context.startActivity(dialIntent)
+                        },
+                        onMessageIconClick = {
+                            openDirectLiveChatWithCustomer(req)
+                        }
+                    )
+                }
             }
         }
+    }
+
+    if (showSortDialog) {
+        AlertDialog(
+            onDismissRequest = { showSortDialog = false },
+            containerColor = LabourWhite,
+            title = {
+                Text(
+                    text = if (isHindi) "काम फ़िल्टर और सॉर्ट करें" else "Filter & Sort Work Requests",
+                    fontWeight = FontWeight.Bold,
+                    color = LabourMainText
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val options = listOf(
+                        "DEFAULT" to (if (isHindi) "डिफ़ॉल्ट (सभी नए काम)" else "Default (Latest Requests)"),
+                        "HIGH_RATE" to (if (isHindi) "सबसे ज्यादा मजदूरी रेट पहले (High Rate ₹)" else "Highest Daily Rate First (₹)"),
+                        "URGENT_FIRST" to (if (isHindi) "अर्जेंट काम पहले (Urgent First)" else "Urgent Work First")
+                    )
+                    options.forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    sortMode = key
+                                    showSortDialog = false
+                                }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = sortMode == key,
+                                onClick = {
+                                    sortMode = key
+                                    showSortDialog = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(label, fontSize = 14.sp, color = LabourMainText, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sortMode = "DEFAULT"
+                        selectedCategoryFilter = "All"
+                        localSearchQuery = ""
+                        showSortDialog = false
+                    }
+                ) {
+                    Text(if (isHindi) "रीसेट करें" else "Reset All", color = LabourOrangeAccent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSortDialog = false }) {
+                    Text(if (isHindi) "बंद करें" else "Close", color = LabourSecondaryText)
+                }
+            }
+        )
     }
 }
 
