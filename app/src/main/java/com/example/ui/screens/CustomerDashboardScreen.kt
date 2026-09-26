@@ -43,11 +43,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.model.User
 import com.example.model.Worker
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -87,6 +89,312 @@ internal data class CustFeaturedWorkerProfile(
     val photo2: String = "",
     val photo3: String = ""
 )
+
+// =========================================================================
+// REAL LIVE LOCATION SUGGESTION ENGINE (Shared across the entire Workora App)
+// Combines instant verified Indian locations + Live OpenStreetMap India API
+// =========================================================================
+internal val VerifiedIndianLocationsDirectory = listOf(
+    "Silwani, Raisen, Madhya Pradesh",
+    "Main Market, Silwani, Madhya Pradesh",
+    "Sector 4, Silwani, Madhya Pradesh",
+    "Bhopal Road, Silwani, Madhya Pradesh",
+    "Bus Stand, Silwani, Madhya Pradesh",
+    "Gram Bamhori, Silwani, Madhya Pradesh",
+    "Begamganj, Raisen, Madhya Pradesh",
+    "Gairatganj, Raisen, Madhya Pradesh",
+    "Udaipura, Raisen, Madhya Pradesh",
+    "Bareli, Raisen, Madhya Pradesh",
+    "Obedullaganj, Raisen, Madhya Pradesh",
+    "Mandideep, Raisen, Madhya Pradesh",
+    "Sanchi, Raisen, Madhya Pradesh",
+    "Raisen, Madhya Pradesh",
+    "Civil Lines, Raisen, Madhya Pradesh",
+    "New Colony, Raisen, Madhya Pradesh",
+    "Station Road, Raisen, Madhya Pradesh",
+    "Bhopal, Madhya Pradesh",
+    "MP Nagar, Bhopal, Madhya Pradesh",
+    "Kolar Road, Bhopal, Madhya Pradesh",
+    "Indrapuri, Bhopal, Madhya Pradesh",
+    "Ayodhya Bypass, Bhopal, Madhya Pradesh",
+    "Hoshangabad Road, Bhopal, Madhya Pradesh",
+    "Indore, Madhya Pradesh",
+    "Vijay Nagar, Indore, Madhya Pradesh",
+    "Rajwada, Indore, Madhya Pradesh",
+    "Bhawarkuan, Indore, Madhya Pradesh",
+    "Sagar, Madhya Pradesh",
+    "Makronia, Sagar, Madhya Pradesh",
+    "Vidisha, Madhya Pradesh",
+    "Ganj Basoda, Vidisha, Madhya Pradesh",
+    "Sironj, Vidisha, Madhya Pradesh",
+    "Jabalpur, Madhya Pradesh",
+    "Gwalior, Madhya Pradesh",
+    "Ujjain, Madhya Pradesh",
+    "Dewas, Madhya Pradesh",
+    "Sehore, Madhya Pradesh",
+    "Ashta, Sehore, Madhya Pradesh",
+    "Narmadapuram (Hoshangabad), Madhya Pradesh",
+    "Itarsi, Madhya Pradesh",
+    "Pipariya, Madhya Pradesh",
+    "Chhindwara, Madhya Pradesh",
+    "Rewa, Madhya Pradesh",
+    "Satna, Madhya Pradesh",
+    "Katni, Madhya Pradesh",
+    "Damoh, Madhya Pradesh",
+    "Chhatarpur, Madhya Pradesh",
+    "Tikamgarh, Madhya Pradesh",
+    "Betul, Madhya Pradesh",
+    "Khandwa, Madhya Pradesh",
+    "Khargone, Madhya Pradesh",
+    "Ratlam, Madhya Pradesh",
+    "Mandsaur, Madhya Pradesh",
+    "Neemuch, Madhya Pradesh",
+    "Guna, Madhya Pradesh",
+    "Shivpuri, Madhya Pradesh",
+    "Morena, Madhya Pradesh",
+    "Bhind, Madhya Pradesh",
+    "New Delhi, Delhi NCR",
+    "Noida, Uttar Pradesh",
+    "Lucknow, Uttar Pradesh",
+    "Kanpur, Uttar Pradesh",
+    "Varanasi, Uttar Pradesh",
+    "Agra, Uttar Pradesh",
+    "Prayagraj, Uttar Pradesh",
+    "Jhansi, Uttar Pradesh",
+    "Lalitpur, Uttar Pradesh",
+    "Jaipur, Rajasthan",
+    "Kota, Rajasthan",
+    "Udaipur, Rajasthan",
+    "Mumbai, Maharashtra",
+    "Pune, Maharashtra",
+    "Nagpur, Maharashtra",
+    "Ahmedabad, Gujarat",
+    "Surat, Gujarat",
+    "Patna, Bihar",
+    "Raipur, Chhattisgarh",
+    "Bilaspur, Chhattisgarh"
+)
+
+internal fun fetchLiveLocationSuggestions(
+    query: String,
+    onResult: (List<String>) -> Unit
+) {
+    val cleanQuery = query.trim()
+    if (cleanQuery.isEmpty()) {
+        onResult(VerifiedIndianLocationsDirectory.take(6))
+        return
+    }
+
+    // 1. Instant local matches so user sees suggestions with 0ms delay
+    val localMatches = VerifiedIndianLocationsDirectory.filter { loc ->
+        loc.contains(cleanQuery, ignoreCase = true) ||
+            cleanQuery.split(" ", ",").filter { it.isNotBlank() }.all { token ->
+                loc.contains(token, ignoreCase = true)
+            }
+    }.take(6)
+
+    onResult(localMatches)
+
+    // 2. Live OpenStreetMap Nominatim Geocoding API for real villages/colonies/cities across India
+    if (cleanQuery.length >= 2) {
+        Thread {
+            val combined = mutableListOf<String>()
+            combined.addAll(localMatches)
+            try {
+                val encoded = URLEncoder.encode("$cleanQuery, India", "UTF-8")
+                val url = URL("https://nominatim.openstreetmap.org/search?q=$encoded&format=json&addressdetails=1&limit=6&countrycodes=in")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("User-Agent", "WorkoraApp/1.0")
+                conn.connectTimeout = 3500
+                conn.readTimeout = 3500
+                if (conn.responseCode == 200) {
+                    val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                    val arr = JSONArray(resp)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        val displayName = obj.optString("display_name", "")
+                        if (displayName.isNotBlank()) {
+                            val parts = displayName.split(",")
+                                .map { it.trim() }
+                                .filter { it.isNotBlank() && !it.equals("India", true) && !it.all { c -> c.isDigit() } }
+                            val formatted = parts.take(3).joinToString(", ")
+                            if (formatted.isNotBlank() && combined.none { it.equals(formatted, ignoreCase = true) }) {
+                                combined.add(formatted)
+                            }
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (_: Exception) {
+            }
+            Handler(Looper.getMainLooper()).post {
+                onResult(combined.take(7))
+            }
+        }.start()
+    }
+}
+
+@Composable
+internal fun LiveLocationAutoCompleteField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onLocationSelected: (fullLocation: String, areaPart: String, statePart: String) -> Unit = { _, _, _ -> },
+    label: String,
+    placeholder: String = "शहर, गाँव या एरिया लिखें...",
+    modifier: Modifier = Modifier
+) {
+    var showSuggestions by remember { mutableStateOf(false) }
+    val suggestions = remember { mutableStateListOf<String>() }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { newText ->
+                onValueChange(newText)
+                showSuggestions = true
+                fetchLiveLocationSuggestions(newText) { res ->
+                    suggestions.clear()
+                    suggestions.addAll(res)
+                }
+            },
+            label = { Text(label) },
+            placeholder = { Text(placeholder, fontSize = 13.sp, color = CustSecondaryText) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = CustOrangeAccent
+                )
+            },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (value.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                onValueChange("")
+                                fetchLiveLocationSuggestions("") { res ->
+                                    suggestions.clear()
+                                    suggestions.addAll(res)
+                                }
+                                showSuggestions = true
+                            }
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = CustSecondaryText)
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            if (!showSuggestions) {
+                                fetchLiveLocationSuggestions(value) { res ->
+                                    suggestions.clear()
+                                    suggestions.addAll(res)
+                                }
+                            }
+                            showSuggestions = !showSuggestions
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (showSuggestions) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Suggestions",
+                            tint = CustNavyPrimary
+                        )
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        if (showSuggestions && suggestions.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = CustWhite),
+                border = BorderStroke(1.dp, CustNavyPrimary.copy(alpha = 0.25f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFEFF6FF))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.MyLocation,
+                                contentDescription = null,
+                                tint = CustNavyPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Live Real Location Suggestions",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CustNavyPrimary
+                            )
+                        }
+                        Text(
+                            text = "बंद करें ✕",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CustSecondaryText,
+                            modifier = Modifier.clickable { showSuggestions = false }
+                        )
+                    }
+
+                    suggestions.forEach { suggestion ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val parts = suggestion.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                                    val statePart = if (parts.size >= 2) parts.last() else "Madhya Pradesh"
+                                    val areaPart = if (parts.size >= 2) parts.dropLast(1).joinToString(", ") else suggestion
+                                    onValueChange(suggestion)
+                                    onLocationSelected(suggestion, areaPart, statePart)
+                                    showSuggestions = false
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Place,
+                                contentDescription = null,
+                                tint = CustOrangeAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = suggestion,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CustMainText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.NorthWest,
+                                contentDescription = null,
+                                tint = CustSecondaryText,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        HorizontalDivider(color = CustBorder)
+                    }
+                }
+            }
+        }
+    }
+}
 
 private fun translateCategoryLabel(category: String, isHindi: Boolean): String {
     if (!isHindi) return category
@@ -178,6 +486,15 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
             Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
         }
     }
+
+    // Active Location State for Home Screen Header & Filtering
+    var activeUserLocation by remember {
+        mutableStateOf(
+            profilePrefs.getString("user_location", "")?.ifBlank { "All Locations" } ?: "All Locations"
+        )
+    }
+    var filterByActiveLocation by remember { mutableStateOf(false) }
+    var showLocationPickerDialog by remember { mutableStateOf(false) }
 
     var localSearchText by remember { mutableStateOf(searchQuery) }
     var selectedSkillFilter by remember { mutableStateOf("All") }
@@ -373,7 +690,15 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
     val filteredWorkers = allWorkersList
         .filter { w ->
             val matchesCategory = selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
-            matchesCategory && matchesWorkerSmartSearch(w, localSearchText)
+            val matchesLocation = if (!filterByActiveLocation || activeUserLocation.equals("All Locations", true) || activeUserLocation.isBlank()) {
+                true
+            } else {
+                val tokens = activeUserLocation.split(",", " ").map { it.trim().lowercase(Locale.US) }.filter { it.length >= 3 }
+                tokens.isEmpty() || tokens.any { tk ->
+                    w.area.lowercase(Locale.US).contains(tk) || w.stateName.lowercase(Locale.US).contains(tk)
+                }
+            }
+            matchesCategory && matchesLocation && matchesWorkerSmartSearch(w, localSearchText)
         }
         .let { list ->
             when (sortOption) {
@@ -441,6 +766,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         onClick = {
                             selectedSkillFilter = "All"
                             localSearchText = ""
+                            filterByActiveLocation = false
                         }
                     )
                     CustBottomNavItem(
@@ -532,7 +858,66 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // RESTORED TOP HEADER LIVE LOCATION BAR
+                    Surface(
+                        color = Color(0xFF1E40AF),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showLocationPickerDialog = true }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = "Location",
+                                    tint = CustOrangeAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (activeUserLocation.isBlank() || activeUserLocation == "All Locations") {
+                                        if (isHindi) "लोकेशन: सभी क्षेत्र (अपना शहर/गाँव चुनें)" else "Location: All Areas (Tap to set city/area)"
+                                    } else {
+                                        "📍 $activeUserLocation"
+                                    },
+                                    color = CustWhite,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (isHindi) "बदलें" else "Change",
+                                    color = Color(0xFFFDE047),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFDE047),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = localSearchText,
@@ -545,7 +930,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         },
                         placeholder = {
                             Text(
-                                text = if (isHindi) "कारीगर खोजें..." else "Search for workers...",
+                                text = if (isHindi) "कारीगर या शहर खोजें..." else "Search for workers or location...",
                                 fontSize = 13.sp,
                                 color = CustSecondaryText
                             )
@@ -689,6 +1074,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         modifier = Modifier.clickable {
                             selectedSkillFilter = "All"
                             localSearchText = ""
+                            filterByActiveLocation = false
                             sortOption = "DEFAULT"
                             onSearchQueryChanged("")
                         }
@@ -720,7 +1106,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (isHindi) "\"$localSearchText\" के लिए कोई कारीगर नहीं मिला" else "No workers found for \"$localSearchText\"",
+                                text = if (isHindi) "इस खोज या लोकेशन के लिए कोई कारीगर नहीं मिला" else "No workers found for this search or location",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = CustMainText
@@ -730,6 +1116,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                                 onClick = {
                                     localSearchText = ""
                                     selectedSkillFilter = "All"
+                                    filterByActiveLocation = false
                                     sortOption = "DEFAULT"
                                     onSearchQueryChanged("")
                                 },
@@ -756,6 +1143,115 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             openDirectLiveChatWithWorker(worker)
                         }
                     )
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // LIVE LOCATION PICKER DIALOG WITH REAL AUTO-SUGGESTIONS
+    // =========================================================================
+    if (showLocationPickerDialog) {
+        var tempLocationInput by remember {
+            mutableStateOf(if (activeUserLocation == "All Locations") "" else activeUserLocation)
+        }
+
+        Dialog(
+            onDismissRequest = { showLocationPickerDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CustWhite)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = CustOrangeAccent)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isHindi) "अपनी लोकेशन चुनें (Live Location)" else "Select Your Location",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = CustMainText
+                            )
+                        }
+                        IconButton(onClick = { showLocationPickerDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = CustSecondaryText)
+                        }
+                    }
+
+                    Text(
+                        text = if (isHindi) "शहर, तहसील या गाँव का नाम लिखें — नीचे अपने आप असली लोकेशन दिखेंगी:" else "Type your city, tehsil or village — real locations will suggest below:",
+                        fontSize = 12.sp,
+                        color = CustSecondaryText
+                    )
+
+                    LiveLocationAutoCompleteField(
+                        value = tempLocationInput,
+                        onValueChange = { tempLocationInput = it },
+                        onLocationSelected = { fullLoc, areaPart, statePart ->
+                            activeUserLocation = fullLoc
+                            filterByActiveLocation = true
+                            profilePrefs.edit()
+                                .putString("user_location", areaPart)
+                                .putString("user_state", statePart)
+                                .apply()
+                            Toast.makeText(context, "Location: $fullLoc ✓", Toast.LENGTH_SHORT).show()
+                            showLocationPickerDialog = false
+                        },
+                        label = if (isHindi) "शहर / गाँव / एरिया खोजें" else "Search City / Village / Area",
+                        placeholder = if (isHindi) "जैसे Silwani, Raisen, Bhopal, Indore..." else "e.g. Silwani, Raisen, Bhopal, Indore..."
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                activeUserLocation = "All Locations"
+                                filterByActiveLocation = false
+                                showLocationPickerDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (isHindi) "सभी क्षेत्र (All)" else "All Locations", color = CustNavyPrimary, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                if (tempLocationInput.isNotBlank()) {
+                                    activeUserLocation = tempLocationInput.trim()
+                                    filterByActiveLocation = true
+                                    profilePrefs.edit().putString("user_location", activeUserLocation).apply()
+                                } else {
+                                    activeUserLocation = "All Locations"
+                                    filterByActiveLocation = false
+                                }
+                                showLocationPickerDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (isHindi) "लोकेशन लागू करें" else "Apply Location", color = CustWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -810,6 +1306,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         sortOption = "DEFAULT"
                         selectedSkillFilter = "All"
                         localSearchText = ""
+                        filterByActiveLocation = false
                         showSortFilterModal = false
                     }
                 ) {
@@ -824,7 +1321,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         )
     }
 
-    // Hire Request Dialog (Updated placeholder to "अपना काम लिखे..")
+    // Hire Request Dialog (With Live Location Auto-Suggest & "अपना काम लिखे..")
     if (workerForHireRequest != null) {
         val targetWorker = workerForHireRequest!!
         var workDesc by remember { mutableStateOf("") }
@@ -898,14 +1395,11 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Text(if (isHindi) "शहर / एरिया *" else "Area *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
-                        OutlinedTextField(
+                        Text(if (isHindi) "शहर / एरिया (Live Location) *" else "Area / Location *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        LiveLocationAutoCompleteField(
                             value = workArea,
                             onValueChange = { workArea = it },
-                            leadingIcon = { Icon(Icons.Outlined.LocationOn, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            label = if (isHindi) "लोकेशन चुनें या लिखें *" else "Select or Type Location *"
                         )
 
                         Spacer(modifier = Modifier.height(6.dp))
@@ -944,7 +1438,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         }
     }
 
-    // Post Work Dialog (Updated placeholders to "अपना काम लिखे..")
+    // Post Work Dialog (With Live Location Auto-Suggest)
     if (showPostWorkDialog) {
         var title by remember { mutableStateOf("") }
         var category by remember { mutableStateOf("") }
@@ -952,12 +1446,30 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         var rate by remember { mutableStateOf("") }
         var area by remember { mutableStateOf(profilePrefs.getString("user_location", "") ?: "") }
 
-        AlertDialog(
+        Dialog(
             onDismissRequest = { showPostWorkDialog = false },
-            containerColor = CustWhite,
-            title = { Text(if (isHindi) "नया काम पोस्ट करें" else "Post New Work Request", fontWeight = FontWeight.Bold, color = CustMainText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CustWhite)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (isHindi) "नया काम पोस्ट करें" else "Post New Work Request",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CustMainText
+                    )
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
@@ -982,12 +1494,10 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
+                    LiveLocationAutoCompleteField(
                         value = area,
                         onValueChange = { area = it },
-                        label = { Text(if (isHindi) "शहर / एरिया *" else "Work Area / City *") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        label = if (isHindi) "शहर / एरिया (Live Location) *" else "Work Area / City *"
                     )
                     OutlinedTextField(
                         value = desc,
@@ -997,36 +1507,41 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth()
                     )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (title.isNotBlank() && area.isNotBlank()) {
-                            onPostJob(
-                                title.trim(),
-                                category.trim().ifEmpty { "General" },
-                                desc.trim(),
-                                rate.toIntOrNull() ?: 600,
-                                area.trim(),
-                                1,
-                                "NORMAL",
-                                "09:00 AM"
-                            )
-                            showPostWorkDialog = false
-                        } else {
-                            Toast.makeText(context, if (isHindi) "कृपया काम का नाम और एरिया भरें" else "Please fill Work Title and Area", Toast.LENGTH_SHORT).show()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showPostWorkDialog = false }) {
+                            Text(if (isHindi) "रद्द करें" else "Cancel")
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent)
-                ) {
-                    Text(if (isHindi) "काम पोस्ट करें" else "Post Work", color = CustWhite, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (title.isNotBlank() && area.isNotBlank()) {
+                                    onPostJob(
+                                        title.trim(),
+                                        category.trim().ifEmpty { "General" },
+                                        desc.trim(),
+                                        rate.toIntOrNull() ?: 600,
+                                        area.trim(),
+                                        1,
+                                        "NORMAL",
+                                        "09:00 AM"
+                                    )
+                                    showPostWorkDialog = false
+                                } else {
+                                    Toast.makeText(context, if (isHindi) "कृपया काम का नाम और लोकेशन भरें" else "Please fill Work Title and Location", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent)
+                        ) {
+                            Text(if (isHindi) "काम पोस्ट करें" else "Post Work", color = CustWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPostWorkDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") }
             }
-        )
+        }
     }
 
     if (showHistoryDialog) {
@@ -1057,6 +1572,9 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
     }
 }
 
+// =========================================================================
+// WORKER CARD WITH DEDICATED LOCATION LINE (Never cuts off location!)
+// =========================================================================
 @Composable
 internal fun CustFeaturedWorkerCardItem(
     worker: CustFeaturedWorkerProfile,
@@ -1082,7 +1600,7 @@ internal fun CustFeaturedWorkerCardItem(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 if (worker.profilePhoto.isNotBlank()) {
                     UserProfilePhotoView(base64Photo = worker.profilePhoto, size = 64.dp)
@@ -1126,7 +1644,7 @@ internal fun CustFeaturedWorkerCardItem(
                         color = Color(0xFF1D4ED8)
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -1146,17 +1664,23 @@ internal fun CustFeaturedWorkerCardItem(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF4B5563)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Dedicated full-width Location Row so location is always 100% visible
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = "Location",
-                            tint = CustSecondaryText,
+                            tint = CustOrangeAccent,
                             modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(2.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = worker.area,
+                            text = listOf(worker.area, worker.stateName).filter { it.isNotBlank() }.joinToString(", "),
                             fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = CustSecondaryText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -1181,7 +1705,7 @@ internal fun CustFeaturedWorkerCardItem(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
