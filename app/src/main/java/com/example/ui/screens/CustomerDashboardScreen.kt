@@ -41,9 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.model.CustomerTab
 import com.example.model.Job
-import com.example.model.JobCategory
 import com.example.model.User
 import com.example.model.Worker
 import org.json.JSONObject
@@ -89,16 +87,16 @@ private data class FeaturedWorkerProfile(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomerDashboardScreen(
+fun <CatT, TabT> CustomerDashboardScreen(
     currentUser: User? = null,
     searchQuery: String = "",
     onSearchQueryChanged: (String) -> Unit = {},
     workers: List<Worker> = emptyList(),
     jobs: List<Job> = emptyList(),
-    selectedCategory: JobCategory? = null,
-    onCategorySelected: (JobCategory?) -> Unit = {},
-    activeTab: CustomerTab = CustomerTab.values().first(),
-    onTabSelected: (CustomerTab) -> Unit = {},
+    selectedCategory: CatT,
+    onCategorySelected: (CatT) -> Unit = {},
+    activeTab: TabT,
+    onTabSelected: (TabT) -> Unit = {},
     onPostJob: (String, String, String, Int, String, Int, String, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onHireWorker: (Worker) -> Unit = {},
     onCompleteJob: (String) -> Unit = {},
@@ -334,7 +332,7 @@ fun CustomerDashboardScreen(
         onOpenChat()
     }
 
-    // If a Worker Card was clicked, show THAT Worker's Full Profile Screen (Reference Image #5)
+    // If a Worker Card was clicked, show THAT Worker's Full Profile Screen
     if (selectedWorkerForProfile != null) {
         val w = selectedWorkerForProfile!!
         WorkerFullProfileViewScreen(
@@ -360,7 +358,6 @@ fun CustomerDashboardScreen(
     Scaffold(
         containerColor = CustBgLight,
         bottomBar = {
-            // Exact Bottom Navigation Bar from Screenshot: Menu | History | Post Skills | Chat | Settings
             Surface(
                 color = CustWhite,
                 shadowElevation = 12.dp,
@@ -415,7 +412,7 @@ fun CustomerDashboardScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Top Navy Header + Search Bar + Category Pills
+            // Top Navy Header + Search Bar
             item {
                 Column(
                     modifier = Modifier
@@ -472,7 +469,6 @@ fun CustomerDashboardScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Search Bar
                     OutlinedTextField(
                         value = localSearchText,
                         onValueChange = {
@@ -548,7 +544,7 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            // Green Verified Trust Banner (Exact Match to Screenshot)
+            // Green Verified Trust Banner
             item {
                 Surface(
                     color = Color(0xFFECFDF5),
@@ -620,12 +616,11 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            // Worker Cards List (Clicking card opens THAT Worker's Profile; Call Now + Message Icon)
+            // Worker Cards List
             items(filteredWorkers, key = { it.id }) { worker ->
                 FeaturedWorkerCardItem(
                     worker = worker,
                     onCardClick = {
-                        // Opens THIS worker's profile details (NOT the user's own profile!)
                         selectedWorkerForProfile = worker
                     },
                     onCallNowClick = {
@@ -633,7 +628,6 @@ fun CustomerDashboardScreen(
                         context.startActivity(dialIntent)
                     },
                     onMessageIconClick = {
-                        // Immediately opens App's Live Chat with this worker!
                         openDirectLiveChatWithWorker(worker)
                     }
                 )
@@ -641,7 +635,7 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Hire Request Dialog (When Customer clicks "Hire" inside Worker Profile)
+    // Hire Request Dialog
     if (workerForHireRequest != null) {
         val targetWorker = workerForHireRequest!!
         var workDesc by remember { mutableStateOf("") }
@@ -832,9 +826,6 @@ fun CustomerDashboardScreen(
     }
 }
 
-// ==================================================
-// FEATURED WORKER CARD (WITH CALL NOW + MESSAGE ICON)
-// ==================================================
 @Composable
 private fun FeaturedWorkerCardItem(
     worker: FeaturedWorkerProfile,
@@ -861,7 +852,6 @@ private fun FeaturedWorkerCardItem(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Worker Hard-Hat Avatar
                 WorkerCustomAvatarCanvas(
                     shirtColor = worker.shirtColor,
                     hatColor = worker.hatColor,
@@ -870,7 +860,6 @@ private fun FeaturedWorkerCardItem(
 
                 Spacer(modifier = Modifier.width(14.dp))
 
-                // Name, Verified Badge, Category, Rating & Area
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -937,7 +926,6 @@ private fun FeaturedWorkerCardItem(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Yellow Rate Pill Badge (e.g. ₹850/दिन)
                 Surface(
                     color = CustRateBadgeBg,
                     shape = RoundedCornerShape(14.dp),
@@ -987,7 +975,6 @@ private fun FeaturedWorkerCardItem(
                     )
                 }
 
-                // Message / Live Chat Icon Button (Opens App Live Chat directly!)
                 Surface(
                     color = CustNavyPrimary,
                     shape = RoundedCornerShape(14.dp),
@@ -1009,9 +996,6 @@ private fun FeaturedWorkerCardItem(
     }
 }
 
-// ==================================================
-// WORKER FULL PROFILE SCREEN (MATCHES REFERENCE IMAGE #5)
-// ==================================================
 @Composable
 private fun WorkerFullProfileViewScreen(
     worker: FeaturedWorkerProfile,
@@ -1025,7 +1009,6 @@ private fun WorkerFullProfileViewScreen(
             .fillMaxSize()
             .background(CustBgLight)
     ) {
-        // Top Navy Header
         Surface(
             color = CustNavyPrimary,
             shadowElevation = 4.dp
@@ -1065,7 +1048,6 @@ private fun WorkerFullProfileViewScreen(
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Worker Main Info Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -1133,7 +1115,6 @@ private fun WorkerFullProfileViewScreen(
                     HorizontalDivider(color = CustBorder)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Experience | Area | Daily Rate Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -1162,7 +1143,6 @@ private fun WorkerFullProfileViewScreen(
                 }
             }
 
-            // About Section Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -1207,7 +1187,6 @@ private fun WorkerFullProfileViewScreen(
                 }
             }
 
-            // Call Now + Live Chat Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1239,7 +1218,6 @@ private fun WorkerFullProfileViewScreen(
                 }
             }
 
-            // Full-Width Orange Hire Button (Matches Reference Image #5)
             Button(
                 onClick = onHireClick,
                 colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
@@ -1269,14 +1247,12 @@ private fun WorkerCustomAvatarCanvas(
         val w = this.size.width
         val h = this.size.height
 
-        // Soft circular background
         drawCircle(
             color = Color(0xFFEFF6FF),
             radius = w * 0.5f,
             center = Offset(w * 0.5f, h * 0.5f)
         )
 
-        // Shoulders / Shirt
         drawArc(
             color = shirtColor,
             startAngle = 180f,
@@ -1286,14 +1262,12 @@ private fun WorkerCustomAvatarCanvas(
             size = Size(w * 0.68f, h * 0.48f)
         )
 
-        // Face
         drawCircle(
             color = Color(0xFFFCD34D),
             radius = w * 0.21f,
             center = Offset(w * 0.5f, h * 0.45f)
         )
 
-        // Hard-Hat Dome
         drawArc(
             color = hatColor,
             startAngle = 180f,
@@ -1303,7 +1277,6 @@ private fun WorkerCustomAvatarCanvas(
             size = Size(w * 0.52f, h * 0.34f)
         )
 
-        // Hard-Hat Brim
         drawLine(
             color = hatColor,
             start = Offset(w * 0.20f, h * 0.33f),
