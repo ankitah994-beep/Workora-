@@ -84,6 +84,23 @@ internal data class CustFeaturedWorkerProfile(
     val about: String
 )
 
+private fun translateCategoryLabel(category: String, isHindi: Boolean): String {
+    if (!isHindi) return category
+    return when (category.trim().lowercase(Locale.US)) {
+        "all" -> "सभी (All)"
+        "mason" -> "राजमिस्त्री (Mason)"
+        "plumber" -> "प्लंबर (Plumber)"
+        "electrician" -> "इलेक्ट्रीशियन (Electrician)"
+        "painter" -> "पेंटर (Painter)"
+        "carpenter" -> "बढ़ई (Carpenter)"
+        "general labour" -> "मजदूर (General Labour)"
+        "tile worker" -> "टाइल्स कारीगर (Tile Worker)"
+        "cleaner" -> "सफाई कर्मी (Cleaner)"
+        "farm worker" -> "कृषि मजदूर (Farm Worker)"
+        else -> category
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <JobT, CatT, TabT> CustomerDashboardScreen(
@@ -109,6 +126,12 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
     val context = LocalContext.current
     val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
+
+    LaunchedEffect(Unit) {
+        AppLanguageManager.init(context)
+    }
+    val selectedLanguage = AppLanguageManager.currentLanguage
+    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
 
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
@@ -332,6 +355,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         val w = selectedWorkerForProfile!!
         CustWorkerFullProfileViewScreen(
             worker = w,
+            isHindi = isHindi,
             onBack = { selectedWorkerForProfile = null },
             onCallClick = {
                 val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${w.phone}"))
@@ -368,31 +392,31 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                 ) {
                     CustBottomNavItem(
                         icon = Icons.Default.Menu,
-                        label = "Menu",
+                        label = if (isHindi) "मेनू" else "Menu",
                         isSelected = true,
                         onClick = { selectedSkillFilter = "All" }
                     )
                     CustBottomNavItem(
                         icon = Icons.Outlined.History,
-                        label = "History",
+                        label = if (isHindi) "इतिहास" else "History",
                         isSelected = false,
                         onClick = { showHistoryDialog = true }
                     )
                     CustBottomNavItem(
                         icon = Icons.Default.AddCircle,
-                        label = "Post Skills",
+                        label = if (isHindi) "काम पोस्ट करें" else "Post Skills",
                         isSelected = false,
                         onClick = { showPostWorkDialog = true }
                     )
                     CustBottomNavItem(
                         icon = Icons.Outlined.Chat,
-                        label = "Chat",
+                        label = if (isHindi) "चैट" else "Chat",
                         isSelected = false,
                         onClick = onOpenChat
                     )
                     CustBottomNavItem(
                         icon = Icons.Outlined.Settings,
-                        label = "Settings",
+                        label = if (isHindi) "सेटिंग्स" else "Settings",
                         isSelected = false,
                         onClick = onOpenProfile
                     )
@@ -428,7 +452,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "Find. Hire. Work.",
+                                text = if (isHindi) "खोजें। काम दें। काम पाएं।" else "Find. Hire. Work.",
                                 color = Color(0xFFCBD5E1),
                                 fontSize = 12.sp
                             )
@@ -451,7 +475,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                                 modifier = Modifier.clickable { onSwitchRole() }
                             ) {
                                 Text(
-                                    text = "Worker Mode",
+                                    text = if (isHindi) "वर्कर मोड" else "Worker Mode",
                                     color = CustWhite,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -471,7 +495,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         },
                         placeholder = {
                             Text(
-                                text = "Search for workers (e.g. mason, plumber, electrician...)",
+                                text = if (isHindi) "कारीगर खोजें (जैसे राजमिस्त्री, प्लंबर, इलेक्ट्रीशियन...)" else "Search for workers (e.g. mason, plumber, electrician...)",
                                 fontSize = 13.sp,
                                 color = CustSecondaryText
                             )
@@ -526,7 +550,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             modifier = Modifier.clickable { selectedSkillFilter = cat }
                         ) {
                             Text(
-                                text = cat,
+                                text = translateCategoryLabel(cat, isHindi),
                                 color = if (isSelected) CustWhite else CustMainText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
@@ -568,7 +592,11 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Text(
-                            text = "Background checked • Direct Call & Live Chat • 0% Commission",
+                            text = if (isHindi) {
+                                "सत्यापित कारीगर • सीधी कॉल और लाइव चैट • 0% कमीशन"
+                            } else {
+                                "Background checked • Direct Call & Live Chat • 0% Commission"
+                            },
                             color = Color(0xFF166534),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
@@ -588,13 +616,13 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Featured Workers (${filteredWorkers.size})",
+                        text = if (isHindi) "प्रमुख कारीगर (${filteredWorkers.size})" else "Featured Workers (${filteredWorkers.size})",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = CustMainText
                     )
                     Text(
-                        text = "See All >",
+                        text = if (isHindi) "सभी देखें >" else "See All >",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = CustNavyPrimary,
@@ -610,6 +638,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
             items(filteredWorkers, key = { it.id }) { worker ->
                 CustFeaturedWorkerCardItem(
                     worker = worker,
+                    isHindi = isHindi,
                     onCardClick = {
                         selectedWorkerForProfile = worker
                     },
@@ -666,7 +695,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Hire Request — ${targetWorker.name}",
+                                text = if (isHindi) "बुकिंग रिक्वेस्ट — ${targetWorker.name}" else "Hire Request — ${targetWorker.name}",
                                 color = CustWhite,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
@@ -678,17 +707,17 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         modifier = Modifier.padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Work Description *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        Text(if (isHindi) "काम का विवरण *" else "Work Description *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
                         OutlinedTextField(
                             value = workDesc,
                             onValueChange = { workDesc = it },
-                            placeholder = { Text("Need to fix home wiring / masonry work...") },
+                            placeholder = { Text(if (isHindi) "घर की वायरिंग / निर्माण कार्य..." else "Need to fix home wiring / masonry work...") },
                             minLines = 3,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Text("Date *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        Text(if (isHindi) "तारीख *" else "Date *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
                         OutlinedTextField(
                             value = workDate,
                             onValueChange = { workDate = it },
@@ -698,7 +727,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Text("Area *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        Text(if (isHindi) "शहर / एरिया *" else "Area *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
                         OutlinedTextField(
                             value = workArea,
                             onValueChange = { workArea = it },
@@ -723,7 +752,11 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                                     "NORMAL",
                                     workDate
                                 )
-                                Toast.makeText(context, "Hire Request Sent to ${targetWorker.name}! ✓", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    if (isHindi) "${targetWorker.name} को काम की रिक्वेस्ट भेज दी गई! ✓" else "Hire Request Sent to ${targetWorker.name}! ✓",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 workerForHireRequest = null
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
@@ -732,7 +765,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                                 .fillMaxWidth()
                                 .height(50.dp)
                         ) {
-                            Text("Send Request", color = CustWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(if (isHindi) "रिक्वेस्ट भेजें" else "Send Request", color = CustWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -750,14 +783,14 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         AlertDialog(
             onDismissRequest = { showPostWorkDialog = false },
             containerColor = CustWhite,
-            title = { Text("Post New Work Request", fontWeight = FontWeight.Bold, color = CustMainText) },
+            title = { Text(if (isHindi) "नया काम पोस्ट करें" else "Post New Work Request", fontWeight = FontWeight.Bold, color = CustMainText) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Work Title *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category (e.g. Mason, Plumber) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = rate, onValueChange = { rate = it.filter { c -> c.isDigit() } }, label = { Text("Daily Rate (₹) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = area, onValueChange = { area = it }, label = { Text("Work Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Work Details") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(if (isHindi) "काम का नाम *" else "Work Title *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text(if (isHindi) "श्रेणी (जैसे Mason, Plumber) *" else "Category (e.g. Mason, Plumber) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = rate, onValueChange = { rate = it.filter { c -> c.isDigit() } }, label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = area, onValueChange = { area = it }, label = { Text(if (isHindi) "शहर / एरिया *" else "Work Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text(if (isHindi) "काम का विवरण" else "Work Details") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -776,16 +809,16 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             )
                             showPostWorkDialog = false
                         } else {
-                            Toast.makeText(context, "Please fill Work Title and Area", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, if (isHindi) "कृपया काम का नाम और एरिया भरें" else "Please fill Work Title and Area", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent)
                 ) {
-                    Text("Post Work", color = CustWhite, fontWeight = FontWeight.Bold)
+                    Text(if (isHindi) "काम पोस्ट करें" else "Post Work", color = CustWhite, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPostWorkDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showPostWorkDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") }
             }
         )
     }
@@ -794,10 +827,14 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         AlertDialog(
             onDismissRequest = { showHistoryDialog = false },
             containerColor = CustWhite,
-            title = { Text("My Bookings & Work History", fontWeight = FontWeight.Bold, color = CustMainText) },
+            title = { Text(if (isHindi) "मेरी बुकिंग्स और इतिहास" else "My Bookings & Work History", fontWeight = FontWeight.Bold, color = CustMainText) },
             text = {
                 Text(
-                    text = "Click on any worker card to view their profile, call them directly, start a live chat, or send a hire request.",
+                    text = if (isHindi) {
+                        "किसी भी कारीगर के कार्ड पर क्लिक करके उसकी पूरी प्रोफाइल देखें, सीधे कॉल करें, लाइव चैट करें या काम की रिक्वेस्ट भेजें।"
+                    } else {
+                        "Click on any worker card to view their profile, call them directly, start a live chat, or send a hire request."
+                    },
                     color = CustSecondaryText,
                     fontSize = 14.sp
                 )
@@ -807,7 +844,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                     onClick = { showHistoryDialog = false },
                     colors = ButtonDefaults.buttonColors(containerColor = CustNavyPrimary)
                 ) {
-                    Text("OK", color = CustWhite)
+                    Text(if (isHindi) "ठीक है" else "OK", color = CustWhite)
                 }
             }
         )
@@ -817,6 +854,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
 @Composable
 internal fun CustFeaturedWorkerCardItem(
     worker: CustFeaturedWorkerProfile,
+    isHindi: Boolean,
     onCardClick: () -> Unit,
     onCallNowClick: () -> Unit,
     onMessageIconClick: () -> Unit
@@ -872,7 +910,7 @@ internal fun CustFeaturedWorkerCardItem(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = worker.category,
+                        text = translateCategoryLabel(worker.category, isHindi),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFF1D4ED8)
@@ -889,7 +927,11 @@ internal fun CustFeaturedWorkerCardItem(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (worker.rating > 0.0) "${worker.rating} (${worker.jobsDone} jobs)" else "New Worker",
+                            text = if (worker.rating > 0.0) {
+                                "${worker.rating} (${worker.jobsDone} ${if (isHindi) "काम" else "jobs"})"
+                            } else {
+                                if (isHindi) "नया कारीगर" else "New Worker"
+                            },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF4B5563)
@@ -920,7 +962,7 @@ internal fun CustFeaturedWorkerCardItem(
                     border = BorderStroke(1.dp, CustRateBadgeBorder)
                 ) {
                     Text(
-                        text = "₹${worker.dailyRate}/दिन",
+                        text = "₹${worker.dailyRate}/${if (isHindi) "दिन" else "day"}",
                         color = CustRateTextOrange,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -955,7 +997,7 @@ internal fun CustFeaturedWorkerCardItem(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Call Now",
+                        text = if (isHindi) "अभी कॉल करें (Call Now)" else "Call Now",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = CustWhite
@@ -986,6 +1028,7 @@ internal fun CustFeaturedWorkerCardItem(
 @Composable
 internal fun CustWorkerFullProfileViewScreen(
     worker: CustFeaturedWorkerProfile,
+    isHindi: Boolean,
     onBack: () -> Unit,
     onCallClick: () -> Unit,
     onMessageChatClick: () -> Unit,
@@ -1019,7 +1062,7 @@ internal fun CustWorkerFullProfileViewScreen(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "Worker Profile",
+                    text = if (isHindi) "कारीगर प्रोफाइल" else "Worker Profile",
                     color = CustWhite,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -1074,7 +1117,7 @@ internal fun CustWorkerFullProfileViewScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = worker.category,
+                                text = translateCategoryLabel(worker.category, isHindi),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = CustNavyPrimary
@@ -1089,7 +1132,11 @@ internal fun CustWorkerFullProfileViewScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (worker.rating > 0.0) "${worker.rating} (${worker.jobsDone} reviews)" else "New Worker",
+                                    text = if (worker.rating > 0.0) {
+                                        "${worker.rating} (${worker.jobsDone} ${if (isHindi) "रिव्यू" else "reviews"})"
+                                    } else {
+                                        if (isHindi) "नया कारीगर" else "New Worker"
+                                    },
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = CustSecondaryText
@@ -1110,21 +1157,21 @@ internal fun CustWorkerFullProfileViewScreen(
                             Icon(Icons.Outlined.WorkOutline, contentDescription = null, tint = CustNavyPrimary, modifier = Modifier.size(22.dp))
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(worker.experience.ifBlank { "3 years" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = CustMainText)
-                            Text("Experience", fontSize = 12.sp, color = CustSecondaryText)
+                            Text(if (isHindi) "अनुभव" else "Experience", fontSize = 12.sp, color = CustSecondaryText)
                         }
 
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = CustNavyPrimary, modifier = Modifier.size(22.dp))
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(worker.area, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Area", fontSize = 12.sp, color = CustSecondaryText)
+                            Text(if (isHindi) "एरिया" else "Area", fontSize = 12.sp, color = CustSecondaryText)
                         }
 
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.CurrencyRupee, contentDescription = null, tint = CustOrangeAccent, modifier = Modifier.size(22.dp))
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("₹${worker.dailyRate}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = CustOrangeAccent)
-                            Text("Daily Rate", fontSize = 12.sp, color = CustSecondaryText)
+                            Text(if (isHindi) "प्रतिदिन रेट" else "Daily Rate", fontSize = 12.sp, color = CustSecondaryText)
                         }
                     }
                 }
@@ -1143,7 +1190,7 @@ internal fun CustWorkerFullProfileViewScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "About",
+                        text = if (isHindi) "कारीगर के बारे में" else "About",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = CustMainText
@@ -1161,14 +1208,14 @@ internal fun CustWorkerFullProfileViewScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Phone Number", fontSize = 13.sp, color = CustSecondaryText)
+                        Text(if (isHindi) "मोबाइल नंबर" else "Phone Number", fontSize = 13.sp, color = CustSecondaryText)
                         Text(worker.phone, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CustMainText)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("State", fontSize = 13.sp, color = CustSecondaryText)
+                        Text(if (isHindi) "राज्य (State)" else "State", fontSize = 13.sp, color = CustSecondaryText)
                         Text(worker.stateName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CustMainText)
                     }
                 }
@@ -1188,7 +1235,7 @@ internal fun CustWorkerFullProfileViewScreen(
                 ) {
                     Icon(Icons.Default.Call, contentDescription = null, tint = CustWhite, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Call Now", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(if (isHindi) "कॉल करें" else "Call Now", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
 
                 Button(
@@ -1201,7 +1248,7 @@ internal fun CustWorkerFullProfileViewScreen(
                 ) {
                     Icon(Icons.Outlined.Chat, contentDescription = null, tint = CustWhite, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Live Chat", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(if (isHindi) "लाइव चैट" else "Live Chat", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
 
@@ -1214,7 +1261,7 @@ internal fun CustWorkerFullProfileViewScreen(
                     .height(54.dp)
             ) {
                 Text(
-                    text = "Hire ${worker.name}",
+                    text = if (isHindi) "${worker.name} को काम पर रखें (Hire)" else "Hire ${worker.name}",
                     color = CustWhite,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold
