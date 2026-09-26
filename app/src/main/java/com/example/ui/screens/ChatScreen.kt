@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,7 +49,7 @@ private val ChatSuccessGreen = Color(0xFF16A34A)
 
 private const val CHAT_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-private data class ChatContactItem(
+internal data class ChatContactItem(
     val id: String,
     val name: String,
     val roleOrSkill: String,
@@ -60,7 +59,7 @@ private data class ChatContactItem(
     val time: String
 )
 
-private data class LiveChatMessage(
+internal data class LiveChatMessage(
     val id: String,
     val senderName: String,
     val text: String,
@@ -77,16 +76,25 @@ fun ChatScreen(
     val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
 
+    LaunchedEffect(Unit) {
+        AppLanguageManager.init(context)
+    }
+    val selectedLanguage = AppLanguageManager.currentLanguage
+    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
+
     val myUserName = remember {
-        profilePrefs.getString("user_name", "")?.ifBlank { "Me" } ?: "Me"
+        profilePrefs.getString("user_name", "")?.ifBlank { if (isHindi) "मैं" else "Me" } ?: "Me"
     }
 
-    // Read partner selected via the Message icon on Customer/Worker cards
     val initialPartnerId = remember { chatPrefs.getString("chat_partner_id", "") ?: "" }
     val initialPartnerName = remember { chatPrefs.getString("chat_partner_name", "") ?: "" }
-    val initialPartnerRole = remember { chatPrefs.getString("chat_partner_role", "Verified Member") ?: "Verified Member" }
+    val initialPartnerRole = remember {
+        chatPrefs.getString("chat_partner_role", if (isHindi) "सत्यापित सदस्य" else "Verified Member") ?: "Verified Member"
+    }
     val initialPartnerPhone = remember { chatPrefs.getString("chat_partner_phone", "+91 9826012345") ?: "+91 9826012345" }
-    val initialPartnerArea = remember { chatPrefs.getString("chat_partner_area", "Local Area") ?: "Local Area" }
+    val initialPartnerArea = remember {
+        chatPrefs.getString("chat_partner_area", if (isHindi) "स्थानीय क्षेत्र" else "Local Area") ?: "Local Area"
+    }
 
     var activePartner by remember {
         mutableStateOf(
@@ -97,8 +105,8 @@ fun ChatScreen(
                     roleOrSkill = initialPartnerRole,
                     phone = initialPartnerPhone,
                     area = initialPartnerArea,
-                    lastMessage = "Tap to start live chat",
-                    time = "Online"
+                    lastMessage = if (isHindi) "लाइव चैट शुरू करने के लिए टैप करें" else "Tap to start live chat",
+                    time = if (isHindi) "ऑनलाइन" else "Online"
                 )
             } else {
                 null
@@ -106,16 +114,47 @@ fun ChatScreen(
         )
     }
 
-    val contactsList = remember {
+    val contactsList = remember(isHindi) {
         mutableStateListOf(
-            ChatContactItem("w_sunil", "Sunil Kumar", "Mason", "+91 9826012345", "Sector 4, Silwani", "नमस्ते, काम कब से शुरू करना है?", "10:30 AM"),
-            ChatContactItem("w_rajesh", "Rajesh Sharma", "Plumber", "+91 9755098765", "Civil Lines, Raisen", "पाइप फिटिंग का काम हो जाएगा।", "Yesterday"),
-            ChatContactItem("w_aslam", "Mohammad Aslam", "Electrician", "+91 9926543210", "Main Market, Silwani", "मैं आज उपलब्ध हूँ।", "Yesterday"),
-            ChatContactItem("req_1", "Amit Sharma", "Customer", "+91 9876543210", "Main Market, Silwani", "घर की वायरिंग ठीक करवानी है।", "Today")
+            ChatContactItem(
+                id = "w_sunil",
+                name = "Sunil Kumar",
+                roleOrSkill = if (isHindi) "राजमिस्त्री (Mason)" else "Mason",
+                phone = "+91 9826012345",
+                area = "Sector 4, Silwani",
+                lastMessage = if (isHindi) "नमस्ते, काम कब से शुरू करना है?" else "Hello, when do we need to start the work?",
+                time = "10:30 AM"
+            ),
+            ChatContactItem(
+                id = "w_rajesh",
+                name = "Rajesh Sharma",
+                roleOrSkill = if (isHindi) "प्लंबर (Plumber)" else "Plumber",
+                phone = "+91 9755098765",
+                area = "Civil Lines, Raisen",
+                lastMessage = if (isHindi) "पाइप फिटिंग का काम हो जाएगा।" else "Pipe fitting work will be done.",
+                time = if (isHindi) "कल" else "Yesterday"
+            ),
+            ChatContactItem(
+                id = "w_aslam",
+                name = "Mohammad Aslam",
+                roleOrSkill = if (isHindi) "इलेक्ट्रीशियन (Electrician)" else "Electrician",
+                phone = "+91 9926543210",
+                area = "Main Market, Silwani",
+                lastMessage = if (isHindi) "मैं आज काम के लिए उपलब्ध हूँ।" else "I am available for work today.",
+                time = if (isHindi) "कल" else "Yesterday"
+            ),
+            ChatContactItem(
+                id = "req_1",
+                name = "Amit Sharma",
+                roleOrSkill = if (isHindi) "ग्राहक (Customer)" else "Customer",
+                phone = "+91 9876543210",
+                area = "Main Market, Silwani",
+                lastMessage = if (isHindi) "घर की वायरिंग ठीक करवानी है।" else "Need to get home wiring fixed.",
+                time = if (isHindi) "आज" else "Today"
+            )
         )
     }
 
-    // Ensure the clicked partner is also in the conversation list
     LaunchedEffect(activePartner) {
         val p = activePartner
         if (p != null && contactsList.none { it.name.equals(p.name, ignoreCase = true) }) {
@@ -126,16 +165,19 @@ fun ChatScreen(
     var messageInput by remember { mutableStateOf("") }
     val messagesList = remember { mutableStateListOf<LiveChatMessage>() }
 
-    // Load messages for the currently open chat partner from Firebase
-    LaunchedEffect(activePartner?.id) {
+    LaunchedEffect(activePartner?.id, isHindi) {
         val partner = activePartner ?: return@LaunchedEffect
         messagesList.clear()
         messagesList.add(
             LiveChatMessage(
                 id = "welcome_1",
                 senderName = partner.name,
-                text = "नमस्ते! मैं ${partner.name} (${partner.roleOrSkill})। बताइए क्या काम है?",
-                time = "Live",
+                text = if (isHindi) {
+                    "नमस्ते! मैं ${partner.name} (${partner.roleOrSkill})। बताइए क्या काम है?"
+                } else {
+                    "Hello! I am ${partner.name} (${partner.roleOrSkill}). How can I help you?"
+                },
+                time = if (isHindi) "लाइव" else "Live",
                 isSentByMe = false
             )
         )
@@ -162,7 +204,6 @@ fun ChatScreen(
             messagesList.add(newMsg)
             messageInput = ""
 
-            // Save to Firebase Realtime Database
             pushMessageToFirebase(
                 roomId = partner.id,
                 senderName = myUserName,
@@ -172,7 +213,6 @@ fun ChatScreen(
         }
     }
 
-    // If no specific partner is open, show the All Chats list
     if (activePartner == null) {
         Scaffold(
             containerColor = ChatBgLight,
@@ -191,13 +231,13 @@ fun ChatScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Workora Live Chat",
+                                text = if (isHindi) "Workora लाइव चैट" else "Workora Live Chat",
                                 color = ChatWhite,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Direct 0% Commission Messaging",
+                                text = if (isHindi) "सीधी बात • 0% कमीशन मैसेजिंग" else "Direct 0% Commission Messaging",
                                 color = Color(0xFFCBD5E1),
                                 fontSize = 12.sp
                             )
@@ -285,7 +325,6 @@ fun ChatScreen(
         return
     }
 
-    // Active 1-on-1 Live Chat Room with Selected Worker / Customer
     val partner = activePartner!!
     Scaffold(
         containerColor = ChatBgLight,
@@ -346,11 +385,11 @@ fun ChatScreen(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background( Color(0xFF4ADE80))
+                                        .background(Color(0xFF4ADE80))
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "${partner.roleOrSkill} • Online",
+                                    text = "${partner.roleOrSkill} • ${if (isHindi) "ऑनलाइन" else "Online"}",
                                     color = Color(0xFFE2E8F0),
                                     fontSize = 12.sp,
                                     maxLines = 1,
@@ -364,7 +403,6 @@ fun ChatScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Direct Call Button inside Live Chat Header
                         IconButton(
                             onClick = {
                                 val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${partner.phone}"))
@@ -374,11 +412,15 @@ fun ChatScreen(
                             Icon(Icons.Default.Call, contentDescription = "Call", tint = ChatWhite)
                         }
 
-                        // Switch to All Chats List
                         TextButton(
                             onClick = { activePartner = null }
                         ) {
-                            Text("All Chats", color = ChatOrangeAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isHindi) "सभी चैट्स" else "All Chats",
+                                color = ChatOrangeAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -391,13 +433,22 @@ fun ChatScreen(
                     .background(ChatWhite)
                     .navigationBarsPadding()
             ) {
-                // Quick Reply Suggestions Bar
-                val quickReplies = listOf(
-                    "नमस्ते, क्या आप आज काम के लिए उपलब्ध हैं?",
-                    "आपका डेली रेट क्या है?",
-                    "अपना लोकेशन भेजें",
-                    "मुझे अभी कॉल करें"
-                )
+                val quickReplies = if (isHindi) {
+                    listOf(
+                        "नमस्ते, क्या आप आज काम के लिए उपलब्ध हैं?",
+                        "आपका प्रतिदिन का रेट क्या है?",
+                        "अपनी लोकेशन बताएं",
+                        "मुझे अभी कॉल करें"
+                    )
+                } else {
+                    listOf(
+                        "Hello, are you available for work today?",
+                        "What is your daily rate?",
+                        "Please share your location",
+                        "Please call me now"
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -425,7 +476,6 @@ fun ChatScreen(
 
                 HorizontalDivider(color = ChatBorder)
 
-                // Message Input Box + Send Button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -437,7 +487,7 @@ fun ChatScreen(
                         onValueChange = { messageInput = it },
                         placeholder = {
                             Text(
-                                text = "Type a message to ${partner.name}...",
+                                text = if (isHindi) "${partner.name} को मैसेज लिखें..." else "Type a message to ${partner.name}...",
                                 fontSize = 14.sp,
                                 color = ChatSecondaryText
                             )
@@ -522,7 +572,7 @@ fun ChatScreen(
     }
 }
 
-private fun loadMessagesFromFirebase(
+internal fun loadMessagesFromFirebase(
     roomId: String,
     myUserName: String,
     onLoaded: (List<LiveChatMessage>) -> Unit
@@ -568,7 +618,7 @@ private fun loadMessagesFromFirebase(
     }.start()
 }
 
-private fun pushMessageToFirebase(
+internal fun pushMessageToFirebase(
     roomId: String,
     senderName: String,
     text: String,
