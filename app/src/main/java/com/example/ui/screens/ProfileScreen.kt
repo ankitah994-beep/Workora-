@@ -77,9 +77,6 @@ private val WorkoraDangerRed = Color(0xFFDC2626)
 
 private const val SETTINGS_FIREBASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-// =========================================================================
-// GLOBAL LANGUAGE MANAGER (Shared across the entire Workora App)
-// =========================================================================
 internal object AppLanguageManager {
     var currentLanguage by mutableStateOf("English")
 
@@ -103,9 +100,6 @@ internal object AppLanguageManager {
     }
 }
 
-// =========================================================================
-// SHARED IMAGE UPLOAD / BASE64 HELPERS (Used in Profile & Registration)
-// =========================================================================
 internal fun encodeImageUriToBase64(context: Context, uri: Uri, maxDimension: Int = 420): String? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
@@ -205,65 +199,27 @@ fun ProfileScreen(
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.MAIN) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    var savedName by remember {
-        mutableStateOf(profilePrefs.getString("user_name", "") ?: "")
-    }
-    var savedPhone by remember {
-        mutableStateOf(profilePrefs.getString("user_phone", "") ?: "")
-    }
-    var savedEmail by remember {
-        mutableStateOf(authPrefs.getString("last_logged_in_email", "") ?: "")
-    }
-    var savedState by remember {
-        mutableStateOf(profilePrefs.getString("user_state", "") ?: "")
-    }
-    var savedArea by remember {
-        mutableStateOf(profilePrefs.getString("user_location", "") ?: "")
-    }
-    var savedAddress by remember {
-        mutableStateOf(profilePrefs.getString("user_address", "") ?: "")
-    }
-    var savedSkill by remember {
-        mutableStateOf(profilePrefs.getString("user_skill", "") ?: "")
-    }
-    var savedExperience by remember {
-        mutableStateOf(profilePrefs.getString("user_experience", "") ?: "")
-    }
-    var savedRate by remember {
-        mutableStateOf(profilePrefs.getString("user_rate", "") ?: "")
-    }
-    var savedBio by remember {
-        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "")
-    }
+    var savedName by remember { mutableStateOf(profilePrefs.getString("user_name", "") ?: "") }
+    var savedPhone by remember { mutableStateOf(profilePrefs.getString("user_phone", "") ?: "") }
+    var savedEmail by remember { mutableStateOf(authPrefs.getString("last_logged_in_email", "") ?: "") }
+    var savedState by remember { mutableStateOf(profilePrefs.getString("user_state", "") ?: "") }
+    var savedArea by remember { mutableStateOf(profilePrefs.getString("user_location", "") ?: "") }
+    var savedAddress by remember { mutableStateOf(profilePrefs.getString("user_address", "") ?: "") }
+    var savedSkill by remember { mutableStateOf(profilePrefs.getString("user_skill", "") ?: "") }
+    var savedExperience by remember { mutableStateOf(profilePrefs.getString("user_experience", "") ?: "") }
+    var savedRate by remember { mutableStateOf(profilePrefs.getString("user_rate", "") ?: "") }
+    var savedBio by remember { mutableStateOf(profilePrefs.getString("user_bio", "") ?: "") }
 
-    var savedProfilePhoto by remember {
-        mutableStateOf(profilePrefs.getString("user_profile_photo", "") ?: "")
-    }
-    var savedPhoto1 by remember {
-        mutableStateOf(profilePrefs.getString("user_photo_1", "") ?: "")
-    }
-    var savedPhoto2 by remember {
-        mutableStateOf(profilePrefs.getString("user_photo_2", "") ?: "")
-    }
-    var savedPhoto3 by remember {
-        mutableStateOf(profilePrefs.getString("user_photo_3", "") ?: "")
-    }
+    var savedProfilePhoto by remember { mutableStateOf(profilePrefs.getString("user_profile_photo", "") ?: "") }
+    var savedPhoto1 by remember { mutableStateOf(profilePrefs.getString("user_photo_1", "") ?: "") }
+    var savedPhoto2 by remember { mutableStateOf(profilePrefs.getString("user_photo_2", "") ?: "") }
+    var savedPhoto3 by remember { mutableStateOf(profilePrefs.getString("user_photo_3", "") ?: "") }
 
-    var notificationsMasterToggle by remember {
-        mutableStateOf(settingsPrefs.getBoolean("notif_master", true))
-    }
-    var notifWorkRequests by remember {
-        mutableStateOf(settingsPrefs.getBoolean("notif_work_requests", true))
-    }
-    var notifBookingUpdates by remember {
-        mutableStateOf(settingsPrefs.getBoolean("notif_booking_updates", true))
-    }
-    var notifMessages by remember {
-        mutableStateOf(settingsPrefs.getBoolean("notif_messages", true))
-    }
-    var notifPromotional by remember {
-        mutableStateOf(settingsPrefs.getBoolean("notif_promotional", false))
-    }
+    var notificationsMasterToggle by remember { mutableStateOf(settingsPrefs.getBoolean("notif_master", true)) }
+    var notifWorkRequests by remember { mutableStateOf(settingsPrefs.getBoolean("notif_work_requests", true)) }
+    var notifBookingUpdates by remember { mutableStateOf(settingsPrefs.getBoolean("notif_booking_updates", true)) }
+    var notifMessages by remember { mutableStateOf(settingsPrefs.getBoolean("notif_messages", true)) }
+    var notifPromotional by remember { mutableStateOf(settingsPrefs.getBoolean("notif_promotional", false)) }
 
     val selectedLanguage = AppLanguageManager.currentLanguage
     val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
@@ -813,9 +769,6 @@ fun ProfileScreen(
                     }
                 }
 
-                // =========================================================================
-                // COMPLETE EDIT PROFILE SCREEN (Profile Photo + 3 Photos + All Details)
-                // =========================================================================
                 SettingsSubPage.EDIT_PROFILE -> {
                     var editName by remember { mutableStateOf(savedName) }
                     var editPhone by remember { mutableStateOf(savedPhone) }
@@ -880,7 +833,6 @@ fun ProfileScreen(
                                         .padding(18.dp),
                                     verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
-                                    // 1. PROFILE PHOTO UPLOAD SECTION
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
@@ -980,7 +932,6 @@ fun ProfileScreen(
 
                                     HorizontalDivider(color = WorkoraBorderColor)
 
-                                    // 2. 3 SAMPLE PHOTOS UPLOAD SECTION ("इमेज डाले" inside each box)
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
                                             text = if (isHindi) "काम की 3 सैंपल फोटो अपलोड करें" else "Upload 3 Work Sample Photos",
@@ -1033,7 +984,6 @@ fun ProfileScreen(
 
                                     HorizontalDivider(color = WorkoraBorderColor)
 
-                                    // 3. PERSONAL & LOCATION DETAILS
                                     Text(
                                         text = if (isHindi) "व्यक्तिगत और लोकेशन जानकारी" else "Personal & Location Details",
                                         fontSize = 15.sp,
@@ -1105,7 +1055,6 @@ fun ProfileScreen(
 
                                     HorizontalDivider(color = WorkoraBorderColor)
 
-                                    // 4. WORK / SKILL / RATE / EXPERIENCE / BIO DETAILS
                                     Text(
                                         text = if (isHindi) "काम, अनुभव और मजदूरी रेट की जानकारी" else "Work Skill, Experience & Rate Details",
                                         fontSize = 15.sp,
@@ -1286,9 +1235,6 @@ fun ProfileScreen(
                     }
                 }
 
-                // =========================================================================
-                // MY BOOKINGS SCREEN ("PENDING" in Red + Fixed Single-Line Status Layout)
-                // =========================================================================
                 SettingsSubPage.MY_BOOKINGS -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -1775,9 +1721,6 @@ fun ProfileScreen(
     }
 }
 
-// =========================================================================
-// REUSABLE PROFILE PHOTO & 3-PHOTO UPLOAD COMPONENTS ("इमेज डाले" INSIDE BOX)
-// =========================================================================
 @Composable
 internal fun UserProfilePhotoView(
     base64Photo: String,
@@ -2307,4 +2250,3 @@ private fun submitReportToFirebase(name: String, phone: String, subject: String,
         }
     }.start()
 }
-to
