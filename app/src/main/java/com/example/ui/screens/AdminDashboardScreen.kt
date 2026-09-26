@@ -28,10 +28,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +41,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -128,7 +132,8 @@ private data class AdminCategoryRecord(
 fun AdminDashboardScreen(
     adminEmail: String = "ankitah994@gmail.com",
     adminTier: String = "SUPER_ADMIN",
-    onLogoutAdmin: () -> Unit = {}
+    onLogoutAdmin: () -> Unit = {},
+    onSwitchRoleFromAdmin: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -157,6 +162,20 @@ fun AdminDashboardScreen(
         mutableStateOf(validAdmin && loggedAdminEmail.isNotBlank())
     }
     var showAccessDeniedBanner by remember { mutableStateOf(!isAdminAuthenticated) }
+
+    // Helper to switch directly to Customer or Worker Mode from Top-Right Admin Menu
+    val switchAdminToRole: (String) -> Unit = { targetRole ->
+        authPrefs.edit()
+            .putBoolean("is_logged_in", true)
+            .putString("saved_user_role", targetRole)
+            .apply()
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (onSwitchRoleFromAdmin != null) {
+            onSwitchRoleFromAdmin(targetRole)
+        } else {
+            activity?.recreate()
+        }
+    }
 
     if (!isAdminAuthenticated) {
         AdminLoginScreen(
@@ -219,11 +238,12 @@ fun AdminDashboardScreen(
         refreshAdminDatabase()
     }
 
-    // Auto-Fit Desktop Viewport Scaling so 1280dp fits 100% of any mobile/tablet/desktop screen width
+    // Safe Drawing + Auto-Fit Desktop Viewport Scaling
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(AdminBgLight)
+            .background(AdminPrimaryNavy)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         val baseDensity = LocalDensity.current
         val targetVirtualWidthDp = 1280f
@@ -265,7 +285,11 @@ fun AdminDashboardScreen(
                         onSearchChange = { globalSearchQuery = it },
                         adminName = "Admin",
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
-                        onRefreshClick = refreshAdminDatabase
+                        onRefreshClick = refreshAdminDatabase,
+                        onSwitchToCustomer = { switchAdminToRole("CUSTOMER") },
+                        onSwitchToWorker = { switchAdminToRole("LABOUR") },
+                        onOpenSettings = { currentRoute = AdminRoute.SETTINGS },
+                        onLogoutClick = { showLogoutConfirmDialog = true }
                     )
 
                     Column(
@@ -305,6 +329,7 @@ fun AdminDashboardScreen(
                                 AdminDashboardOverviewPage(
                                     usersList = usersList,
                                     bookingsList = bookingsList,
+                                    globalSearchQuery = globalSearchQuery,
                                     onNavigateRoute = { currentRoute = it },
                                     onViewUser = { selectedUserForDetail = it },
                                     onConfirmBlockUser = { userPendingBlockToggle = it },
@@ -336,6 +361,7 @@ fun AdminDashboardScreen(
                                     workers = usersList.filter { it.role.equals("Worker", ignoreCase = true) },
                                     globalSearchQuery = globalSearchQuery,
                                     onViewUser = { selectedUserForDetail = it },
+                                    onEditUser = { selectedUserForEdit = it },
                                     onUpdateWorkerStatus = { worker, newStatus, newAvail ->
                                         val idx = usersList.indexOfFirst { it.key == worker.key }
                                         if (idx >= 0) {
@@ -358,6 +384,7 @@ fun AdminDashboardScreen(
                             AdminRoute.CATEGORIES -> {
                                 AdminCategoriesPage(
                                     categories = categoriesList,
+                                    globalSearchQuery = globalSearchQuery,
                                     onAddCategoryClick = { showAddCategoryModal = true },
                                     onEditCategory = { categoryForEdit = it },
                                     onToggleCategoryActive = { cat ->
@@ -383,6 +410,8 @@ fun AdminDashboardScreen(
                                     settingsPrefs = settingsPrefs,
                                     authPrefs = authPrefs,
                                     context = context,
+                                    onSwitchToCustomer = { switchAdminToRole("CUSTOMER") },
+                                    onSwitchToWorker = { switchAdminToRole("LABOUR") },
                                     onRequestLogout = { showLogoutConfirmDialog = true }
                                 )
                             }
@@ -394,22 +423,45 @@ fun AdminDashboardScreen(
     }
 
     // ==================================================
-    // MODALS & CONFIRMATION DIALOGS
+    // LANDSCAPE-FRIENDLY COMPACT SCROLLABLE MODALS
     // ==================================================
+
+    // 1. View Profile Details Modal
     if (selectedUserForDetail != null) {
         val u = selectedUserForDetail!!
-        AlertDialog(
+        Dialog(
             onDismissRequest = { selectedUserForDetail = null },
-            containerColor = AdminWhite,
-            title = { Text("${u.role} Profile Details", fontWeight = FontWeight.Bold, color = AdminMainText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .widthIn(max = 520.dp)
+                    .fillMaxWidth(0.9f)
+                    .padding(12.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = AdminWhite),
+                border = BorderStroke(1.dp, AdminBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("${u.role} Profile Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                        AdminStatusBadge(u.status)
+                    }
+                    HorizontalDivider(color = AdminBorder)
                     AdminDetailRow("Name", u.name)
                     AdminDetailRow("Phone", u.phone)
                     AdminDetailRow("Email", u.email)
                     AdminDetailRow("Role", u.role)
                     AdminDetailRow("Area", u.area)
-                    AdminDetailRow("Status", u.status)
                     AdminDetailRow("Joined", u.joined)
                     if (u.role.equals("Worker", ignoreCase = true)) {
                         AdminDetailRow("Category", u.category)
@@ -420,71 +472,169 @@ fun AdminDashboardScreen(
                     } else {
                         AdminDetailRow("Total Bookings", u.bookingsCount.toString())
                     }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { selectedUserForDetail = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = AdminPrimaryNavy)
-                ) {
-                    Text("Close", color = AdminWhite)
-                }
-            }
-        )
-    }
-
-    if (selectedUserForEdit != null) {
-        val u = selectedUserForEdit!!
-        var editName by remember { mutableStateOf(u.name) }
-        var editPhone by remember { mutableStateOf(u.phone) }
-        var editArea by remember { mutableStateOf(u.area) }
-        var editCategory by remember { mutableStateOf(u.category) }
-        var editRate by remember { mutableStateOf(u.dailyRate.toString()) }
-
-        AlertDialog(
-            onDismissRequest = { selectedUserForEdit = null },
-            containerColor = AdminWhite,
-            title = { Text("Edit ${u.name}", fontWeight = FontWeight.Bold, color = AdminMainText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Full Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text("Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    if (u.role.equals("Worker", ignoreCase = true)) {
-                        OutlinedTextField(value = editCategory, onValueChange = { editCategory = it }, label = { Text("Category") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text("Daily Rate (₹)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = { selectedUserForDetail = null },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminPrimaryNavy),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Close", color = AdminWhite, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val idx = usersList.indexOfFirst { it.key == u.key }
-                        if (idx >= 0) {
-                            val updated = u.copy(
-                                name = editName.trim(),
-                                phone = editPhone.trim(),
-                                area = editArea.trim(),
-                                category = editCategory.trim(),
-                                dailyRate = editRate.filter { it.isDigit() }.toIntOrNull() ?: u.dailyRate
-                            )
-                            usersList[idx] = updated
-                            saveUserEditToFirebase(updated)
-                            Toast.makeText(context, "User updated successfully", Toast.LENGTH_SHORT).show()
-                        }
-                        selectedUserForEdit = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)
-                ) {
-                    Text("Save Changes", color = AdminWhite, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedUserForEdit = null }) { Text("Cancel", color = AdminSecondaryText) }
             }
-        )
+        }
     }
 
+    // 2. Edit User Modal (2-Column Landscape-Optimized & Scrollable so no field ever gets squished)
+    if (selectedUserForEdit != null) {
+        val u = selectedUserForEdit!!
+        var editName by remember(u) { mutableStateOf(u.name) }
+        var editPhone by remember(u) { mutableStateOf(u.phone) }
+        var editArea by remember(u) { mutableStateOf(u.area) }
+        var editCategory by remember(u) { mutableStateOf(u.category) }
+        var editRate by remember(u) { mutableStateOf(u.dailyRate.toString()) }
+
+        val textFieldColors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = AdminMainText,
+            unfocusedTextColor = AdminMainText,
+            focusedBorderColor = AdminPrimaryNavy,
+            unfocusedBorderColor = AdminBorder,
+            focusedLabelColor = AdminPrimaryNavy,
+            unfocusedLabelColor = AdminSecondaryText,
+            focusedContainerColor = AdminWhite,
+            unfocusedContainerColor = AdminWhite
+        )
+
+        Dialog(
+            onDismissRequest = { selectedUserForEdit = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .widthIn(max = 620.dp)
+                    .fillMaxWidth(0.92f)
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = AdminWhite),
+                border = BorderStroke(1.dp, AdminBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Edit ${u.name}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AdminMainText
+                    )
+
+                    // Row 1: Full Name + Phone Number side-by-side
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            label = { Text("Full Name") },
+                            singleLine = true,
+                            colors = textFieldColors,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = editPhone,
+                            onValueChange = { editPhone = it },
+                            label = { Text("Phone Number") },
+                            singleLine = true,
+                            colors = textFieldColors,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Row 2: Area + Category & Daily Rate (if Worker)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editArea,
+                            onValueChange = { editArea = it },
+                            label = { Text("Area / City") },
+                            singleLine = true,
+                            colors = textFieldColors,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (u.role.equals("Worker", ignoreCase = true)) {
+                            OutlinedTextField(
+                                value = editCategory,
+                                onValueChange = { editCategory = it },
+                                label = { Text("Category / Skill") },
+                                singleLine = true,
+                                colors = textFieldColors,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = editRate,
+                                onValueChange = { editRate = it },
+                                label = { Text("Daily Rate (₹)") },
+                                singleLine = true,
+                                colors = textFieldColors,
+                                modifier = Modifier.weight(0.8f)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { selectedUserForEdit = null }) {
+                            Text("Cancel", color = AdminSecondaryText, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (editName.isBlank() || editPhone.isBlank()) {
+                                    Toast.makeText(context, "Name and Phone cannot be empty", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val idx = usersList.indexOfFirst { it.key == u.key }
+                                    if (idx >= 0) {
+                                        val updated = u.copy(
+                                            name = editName.trim(),
+                                            phone = editPhone.trim(),
+                                            area = editArea.trim().ifEmpty { "Silwani" },
+                                            category = editCategory.trim().ifEmpty { u.category },
+                                            dailyRate = editRate.filter { it.isDigit() }.toIntOrNull() ?: u.dailyRate
+                                        )
+                                        usersList[idx] = updated
+                                        saveUserEditToFirebase(updated)
+                                        Toast.makeText(context, "User updated successfully ✓", Toast.LENGTH_SHORT).show()
+                                    }
+                                    selectedUserForEdit = null
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Save Changes", color = AdminWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Block / Unblock Confirmation Dialog
     if (userPendingBlockToggle != null) {
         val u = userPendingBlockToggle!!
         val isBlocked = u.status.equals("Blocked", ignoreCase = true)
@@ -529,34 +679,46 @@ fun AdminDashboardScreen(
         )
     }
 
+    // 4. Booking Details Modal
     if (selectedBookingDetail != null) {
         val bk = selectedBookingDetail!!
-        AlertDialog(
+        Dialog(
             onDismissRequest = { selectedBookingDetail = null },
-            containerColor = AdminWhite,
-            title = {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Booking #${bk.id}", fontWeight = FontWeight.Bold, color = AdminMainText)
-                    AdminStatusBadge(bk.status)
-                }
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .widthIn(max = 580.dp)
+                    .fillMaxWidth(0.92f)
+                    .padding(10.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = AdminWhite),
+                border = BorderStroke(1.dp, AdminBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(18.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Booking #${bk.id}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                        AdminStatusBadge(bk.status)
+                    }
+                    HorizontalDivider(color = AdminBorder)
                     AdminDetailRow("Customer", "${bk.customerName} (${bk.customerPhone})")
                     AdminDetailRow("Worker", "${bk.workerName} (${bk.workerPhone})")
                     AdminDetailRow("Category", bk.category)
                     AdminDetailRow("Work Location", bk.area)
                     AdminDetailRow("Work Description", bk.description)
-                    AdminDetailRow("Preferred Date", bk.date)
-                    AdminDetailRow("Preferred Time", bk.preferredTime)
-                    AdminDetailRow("Number of Days", "${bk.days} day(s)")
-                    AdminDetailRow("Offered Rate", "₹${bk.rate}/day")
-                    AdminDetailRow("Additional Message", bk.additionalMessage)
-                    AdminDetailRow("Current Status", bk.status)
-                    AdminDetailRow("Created Date", bk.createdDate)
-                    AdminDetailRow("Updated Date", bk.updatedDate)
+                    AdminDetailRow("Preferred Date & Time", "${bk.date} • ${bk.preferredTime}")
+                    AdminDetailRow("Duration & Rate", "${bk.days} day(s) • ₹${bk.rate}/day")
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text("Change Status (Requires Confirmation):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminSecondaryText)
                     Row(
                         modifier = Modifier
@@ -568,20 +730,23 @@ fun AdminDashboardScreen(
                             OutlinedButton(
                                 onClick = { bookingStatusConfirmPair = Pair(bk, st) },
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                             ) {
-                                Text(st, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AdminPrimaryNavy)
+                                Text(st, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminPrimaryNavy)
                             }
                         }
                     }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { selectedBookingDetail = null }, colors = ButtonDefaults.buttonColors(containerColor = AdminPrimaryNavy)) {
-                    Text("Close", color = AdminWhite)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Button(
+                            onClick = { selectedBookingDetail = null },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminPrimaryNavy)
+                        ) {
+                            Text("Close", color = AdminWhite)
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     if (bookingStatusConfirmPair != null) {
@@ -615,65 +780,107 @@ fun AdminDashboardScreen(
         )
     }
 
+    // 5. Create / Edit Category Modal
     if (showAddCategoryModal || categoryForEdit != null) {
         val editing = categoryForEdit
         var catName by remember(editing) { mutableStateOf(editing?.name ?: "") }
         var catIcon by remember(editing) { mutableStateOf(editing?.iconName ?: "hard-hat") }
         var catActive by remember(editing) { mutableStateOf(editing?.active ?: true) }
 
-        AlertDialog(
+        Dialog(
             onDismissRequest = {
                 showAddCategoryModal = false
                 categoryForEdit = null
             },
-            containerColor = AdminWhite,
-            title = { Text(if (editing == null) "Create Category" else "Edit Category", fontWeight = FontWeight.Bold, color = AdminMainText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = catName, onValueChange = { catName = it }, label = { Text("Category Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = catIcon, onValueChange = { catIcon = it }, label = { Text("Icon Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .widthIn(max = 520.dp)
+                    .fillMaxWidth(0.9f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = AdminWhite),
+                border = BorderStroke(1.dp, AdminBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (editing == null) "Create Category" else "Edit Category",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AdminMainText
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = catName,
+                            onValueChange = { catName = it },
+                            label = { Text("Category Name") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = catIcon,
+                            onValueChange = { catIcon = it },
+                            label = { Text("Icon Name") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text("Active Status", fontWeight = FontWeight.SemiBold, color = AdminMainText)
                         Switch(checked = catActive, onCheckedChange = { catActive = it })
                     }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (catName.isNotBlank()) {
-                            if (editing == null) {
-                                val newCat = AdminCategoryRecord("cat_${System.currentTimeMillis()}", catName.trim(), catIcon.trim(), catActive, 12)
-                                categoriesList.add(newCat)
-                                saveCategoryToFirebase(newCat)
-                            } else {
-                                val idx = categoriesList.indexOfFirst { it.id == editing.id }
-                                if (idx >= 0) {
-                                    val updated = editing.copy(name = catName.trim(), iconName = catIcon.trim(), active = catActive)
-                                    categoriesList[idx] = updated
-                                    saveCategoryToFirebase(updated)
-                                }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showAddCategoryModal = false
+                                categoryForEdit = null
                             }
-                            showAddCategoryModal = false
-                            categoryForEdit = null
+                        ) {
+                            Text("Cancel", color = AdminSecondaryText)
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)
-                ) {
-                    Text("Save", color = AdminWhite, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showAddCategoryModal = false
-                        categoryForEdit = null
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (catName.isNotBlank()) {
+                                    if (editing == null) {
+                                        val newCat = AdminCategoryRecord("cat_${System.currentTimeMillis()}", catName.trim(), catIcon.trim(), catActive, 12)
+                                        categoriesList.add(newCat)
+                                        saveCategoryToFirebase(newCat)
+                                    } else {
+                                        val idx = categoriesList.indexOfFirst { it.id == editing.id }
+                                        if (idx >= 0) {
+                                            val updated = editing.copy(name = catName.trim(), iconName = catIcon.trim(), active = catActive)
+                                            categoriesList[idx] = updated
+                                            saveCategoryToFirebase(updated)
+                                        }
+                                    }
+                                    showAddCategoryModal = false
+                                    categoryForEdit = null
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)
+                        ) {
+                            Text("Save", color = AdminWhite, fontWeight = FontWeight.Bold)
+                        }
                     }
-                ) {
-                    Text("Cancel", color = AdminSecondaryText)
                 }
             }
-        )
+        }
     }
 
     if (showLogoutConfirmDialog) {
@@ -701,7 +908,7 @@ fun AdminDashboardScreen(
 }
 
 // ==================================================
-// ADMIN SIDEBAR (EXACT MATCH TO REFERENCE IMAGE)
+// ADMIN SIDEBAR
 // ==================================================
 @Composable
 private fun AdminSidebarContent(
@@ -713,22 +920,21 @@ private fun AdminSidebarContent(
     Column(
         modifier = modifier
             .background(AdminPrimaryNavy)
-            .padding(vertical = 20.dp, horizontal = 16.dp),
+            .padding(vertical = 18.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            // Logo Row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
             ) {
-                AdminHelmetLogo(size = 40.dp)
+                AdminHelmetLogo(size = 38.dp)
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
                         text = "Workora",
                         color = AdminWhite,
-                        fontSize = 22.sp,
+                        fontSize = 21.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
@@ -740,7 +946,7 @@ private fun AdminSidebarContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
                 text = "ADMIN PANEL",
@@ -751,18 +957,18 @@ private fun AdminSidebarContent(
                 modifier = Modifier.padding(horizontal = 6.dp)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             AdminRoute.values().forEach { route ->
                 val isSelected = currentRoute == route
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 3.dp)
+                        .padding(vertical = 2.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(if (isSelected) AdminAccentOrange else Color.Transparent)
                         .clickable { onSelectRoute(route) }
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -782,13 +988,12 @@ private fun AdminSidebarContent(
             }
         }
 
-        // Bottom Logout
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .clickable { onLogoutClick() }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -809,7 +1014,7 @@ private fun AdminSidebarContent(
 }
 
 // ==================================================
-// ADMIN TOP BAR (EXACT MATCH TO REFERENCE IMAGE)
+// ADMIN TOP BAR (WITH WORKING SEARCH & ROLE SWITCH DROPDOWN)
 // ==================================================
 @Composable
 private fun AdminTopBar(
@@ -817,8 +1022,14 @@ private fun AdminTopBar(
     onSearchChange: (String) -> Unit,
     adminName: String,
     onToggleSidebar: () -> Unit,
-    onRefreshClick: () -> Unit
+    onRefreshClick: () -> Unit,
+    onSwitchToCustomer: () -> Unit,
+    onSwitchToWorker: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onLogoutClick: () -> Unit
 ) {
+    var showAdminDropdown by remember { mutableStateOf(false) }
+
     Surface(
         color = AdminWhite,
         modifier = Modifier
@@ -846,12 +1057,13 @@ private fun AdminTopBar(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
+                // Working Search Bar
                 Surface(
                     color = AdminBgLight,
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, AdminBorder),
                     modifier = Modifier
-                        .width(420.dp)
+                        .width(440.dp)
                         .height(40.dp)
                 ) {
                     Row(
@@ -867,7 +1079,7 @@ private fun AdminTopBar(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Box(modifier = Modifier.weight(1f)) {
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             if (searchQuery.isEmpty()) {
                                 Text(
                                     text = "Search users, workers, bookings...",
@@ -879,16 +1091,33 @@ private fun AdminTopBar(
                                 value = searchQuery,
                                 onValueChange = onSearchChange,
                                 singleLine = true,
+                                textStyle = TextStyle(
+                                    color = AdminMainText,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(AdminPrimaryNavy),
                                 modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (searchQuery.isNotEmpty()) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear Search",
+                                tint = AdminSecondaryText,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clickable { onSearchChange("") }
                             )
                         }
                     }
                 }
             }
 
+            // Right Controls: Notification Bell + Clickable Admin Profile Dropdown
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Box(
                     contentAlignment = Alignment.TopEnd,
@@ -896,7 +1125,7 @@ private fun AdminTopBar(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Notifications,
-                        contentDescription = "Notifications",
+                        contentDescription = "Refresh / Notifications",
                         tint = AdminMainText,
                         modifier = Modifier.size(24.dp)
                     )
@@ -908,42 +1137,106 @@ private fun AdminTopBar(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(AdminPrimaryNavy),
-                        contentAlignment = Alignment.Center
+                Box {
+                    Surface(
+                        color = Color(0xFFF1F5F9),
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.dp, AdminBorder),
+                        modifier = Modifier.clickable { showAdminDropdown = true }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = AdminWhite,
-                            modifier = Modifier.size(22.dp)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(AdminPrimaryNavy),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = AdminWhite,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = adminName,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AdminMainText
+                                )
+                                Text(
+                                    text = "Super Admin",
+                                    fontSize = 10.sp,
+                                    color = AdminSecondaryText
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Admin Menu",
+                                tint = AdminMainText,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showAdminDropdown,
+                        onDismissRequest = { showAdminDropdown = false },
+                        modifier = Modifier.background(AdminWhite)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text("Switch to Customer Mode", fontWeight = FontWeight.Bold, color = AdminPrimaryNavy)
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Person, contentDescription = null, tint = AdminPrimaryNavy)
+                            },
+                            onClick = {
+                                showAdminDropdown = false
+                                onSwitchToCustomer()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text("Switch to Worker Mode", fontWeight = FontWeight.Bold, color = AdminAccentOrange)
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Construction, contentDescription = null, tint = AdminAccentOrange)
+                            },
+                            onClick = {
+                                showAdminDropdown = false
+                                onSwitchToWorker()
+                            }
+                        )
+                        HorizontalDivider(color = AdminBorder)
+                        DropdownMenuItem(
+                            text = { Text("Admin Settings", color = AdminMainText) },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Settings, contentDescription = null, tint = AdminMainText)
+                            },
+                            onClick = {
+                                showAdminDropdown = false
+                                onOpenSettings()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Logout Admin", fontWeight = FontWeight.Bold, color = AdminDangerRed) },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Logout, contentDescription = null, tint = AdminDangerRed)
+                            },
+                            onClick = {
+                                showAdminDropdown = false
+                                onLogoutClick()
+                            }
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = adminName,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AdminMainText
-                        )
-                        Text(
-                            text = "Super Admin",
-                            fontSize = 11.sp,
-                            color = AdminSecondaryText
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = AdminSecondaryText,
-                        modifier = Modifier.size(18.dp)
-                    )
                 }
             }
         }
@@ -952,12 +1245,13 @@ private fun AdminTopBar(
 }
 
 // ==================================================
-// DASHBOARD OVERVIEW (EXACT MATCH TO REFERENCE IMAGE)
+// DASHBOARD OVERVIEW (FILTERS LIVE BY SEARCH QUERY)
 // ==================================================
 @Composable
 private fun AdminDashboardOverviewPage(
     usersList: List<AdminUserRecord>,
     bookingsList: List<AdminBookingRecord>,
+    globalSearchQuery: String,
     onNavigateRoute: (AdminRoute) -> Unit,
     onViewUser: (AdminUserRecord) -> Unit,
     onConfirmBlockUser: (AdminUserRecord) -> Unit,
@@ -968,7 +1262,29 @@ private fun AdminDashboardOverviewPage(
     val totalCustomersDisplay = if (usersList.size > 10) String.format(Locale.US, "%,d", usersList.count { it.role == "Customer" }) else "430"
     val totalBookingsDisplay = if (bookingsList.size > 10) String.format(Locale.US, "%,d", bookingsList.size) else "1,540"
 
-    // Header Row: Dashboard Title + Today Date
+    val filteredRecentBookings = remember(bookingsList, globalSearchQuery) {
+        val q = globalSearchQuery.trim()
+        if (q.isEmpty()) bookingsList.take(5)
+        else bookingsList.filter {
+            it.customerName.contains(q, true) ||
+                it.workerName.contains(q, true) ||
+                it.category.contains(q, true) ||
+                it.area.contains(q, true) ||
+                it.status.contains(q, true)
+        }
+    }
+
+    val filteredRecentUsers = remember(usersList, globalSearchQuery) {
+        val q = globalSearchQuery.trim()
+        if (q.isEmpty()) usersList.take(4)
+        else usersList.filter {
+            it.name.contains(q, true) ||
+                it.phone.contains(q, true) ||
+                it.role.contains(q, true) ||
+                it.area.contains(q, true)
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1065,7 +1381,6 @@ private fun AdminDashboardOverviewPage(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // Left: Recent Bookings
         Card(
             modifier = Modifier.weight(1.85f),
             shape = RoundedCornerShape(14.dp),
@@ -1096,7 +1411,6 @@ private fun AdminDashboardOverviewPage(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Table Columns Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1112,37 +1426,45 @@ private fun AdminDashboardOverviewPage(
                     Text("Status", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 }
 
-                bookingsList.take(5).forEach { bk ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onViewBooking(bk) }
-                            .padding(horizontal = 10.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
-                            AdminMiniAvatar(bk.customerName, Color(0xFFDBEAFE), AdminPrimaryNavy)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(bk.customerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (filteredRecentBookings.isEmpty()) {
+                    Text(
+                        text = "No matching bookings found for \"$globalSearchQuery\"",
+                        color = AdminSecondaryText,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                } else {
+                    filteredRecentBookings.forEach { bk ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onViewBooking(bk) }
+                                .padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
+                                AdminMiniAvatar(bk.customerName, Color(0xFFDBEAFE), AdminPrimaryNavy)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(bk.customerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
+                                AdminMiniAvatar(bk.workerName, Color(0xFFFEF3C7), AdminWarningOrange)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(bk.workerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text(bk.category, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                            Text(bk.area, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                            Text(bk.date, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                            Box(modifier = Modifier.weight(1f)) {
+                                AdminStatusBadge(bk.status)
+                            }
                         }
-                        Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
-                            AdminMiniAvatar(bk.workerName, Color(0xFFFEF3C7), AdminWarningOrange)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(bk.workerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text(bk.category, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
-                        Text(bk.area, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
-                        Text(bk.date, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
-                        Box(modifier = Modifier.weight(1f)) {
-                            AdminStatusBadge(bk.status)
-                        }
+                        HorizontalDivider(color = AdminBorder)
                     }
-                    HorizontalDivider(color = AdminBorder)
                 }
             }
         }
 
-        // Right: Worker Availability Card
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(14.dp),
@@ -1240,59 +1562,68 @@ private fun AdminDashboardOverviewPage(
                 Text("Action", modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             }
 
-            usersList.take(4).forEach { user ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(modifier = Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
-                        AdminMiniAvatar(user.name, Color(0xFFE0E7FF), AdminPrimaryNavy)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(user.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText)
-                    }
-                    Text(user.role, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
-                    Text(user.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
-                    Box(modifier = Modifier.weight(1f)) {
-                        AdminStatusBadge(user.status)
-                    }
-                    Text(user.joined, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+            if (filteredRecentUsers.isEmpty()) {
+                Text(
+                    text = "No matching users found for \"$globalSearchQuery\"",
+                    color = AdminSecondaryText,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(12.dp)
+                )
+            } else {
+                filteredRecentUsers.forEach { user ->
                     Row(
-                        modifier = Modifier.weight(1.4f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            color = AdminWhite,
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFF93C5FD)),
-                            modifier = Modifier.clickable { onViewUser(user) }
-                        ) {
-                            Text(
-                                text = "View",
-                                color = Color(0xFF1D4ED8),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                            )
+                        Row(modifier = Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
+                            AdminMiniAvatar(user.name, Color(0xFFE0E7FF), AdminPrimaryNavy)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(user.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Surface(
-                            color = AdminWhite,
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
-                            modifier = Modifier.clickable { onConfirmBlockUser(user) }
+                        Text(user.role, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+                        Text(user.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+                        Box(modifier = Modifier.weight(1f)) {
+                            AdminStatusBadge(user.status)
+                        }
+                        Text(user.joined, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+                        Row(
+                            modifier = Modifier.weight(1.4f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = if (user.status == "Blocked") "Unblock" else "Block",
-                                color = AdminDangerRed,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                            )
+                            Surface(
+                                color = AdminWhite,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color(0xFF93C5FD)),
+                                modifier = Modifier.clickable { onViewUser(user) }
+                            ) {
+                                Text(
+                                    text = "View",
+                                    color = Color(0xFF1D4ED8),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                                )
+                            }
+                            Surface(
+                                color = AdminWhite,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                modifier = Modifier.clickable { onConfirmBlockUser(user) }
+                            ) {
+                                Text(
+                                    text = if (user.status == "Blocked") "Unblock" else "Block",
+                                    color = AdminDangerRed,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
+                    HorizontalDivider(color = AdminBorder)
                 }
-                HorizontalDivider(color = AdminBorder)
             }
         }
     }
@@ -1423,7 +1754,7 @@ private fun WorkerAvailabilityBox(
 }
 
 // ==================================================
-// OTHER ADMIN PAGES (USERS, WORKERS, BOOKINGS, ETC.)
+// CLEAN FULL-WIDTH ADMIN TABLES (NO TRUNCATED NAMES)
 // ==================================================
 @Composable
 private fun AdminUsersPage(
@@ -1439,7 +1770,9 @@ private fun AdminUsersPage(
         else usersList.filter {
             it.name.contains(globalSearchQuery, true) ||
                 it.phone.contains(globalSearchQuery, true) ||
-                it.area.contains(globalSearchQuery, true)
+                it.email.contains(globalSearchQuery, true) ||
+                it.area.contains(globalSearchQuery, true) ||
+                it.role.contains(globalSearchQuery, true)
         }
     }
 
@@ -1449,31 +1782,56 @@ private fun AdminUsersPage(
         colors = CardDefaults.cardColors(containerColor = AdminWhite),
         border = BorderStroke(1.dp, AdminBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("$title (${filtered.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+
+            // Full-Width Table Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AdminNeutralGrayBg, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Name", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Phone Number", modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Email", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Role", modifier = Modifier.weight(0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Area", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Status", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Actions", modifier = Modifier.weight(1.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            }
+
             filtered.forEach { u ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
                         AdminMiniAvatar(u.name, Color(0xFFDBEAFE), AdminPrimaryNavy)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(u.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                            Text("${u.phone} • ${u.email} • ${u.role} • ${u.area}", fontSize = 12.sp, color = AdminSecondaryText)
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(u.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(u.phone, modifier = Modifier.weight(1.3f), fontSize = 12.sp, color = AdminMainText, maxLines = 1)
+                    Text(u.email, modifier = Modifier.weight(1.5f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(u.role, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText)
+                    Text(u.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                    Box(modifier = Modifier.weight(0.9f)) {
                         AdminStatusBadge(u.status)
-                        OutlinedButton(onClick = { onViewUser(u) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-                            Text("View", fontSize = 11.sp)
+                    }
+                    Row(
+                        modifier = Modifier.weight(1.6f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(onClick = { onViewUser(u) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)) {
+                            Text("View", fontSize = 11.sp, color = AdminPrimaryNavy)
                         }
-                        OutlinedButton(onClick = { onEditUser(u) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                        OutlinedButton(onClick = { onEditUser(u) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)) {
                             Text("Edit", fontSize = 11.sp, color = AdminAccentOrange)
                         }
-                        OutlinedButton(onClick = { onConfirmBlockUser(u) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                        OutlinedButton(onClick = { onConfirmBlockUser(u) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)) {
                             Text(if (u.status == "Blocked") "Unblock" else "Block", fontSize = 11.sp, color = AdminDangerRed)
                         }
                     }
@@ -1489,36 +1847,75 @@ private fun AdminWorkersPage(
     workers: List<AdminUserRecord>,
     globalSearchQuery: String,
     onViewUser: (AdminUserRecord) -> Unit,
+    onEditUser: (AdminUserRecord) -> Unit,
     onUpdateWorkerStatus: (AdminUserRecord, String, String) -> Unit,
     onConfirmBlockUser: (AdminUserRecord) -> Unit
 ) {
+    val filtered = remember(workers, globalSearchQuery) {
+        if (globalSearchQuery.isBlank()) workers
+        else workers.filter {
+            it.name.contains(globalSearchQuery, true) ||
+                it.category.contains(globalSearchQuery, true) ||
+                it.area.contains(globalSearchQuery, true) ||
+                it.phone.contains(globalSearchQuery, true)
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = AdminWhite),
         border = BorderStroke(1.dp, AdminBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Workers", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-            workers.forEach { w ->
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Workers (${filtered.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AdminNeutralGrayBg, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Worker Name", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Category", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Area", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Rate", modifier = Modifier.weight(0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Availability", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Status", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Actions", modifier = Modifier.weight(2f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            }
+
+            filtered.forEach { w ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
                         AdminMiniAvatar(w.name, Color(0xFFFEF3C7), AdminWarningOrange)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(w.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                            Text("${w.category} • ${w.area} • ${w.experience} • ₹${w.dailyRate}/day • ${w.rating} ★", fontSize = 12.sp, color = AdminSecondaryText)
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(w.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText, maxLines = 1)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(w.category, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+                    Text(w.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+                    Text("₹${w.dailyRate}/day", modifier = Modifier.weight(0.8f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
+                    Box(modifier = Modifier.weight(1f)) {
                         AdminStatusBadge(w.availability)
+                    }
+                    Box(modifier = Modifier.weight(0.9f)) {
                         AdminStatusBadge(w.status)
-                        OutlinedButton(onClick = { onViewUser(w) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
-                            Text("View Profile", fontSize = 11.sp)
+                    }
+                    Row(
+                        modifier = Modifier.weight(2f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(onClick = { onViewUser(w) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                            Text("View", fontSize = 11.sp)
+                        }
+                        OutlinedButton(onClick = { onEditUser(w) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                            Text("Edit", fontSize = 11.sp, color = AdminAccentOrange)
                         }
                         val isActive = w.status.equals("Active", true)
                         OutlinedButton(
@@ -1526,11 +1923,11 @@ private fun AdminWorkersPage(
                                 if (isActive) onUpdateWorkerStatus(w, "Inactive", "Busy")
                                 else onUpdateWorkerStatus(w, "Active", "Available")
                             },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text(if (isActive) "Deactivate" else "Activate", fontSize = 11.sp, color = AdminAccentOrange)
+                            Text(if (isActive) "Deactivate" else "Activate", fontSize = 11.sp, color = AdminPrimaryNavy)
                         }
-                        OutlinedButton(onClick = { onConfirmBlockUser(w) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
+                        OutlinedButton(onClick = { onConfirmBlockUser(w) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
                             Text(if (w.status == "Blocked") "Unblock" else "Block", fontSize = 11.sp, color = AdminDangerRed)
                         }
                     }
@@ -1547,15 +1944,26 @@ private fun AdminBookingsPage(
     globalSearchQuery: String,
     onViewBooking: (AdminBookingRecord) -> Unit
 ) {
+    val filtered = remember(bookings, globalSearchQuery) {
+        if (globalSearchQuery.isBlank()) bookings
+        else bookings.filter {
+            it.customerName.contains(globalSearchQuery, true) ||
+                it.workerName.contains(globalSearchQuery, true) ||
+                it.category.contains(globalSearchQuery, true) ||
+                it.area.contains(globalSearchQuery, true) ||
+                it.id.contains(globalSearchQuery, true)
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = AdminWhite),
         border = BorderStroke(1.dp, AdminBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Bookings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-            bookings.forEach { bk ->
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Bookings (${filtered.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            filtered.forEach { bk ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1564,7 +1972,7 @@ private fun AdminBookingsPage(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text("#${bk.id} • ${bk.customerName} → ${bk.workerName}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                         Text("${bk.category} • ${bk.area} • ${bk.date} • ${bk.days} days • ₹${bk.rate}/day", fontSize = 12.sp, color = AdminSecondaryText)
                     }
@@ -1584,10 +1992,16 @@ private fun AdminBookingsPage(
 @Composable
 private fun AdminCategoriesPage(
     categories: List<AdminCategoryRecord>,
+    globalSearchQuery: String,
     onAddCategoryClick: () -> Unit,
     onEditCategory: (AdminCategoryRecord) -> Unit,
     onToggleCategoryActive: (AdminCategoryRecord) -> Unit
 ) {
+    val filtered = remember(categories, globalSearchQuery) {
+        if (globalSearchQuery.isBlank()) categories
+        else categories.filter { it.name.contains(globalSearchQuery, true) }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -1596,18 +2010,18 @@ private fun AdminCategoriesPage(
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Categories", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Categories (${filtered.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Button(onClick = onAddCategoryClick, colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)) {
                     Text("+ Add Category", color = AdminWhite, fontWeight = FontWeight.Bold)
                 }
             }
-            categories.forEach { cat ->
+            filtered.forEach { cat ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(cat.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                         Text("${cat.workerCount} workers", fontSize = 12.sp, color = AdminSecondaryText)
                     }
@@ -1659,10 +2073,12 @@ private fun AdminSettingsPage(
     settingsPrefs: android.content.SharedPreferences,
     authPrefs: android.content.SharedPreferences,
     context: Context,
+    onSwitchToCustomer: () -> Unit,
+    onSwitchToWorker: () -> Unit,
     onRequestLogout: () -> Unit
 ) {
     var appName by remember { mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
-    var defaultArea by remember { mutableStateOf(settingsPrefs.getString("default_area", "Delhi") ?: "Delhi") }
+    var defaultArea by remember { mutableStateOf(settingsPrefs.getString("default_area", "Silwani, Raisen") ?: "Silwani, Raisen") }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1672,9 +2088,11 @@ private fun AdminSettingsPage(
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Admin & Application Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-            OutlinedTextField(value = loggedAdminEmail, onValueChange = {}, label = { Text("Admin Email") }, enabled = false, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = appName, onValueChange = { appName = it }, label = { Text("App Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = defaultArea, onValueChange = { defaultArea = it }, label = { Text("Default Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(value = loggedAdminEmail, onValueChange = {}, label = { Text("Admin Email") }, enabled = false, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = appName, onValueChange = { appName = it }, label = { Text("App Name") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = defaultArea, onValueChange = { defaultArea = it }, label = { Text("Default Area") }, singleLine = true, modifier = Modifier.weight(1f))
+            }
             AdminDetailRow("Currency", "₹")
             AdminDetailRow("Default Language", "English")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1687,6 +2105,12 @@ private fun AdminSettingsPage(
                     colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)
                 ) {
                     Text("Save Settings", color = AdminWhite, fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(onClick = onSwitchToCustomer, border = BorderStroke(1.dp, AdminPrimaryNavy)) {
+                    Text("Go to Customer Mode", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(onClick = onSwitchToWorker, border = BorderStroke(1.dp, AdminAccentOrange)) {
+                    Text("Go to Worker Mode", color = AdminAccentOrange, fontWeight = FontWeight.Bold)
                 }
                 OutlinedButton(onClick = onRequestLogout, border = BorderStroke(1.dp, AdminDangerRed)) {
                     Text("Logout Session", color = AdminDangerRed, fontWeight = FontWeight.Bold)
@@ -1869,7 +2293,7 @@ private fun loadAdminDataFromFirebase(
                                 phone = obj.optString("phone", "+91 98765 43210"),
                                 email = obj.optString("email", k.replace("_at_", "@")),
                                 role = roleClean,
-                                area = obj.optString("location", "Delhi"),
+                                area = obj.optString("location", "Silwani"),
                                 status = obj.optString("status", "Active"),
                                 joined = obj.optString("joined", "2 Nov 2024"),
                                 category = obj.optString("skill", "Electrician"),
@@ -1902,7 +2326,7 @@ private fun loadAdminDataFromFirebase(
                                 workerName = obj.optString("workerName", "Ramesh Kumar"),
                                 workerPhone = obj.optString("workerPhone", "+91 87654 32109"),
                                 category = obj.optString("category", "Electrician"),
-                                area = obj.optString("location", "Delhi"),
+                                area = obj.optString("location", "Silwani"),
                                 date = obj.optString("date", "2 Nov 2024"),
                                 preferredTime = "09:00 AM",
                                 days = 2,
