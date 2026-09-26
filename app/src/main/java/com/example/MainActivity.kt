@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,17 +46,21 @@ import com.example.ui.screens.SearchFilterScreen
 import com.example.ui.screens.SignUpScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
+import kotlinx.coroutines.delay
+
+// Session flag so Welcome Page never re-opens on orientation change
+private var hasShownWelcomeOnceInSession = false
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.parseColor("#15803D")))
+        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.parseColor("#0B2345")))
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WorkoraTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF15803D)
+                    color = Color(0xFF0B2345)
                 ) {
                     WorkoraApp()
                 }
@@ -85,21 +90,76 @@ fun WorkoraApp(
     val customerTab by viewModel.customerTab.collectAsStateWithLifecycle()
     val labourTab by viewModel.labourTab.collectAsStateWithLifecycle()
 
-    var showGreenWelcomeScreen by remember { mutableStateOf(true) }
+    var showGreenWelcomeScreen by rememberSaveable {
+        mutableStateOf(!hasShownWelcomeOnceInSession)
+    }
 
-    var isDirectAdminPanelOpen by remember {
+    var isDirectAdminPanelOpen by rememberSaveable {
         val isLogged = authPrefs.getBoolean("is_logged_in", false)
         val savedRole = authPrefs.getString("saved_user_role", null)
         mutableStateOf(isLogged && savedRole == "ADMIN")
     }
-    var activeAdminEmail by remember {
+    var activeAdminEmail by rememberSaveable {
         mutableStateOf(authPrefs.getString("last_logged_in_email", "") ?: "")
     }
-    var activeAdminTier by remember {
+    var activeAdminTier by rememberSaveable {
         mutableStateOf(authPrefs.getString("saved_admin_tier", "SUPER_ADMIN") ?: "SUPER_ADMIN")
     }
 
+    val proceedAfterWelcome: () -> Unit = {
+        if (showGreenWelcomeScreen) {
+            hasShownWelcomeOnceInSession = true
+            showGreenWelcomeScreen = false
+            val isLogged = authPrefs.getBoolean("is_logged_in", false)
+            val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
+            val savedRole = authPrefs.getString("saved_user_role", null)
+
+            if (!isLogged || savedEmail.isBlank()) {
+                isDirectAdminPanelOpen = false
+                viewModel.navigateTo(ScreenState.LOGIN)
+            } else if (savedRole == "ADMIN") {
+                isDirectAdminPanelOpen = true
+            } else if (savedRole == "CUSTOMER") {
+                isDirectAdminPanelOpen = false
+                viewModel.selectRole(UserRole.CUSTOMER)
+                viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+            } else if (savedRole == "LABOUR") {
+                isDirectAdminPanelOpen = false
+                viewModel.selectRole(UserRole.LABOUR)
+                viewModel.navigateTo(ScreenState.LABOUR_HOME)
+            } else {
+                isDirectAdminPanelOpen = false
+                viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+            }
+        }
+    }
+
+    // Strict Orientation Control: Welcome & Normal App = PORTRAIT, Admin Panel = LANDSCAPE
+    val shouldBeLandscape = !showGreenWelcomeScreen &&
+        (isDirectAdminPanelOpen || screenState == ScreenState.ADMIN_DASHBOARD)
+
+    LaunchedEffect(shouldBeLandscape) {
+        val desiredOrientation = if (shouldBeLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        if (activity != null && activity.requestedOrientation != desiredOrientation) {
+            activity.requestedOrientation = desiredOrientation
+        }
+    }
+
+    // Fast 1-second auto transition from Welcome Screen so it never hangs
+    LaunchedEffect(showGreenWelcomeScreen) {
+        if (showGreenWelcomeScreen) {
+            delay(2000L)
+            proceedAfterWelcome()
+        }
+    }
+
     val handleAdminRoleSwitch: (String) -> Unit = { targetRole ->
+        hasShownWelcomeOnceInSession = true
+        showGreenWelcomeScreen = false
         isDirectAdminPanelOpen = false
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         if (targetRole.equals("CUSTOMER", ignoreCase = true)) {
@@ -115,45 +175,10 @@ fun WorkoraApp(
         }
     }
 
-    LaunchedEffect(Unit) {
-        val isLogged = authPrefs.getBoolean("is_logged_in", false)
-        val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
-        if (isLogged && savedEmail.isNotBlank()) {
-            FirebaseManager.checkIfEmailIsAdminOnCloud(savedEmail) { isAdmin, adminTier ->
-                if (isAdmin && authPrefs.getString("saved_user_role", null) == "ADMIN") {
-                    activeAdminEmail = savedEmail
-                    activeAdminTier = adminTier
-                    isDirectAdminPanelOpen = true
-                }
-            }
-        } else {
-            isDirectAdminPanelOpen = false
-        }
-    }
-
     if (showGreenWelcomeScreen) {
         LanguageSelectionScreen(
             onLanguageSelected = {
-                showGreenWelcomeScreen = false
-                val isLogged = authPrefs.getBoolean("is_logged_in", false)
-                val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
-                if (!isLogged || savedEmail.isBlank()) {
-                    isDirectAdminPanelOpen = false
-                    viewModel.navigateTo(ScreenState.LOGIN)
-                } else if (!isDirectAdminPanelOpen) {
-                    val savedRole = authPrefs.getString("saved_user_role", null)
-                    when (savedRole) {
-                        "CUSTOMER" -> {
-                            viewModel.selectRole(UserRole.CUSTOMER)
-                            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
-                        }
-                        "LABOUR" -> {
-                            viewModel.selectRole(UserRole.LABOUR)
-                            viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                        }
-                        else -> viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
-                    }
-                }
+                proceedAfterWelcome()
             }
         )
         return
@@ -164,6 +189,8 @@ fun WorkoraApp(
             adminEmail = activeAdminEmail,
             adminTier = activeAdminTier,
             onLogoutAdmin = {
+                hasShownWelcomeOnceInSession = true
+                showGreenWelcomeScreen = false
                 isDirectAdminPanelOpen = false
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 authPrefs.edit()
@@ -262,6 +289,8 @@ fun WorkoraApp(
                         adminEmail = activeAdminEmail,
                         adminTier = activeAdminTier,
                         onLogoutAdmin = {
+                            hasShownWelcomeOnceInSession = true
+                            showGreenWelcomeScreen = false
                             isDirectAdminPanelOpen = false
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                             authPrefs.edit()
@@ -369,6 +398,8 @@ fun WorkoraApp(
                         },
                         onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) },
                         onOpenAdmin = {
+                            hasShownWelcomeOnceInSession = true
+                            showGreenWelcomeScreen = false
                             authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
                             isDirectAdminPanelOpen = true
                         },
