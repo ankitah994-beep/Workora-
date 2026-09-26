@@ -105,7 +105,6 @@ private fun translateCategoryLabel(category: String, isHindi: Boolean): String {
     }
 }
 
-// Smart Bilingual Search Engine (Matches English, Hindi, Hinglish, Multi-word & Partial queries)
 private fun matchesWorkerSmartSearch(worker: CustFeaturedWorkerProfile, rawQuery: String): Boolean {
     val q = rawQuery.trim().lowercase(Locale.US)
     if (q.isEmpty()) return true
@@ -137,7 +136,6 @@ private fun matchesWorkerSmartSearch(worker: CustFeaturedWorkerProfile, rawQuery
         append("worker karigar कारीगर वर्कर")
     }
 
-    // Check if full query is contained OR all individual words in query match
     if (searchableBlob.contains(q)) return true
     val words = q.split("\\s+".toRegex()).filter { it.isNotBlank() }
     return words.isNotEmpty() && words.all { word -> searchableBlob.contains(word) }
@@ -183,7 +181,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
 
     var localSearchText by remember { mutableStateOf(searchQuery) }
     var selectedSkillFilter by remember { mutableStateOf("All") }
-    var sortOption by remember { mutableStateOf("DEFAULT") } // DEFAULT, LOW_RATE, HIGH_RATING
+    var sortOption by remember { mutableStateOf("DEFAULT") }
     var showSortFilterModal by remember { mutableStateOf(false) }
 
     var selectedWorkerForProfile by remember { mutableStateOf<CustFeaturedWorkerProfile?>(null) }
@@ -372,15 +370,9 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         }
     }
 
-    // LIVE REAL-TIME FILTERING (No stale remember cache!)
     val filteredWorkers = allWorkersList
         .filter { w ->
-            val matchesCategory = if (localSearchText.isNotBlank()) {
-                // When user types in search bar, search across ALL workers unless category also matches
-                selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
-            } else {
-                selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
-            }
+            val matchesCategory = selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
             matchesCategory && matchesWorkerSmartSearch(w, localSearchText)
         }
         .let { list ->
@@ -542,7 +534,6 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // REAL WORKING SEARCH BAR (Auto-resets category filter to "All" when typing!)
                     OutlinedTextField(
                         value = localSearchText,
                         onValueChange = { newText ->
@@ -554,7 +545,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         },
                         placeholder = {
                             Text(
-                                text = if (isHindi) "कारीगर खोजें (जैसे tile worker, cleaner, राजमिस्त्री...)" else "Search for workers (e.g. tile worker, cleaner, mason...)",
+                                text = if (isHindi) "कारीगर खोजें..." else "Search for workers...",
                                 fontSize = 13.sp,
                                 color = CustSecondaryText
                             )
@@ -592,7 +583,6 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                 }
             }
 
-            // Category Filter Chips Row (Includes ALL categories)
             item {
                 val categories = listOf(
                     "All", "Mason", "Plumber", "Electrician", "Painter",
@@ -613,7 +603,6 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             border = BorderStroke(1.dp, if (isSelected) CustNavyPrimary else CustBorder),
                             modifier = Modifier.clickable {
                                 selectedSkillFilter = cat
-                                // Clear search text when user explicitly taps a category pill so all workers of that category show
                                 if (localSearchText.isNotBlank()) {
                                     localSearchText = ""
                                     onSearchQueryChanged("")
@@ -772,7 +761,6 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         }
     }
 
-    // Real Filter & Sort Dialog (When user clicks Filter Tune icon in Search Bar)
     if (showSortFilterModal) {
         AlertDialog(
             onDismissRequest = { showSortFilterModal = false },
@@ -836,6 +824,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         )
     }
 
+    // Hire Request Dialog (Updated placeholder to "अपना काम लिखे..")
     if (workerForHireRequest != null) {
         val targetWorker = workerForHireRequest!!
         var workDesc by remember { mutableStateOf("") }
@@ -893,7 +882,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         OutlinedTextField(
                             value = workDesc,
                             onValueChange = { workDesc = it },
-                            placeholder = { Text(if (isHindi) "घर की वायरिंग / निर्माण कार्य..." else "Need to fix home wiring / masonry work...") },
+                            placeholder = { Text("अपना काम लिखे..", color = CustSecondaryText) },
                             minLines = 3,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -955,11 +944,12 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         }
     }
 
+    // Post Work Dialog (Updated placeholders to "अपना काम लिखे..")
     if (showPostWorkDialog) {
         var title by remember { mutableStateOf("") }
-        var category by remember { mutableStateOf("Mason") }
+        var category by remember { mutableStateOf("") }
         var desc by remember { mutableStateOf("") }
-        var rate by remember { mutableStateOf("600") }
+        var rate by remember { mutableStateOf("") }
         var area by remember { mutableStateOf(profilePrefs.getString("user_location", "") ?: "") }
 
         AlertDialog(
@@ -968,11 +958,45 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
             title = { Text(if (isHindi) "नया काम पोस्ट करें" else "Post New Work Request", fontWeight = FontWeight.Bold, color = CustMainText) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(if (isHindi) "काम का नाम *" else "Work Title *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text(if (isHindi) "श्रेणी (जैसे Mason, Plumber) *" else "Category (e.g. Mason, Plumber) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = rate, onValueChange = { rate = it.filter { c -> c.isDigit() } }, label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = area, onValueChange = { area = it }, label = { Text(if (isHindi) "शहर / एरिया *" else "Work Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text(if (isHindi) "काम का विवरण" else "Work Details") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text(if (isHindi) "काम का नाम *" else "Work Title *") },
+                        placeholder = { Text("अपना काम लिखे..", color = CustSecondaryText) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text(if (isHindi) "काम की श्रेणी *" else "Category *") },
+                        placeholder = { Text("अपना काम लिखे..", color = CustSecondaryText) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = rate,
+                        onValueChange = { rate = it.filter { c -> c.isDigit() } },
+                        label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = area,
+                        onValueChange = { area = it },
+                        label = { Text(if (isHindi) "शहर / एरिया *" else "Work Area / City *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = desc,
+                        onValueChange = { desc = it },
+                        label = { Text(if (isHindi) "काम का विवरण" else "Work Details") },
+                        placeholder = { Text("अपना काम लिखे..", color = CustSecondaryText) },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
@@ -981,7 +1005,7 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         if (title.isNotBlank() && area.isNotBlank()) {
                             onPostJob(
                                 title.trim(),
-                                category.trim(),
+                                category.trim().ifEmpty { "General" },
                                 desc.trim(),
                                 rate.toIntOrNull() ?: 600,
                                 area.trim(),
@@ -1367,7 +1391,6 @@ internal fun CustWorkerFullProfileViewScreen(
                 }
             }
 
-            // Show Worker's 3 Uploaded Work Photos if available
             val uploadedPhotos = listOf(worker.photo1, worker.photo2, worker.photo3).filter { it.isNotBlank() }
             if (uploadedPhotos.isNotEmpty()) {
                 Card(
