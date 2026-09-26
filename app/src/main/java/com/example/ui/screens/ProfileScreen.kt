@@ -4,18 +4,29 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -27,12 +38,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -40,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.UserRole
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -83,6 +100,43 @@ internal object AppLanguageManager {
         init(context)
         return currentLanguage.equals("Hindi", ignoreCase = true) ||
             currentLanguage.contains("हिंदी")
+    }
+}
+
+// =========================================================================
+// SHARED IMAGE UPLOAD / BASE64 HELPERS (Used in Profile & Registration)
+// =========================================================================
+internal fun encodeImageUriToBase64(context: Context, uri: Uri, maxDimension: Int = 420): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val originalBitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream.close()
+        if (originalBitmap == null) return null
+
+        val ratio = minOf(
+            maxDimension.toFloat() / originalBitmap.width.coerceAtLeast(1),
+            maxDimension.toFloat() / originalBitmap.height.coerceAtLeast(1),
+            1f
+        )
+        val width = (originalBitmap.width * ratio).toInt().coerceAtLeast(1)
+        val height = (originalBitmap.height * ratio).toInt().coerceAtLeast(1)
+        val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, width, height, true)
+
+        val outputStream = ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 72, outputStream)
+        Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+internal fun decodeBase64ToBitmap(base64Str: String): ImageBitmap? {
+    if (base64Str.isBlank()) return null
+    return try {
+        val bytes = Base64.decode(base64Str, Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -166,6 +220,9 @@ fun ProfileScreen(
     var savedArea by remember {
         mutableStateOf(profilePrefs.getString("user_location", "") ?: "")
     }
+    var savedAddress by remember {
+        mutableStateOf(profilePrefs.getString("user_address", "") ?: "")
+    }
     var savedSkill by remember {
         mutableStateOf(profilePrefs.getString("user_skill", "") ?: "")
     }
@@ -174,6 +231,23 @@ fun ProfileScreen(
     }
     var savedRate by remember {
         mutableStateOf(profilePrefs.getString("user_rate", "") ?: "")
+    }
+    var savedBio by remember {
+        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "")
+    }
+
+    // Profile Photo + 3 Work/Portfolio Photos stored in SharedPreferences & Firebase
+    var savedProfilePhoto by remember {
+        mutableStateOf(profilePrefs.getString("user_profile_photo", "") ?: "")
+    }
+    var savedPhoto1 by remember {
+        mutableStateOf(profilePrefs.getString("user_photo_1", "") ?: "")
+    }
+    var savedPhoto2 by remember {
+        mutableStateOf(profilePrefs.getString("user_photo_2", "") ?: "")
+    }
+    var savedPhoto3 by remember {
+        mutableStateOf(profilePrefs.getString("user_photo_3", "") ?: "")
     }
 
     var notificationsMasterToggle by remember {
@@ -214,27 +288,40 @@ fun ProfileScreen(
     LaunchedEffect(savedEmail) {
         if (savedEmail.isNotBlank()) {
             isSyncing = true
-            fetchRealUserProfileFromFirebase(
+            fetchCompleteProfileFromFirebase(
                 email = savedEmail,
-                onLoaded = { name, phone, state, area, skill, exp, rate ->
-                    savedName = name
-                    savedPhone = phone
-                    savedState = state
-                    savedArea = area
-                    savedSkill = skill
-                    savedExperience = exp
-                    savedRate = rate
+                onLoaded = { dataMap ->
+                    if (dataMap.isNotEmpty()) {
+                        dataMap["name"]?.takeIf { it.isNotBlank() }?.let { savedName = it }
+                        dataMap["phone"]?.takeIf { it.isNotBlank() }?.let { savedPhone = it }
+                        dataMap["state"]?.takeIf { it.isNotBlank() }?.let { savedState = it }
+                        dataMap["location"]?.takeIf { it.isNotBlank() }?.let { savedArea = it }
+                        dataMap["address"]?.takeIf { it.isNotBlank() }?.let { savedAddress = it }
+                        dataMap["skill"]?.takeIf { it.isNotBlank() }?.let { savedSkill = it }
+                        dataMap["experience"]?.takeIf { it.isNotBlank() }?.let { savedExperience = it }
+                        dataMap["dailyRate"]?.takeIf { it.isNotBlank() && it != "0" }?.let { savedRate = it }
+                        dataMap["bio"]?.takeIf { it.isNotBlank() }?.let { savedBio = it }
+                        dataMap["profilePhoto"]?.takeIf { it.isNotBlank() }?.let { savedProfilePhoto = it }
+                        dataMap["photo1"]?.takeIf { it.isNotBlank() }?.let { savedPhoto1 = it }
+                        dataMap["photo2"]?.takeIf { it.isNotBlank() }?.let { savedPhoto2 = it }
+                        dataMap["photo3"]?.takeIf { it.isNotBlank() }?.let { savedPhoto3 = it }
 
-                    profilePrefs.edit()
-                        .putString("user_name", name)
-                        .putString("user_phone", phone)
-                        .putString("user_state", state)
-                        .putString("user_location", area)
-                        .putString("user_skill", skill)
-                        .putString("user_experience", exp)
-                        .putString("user_rate", rate)
-                        .apply()
-
+                        profilePrefs.edit()
+                            .putString("user_name", savedName)
+                            .putString("user_phone", savedPhone)
+                            .putString("user_state", savedState)
+                            .putString("user_location", savedArea)
+                            .putString("user_address", savedAddress)
+                            .putString("user_skill", savedSkill)
+                            .putString("user_experience", savedExperience)
+                            .putString("user_rate", savedRate)
+                            .putString("user_bio", savedBio)
+                            .putString("user_profile_photo", savedProfilePhoto)
+                            .putString("user_photo_1", savedPhoto1)
+                            .putString("user_photo_2", savedPhoto2)
+                            .putString("user_photo_3", savedPhoto3)
+                            .apply()
+                    }
                     isSyncing = false
                 }
             )
@@ -419,7 +506,7 @@ fun ProfileScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. Top User Profile Card
+                        // 1. Top User Profile Card (Shows uploaded Profile Photo + 3 Work Photos count)
                         item {
                             Card(
                                 modifier = Modifier
@@ -436,7 +523,10 @@ fun ProfileScreen(
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    SettingsWorkerAvatar(size = 66.dp)
+                                    UserProfilePhotoView(
+                                        base64Photo = savedProfilePhoto,
+                                        size = 66.dp
+                                    )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
@@ -447,14 +537,16 @@ fun ProfileScreen(
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = if (role == UserRole.LABOUR) {
-                                                savedSkill.ifBlank { if (isHindi) "कारीगर / वर्कर" else "Worker" }
+                                            text = if (savedSkill.isNotBlank()) {
+                                                savedSkill
+                                            } else if (role == UserRole.LABOUR) {
+                                                if (isHindi) "कारीगर / वर्कर" else "Worker"
                                             } else {
                                                 if (isHindi) "ग्राहक (Customer)" else "Customer"
                                             },
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = WorkoraSecondaryText
+                                            color = WorkoraAccentOrange
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -468,7 +560,7 @@ fun ProfileScreen(
                                             val locDisplay = listOf(savedArea, savedState)
                                                 .filter { it.isNotBlank() }
                                                 .joinToString(", ")
-                                                .ifBlank { if (isHindi) "लोकेशन सेट करने के लिए टैप करें" else "Tap to set location" }
+                                                .ifBlank { if (isHindi) "प्रोफाइल और फोटो एडिट करने के लिए टैप करें" else "Tap to edit profile & photos" }
                                             Text(
                                                 text = locDisplay,
                                                 fontSize = 13.sp,
@@ -485,7 +577,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 2. Primary Settings Card (Fully Bilingual)
+                        // 2. Primary Settings Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -497,8 +589,8 @@ fun ProfileScreen(
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Person,
-                                        title = if (isHindi) "प्रोफाइल एडिट करें" else "Edit Profile",
-                                        subtitle = if (isHindi) "अपनी व्यक्तिगत जानकारी अपडेट करें" else "Update your personal details",
+                                        title = if (isHindi) "प्रोफाइल और फोटो एडिट करें" else "Edit Profile & Photos",
+                                        subtitle = if (isHindi) "फोटो, काम, रेट और पूरी जानकारी अपडेट करें" else "Update profile photo, 3 photos & all details",
                                         onClick = { currentSubPage = SettingsSubPage.EDIT_PROFILE }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
@@ -541,7 +633,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 3. Account & Security Details Card (100% Translated in Hindi & English)
+                        // 3. Account & Security Details Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -625,7 +717,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 4. Logout & Delete Account Card (Fully Bilingual)
+                        // 4. Logout & Delete Account Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -726,14 +818,54 @@ fun ProfileScreen(
                     }
                 }
 
+                // =========================================================================
+                // COMPLETE EDIT PROFILE SCREEN (Profile Photo + 3 Photos + All Details)
+                // =========================================================================
                 SettingsSubPage.EDIT_PROFILE -> {
                     var editName by remember { mutableStateOf(savedName) }
                     var editPhone by remember { mutableStateOf(savedPhone) }
+                    var editEmail by remember { mutableStateOf(savedEmail) }
                     var editState by remember { mutableStateOf(savedState) }
                     var editArea by remember { mutableStateOf(savedArea) }
+                    var editAddress by remember { mutableStateOf(savedAddress) }
                     var editSkill by remember { mutableStateOf(savedSkill) }
                     var editExp by remember { mutableStateOf(savedExperience) }
                     var editRate by remember { mutableStateOf(savedRate) }
+                    var editBio by remember { mutableStateOf(savedBio) }
+
+                    var editProfilePhoto by remember { mutableStateOf(savedProfilePhoto) }
+                    var editPhoto1 by remember { mutableStateOf(savedPhoto1) }
+                    var editPhoto2 by remember { mutableStateOf(savedPhoto2) }
+                    var editPhoto3 by remember { mutableStateOf(savedPhoto3) }
+
+                    // Target slot: 0 = Profile Photo, 1 = Photo 1, 2 = Photo 2, 3 = Photo 3
+                    var activePhotoSlot by remember { mutableStateOf(0) }
+
+                    val photoPickerLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.GetContent()
+                    ) { uri: Uri? ->
+                        if (uri != null) {
+                            val encoded = encodeImageUriToBase64(context, uri)
+                            if (!encoded.isNullOrBlank()) {
+                                when (activePhotoSlot) {
+                                    0 -> editProfilePhoto = encoded
+                                    1 -> editPhoto1 = encoded
+                                    2 -> editPhoto2 = encoded
+                                    3 -> editPhoto3 = encoded
+                                }
+                                Toast.makeText(
+                                    context,
+                                    if (isHindi) "फोटो चुन ली गई है ✓" else "Photo selected ✓",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+
+                    val skillCategories = listOf(
+                        "Mason", "General Labour", "Painter", "Electrician",
+                        "Plumber", "Carpenter", "Cleaner", "Farm Worker", "Tile Worker", "Customer"
+                    )
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -743,86 +875,415 @@ fun ProfileScreen(
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(18.dp),
                                 colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                                border = BorderStroke(1.dp, WorkoraBorderColor)
+                                border = BorderStroke(1.dp, WorkoraBorderColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        .padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        SettingsWorkerAvatar(size = 64.dp)
+                                    // 1. PROFILE PHOTO UPLOAD SECTION
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.BottomEnd,
+                                            modifier = Modifier.clickable {
+                                                activePhotoSlot = 0
+                                                photoPickerLauncher.launch("image/*")
+                                            }
+                                        ) {
+                                            UserProfilePhotoView(
+                                                base64Photo = editProfilePhoto,
+                                                size = 78.dp
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(WorkoraAccentOrange)
+                                                    .border(2.dp, WorkoraWhite, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CameraAlt,
+                                                    contentDescription = "Upload Photo",
+                                                    tint = WorkoraWhite,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                        }
+
                                         Spacer(modifier = Modifier.width(16.dp))
-                                        Column {
-                                            Text(editName.ifBlank { if (isHindi) "आपकी प्रोफाइल" else "Your Profile" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = if (role == UserRole.LABOUR) editSkill.ifBlank { if (isHindi) "कारीगर" else "Worker" } else if (isHindi) "ग्राहक" else "Customer",
+                                                text = editName.ifBlank { if (isHindi) "आपकी प्रोफाइल" else "Your Profile" },
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WorkoraMainText
+                                            )
+                                            Text(
+                                                text = editSkill.ifBlank {
+                                                    if (role == UserRole.LABOUR) {
+                                                        if (isHindi) "कारीगर (Worker)" else "Worker"
+                                                    } else {
+                                                        if (isHindi) "ग्राहक (Customer)" else "Customer"
+                                                    }
+                                                },
                                                 fontSize = 13.sp,
                                                 color = WorkoraAccentOrange,
                                                 fontWeight = FontWeight.SemiBold
                                             )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        activePhotoSlot = 0
+                                                        photoPickerLauncher.launch("image/*")
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    border = BorderStroke(1.dp, WorkoraPrimaryNavy),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                    modifier = Modifier.height(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.AddAPhoto,
+                                                        contentDescription = null,
+                                                        tint = WorkoraPrimaryNavy,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = if (isHindi) "प्रोफाइल फोटो अपलोड करें" else "Upload Profile Photo",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = WorkoraPrimaryNavy
+                                                    )
+                                                }
+
+                                                if (editProfilePhoto.isNotBlank()) {
+                                                    IconButton(
+                                                        onClick = { editProfilePhoto = "" },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.Delete,
+                                                            contentDescription = "Remove Photo",
+                                                            tint = WorkoraDangerRed,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
-                                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text(if (isHindi) "पूरा नाम *" else "Full Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text(if (isHindi) "मोबाइल नंबर *" else "Phone Number *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editState, onValueChange = { editState = it }, label = { Text(if (isHindi) "राज्य (State) *" else "State *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text(if (isHindi) "शहर / गाँव (Area / City) *" else "Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    HorizontalDivider(color = WorkoraBorderColor)
 
-                                    if (role == UserRole.LABOUR) {
-                                        OutlinedTextField(value = editSkill, onValueChange = { editSkill = it }, label = { Text(if (isHindi) "काम की श्रेणी (Skill) *" else "Category / Skill *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                        OutlinedTextField(value = editExp, onValueChange = { editExp = it }, label = { Text(if (isHindi) "अनुभव (जैसे 3 yrs) *" else "Experience (e.g. 3 yrs) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                        OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    // 2. 3 PHOTOS UPLOAD SECTION (Photo 1, Photo 2, Photo 3)
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(
+                                            text = if (isHindi) "3 फोटो अपलोड करें (काम / आईडी / पोर्टफोलियो फोटो)" else "Upload 3 Photos (Work / ID / Portfolio Photos)",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = WorkoraPrimaryNavy
+                                        )
+                                        Text(
+                                            text = if (isHindi) "किसी भी बॉक्स पर टैप करके गैलरी से 3 फोटो अपलोड करें:" else "Tap any box below to upload up to 3 photos from gallery:",
+                                            fontSize = 12.sp,
+                                            color = WorkoraSecondaryText
+                                        )
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            ThreePhotoUploadBox(
+                                                label = if (isHindi) "फोटो 1" else "Photo 1",
+                                                base64Data = editPhoto1,
+                                                onPickClick = {
+                                                    activePhotoSlot = 1
+                                                    photoPickerLauncher.launch("image/*")
+                                                },
+                                                onRemoveClick = { editPhoto1 = "" },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            ThreePhotoUploadBox(
+                                                label = if (isHindi) "फोटो 2" else "Photo 2",
+                                                base64Data = editPhoto2,
+                                                onPickClick = {
+                                                    activePhotoSlot = 2
+                                                    photoPickerLauncher.launch("image/*")
+                                                },
+                                                onRemoveClick = { editPhoto2 = "" },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            ThreePhotoUploadBox(
+                                                label = if (isHindi) "फोटो 3" else "Photo 3",
+                                                base64Data = editPhoto3,
+                                                onPickClick = {
+                                                    activePhotoSlot = 3
+                                                    photoPickerLauncher.launch("image/*")
+                                                },
+                                                onRemoveClick = { editPhoto3 = "" },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
                                     }
+
+                                    HorizontalDivider(color = WorkoraBorderColor)
+
+                                    // 3. PERSONAL & LOCATION DETAILS
+                                    Text(
+                                        text = if (isHindi) "व्यक्तिगत और लोकेशन जानकारी" else "Personal & Location Details",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = WorkoraPrimaryNavy
+                                    )
+
+                                    OutlinedTextField(
+                                        value = editName,
+                                        onValueChange = { editName = it },
+                                        label = { Text(if (isHindi) "पूरा नाम (Full Name) *" else "Full Name *") },
+                                        leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = editPhone,
+                                        onValueChange = { editPhone = it },
+                                        label = { Text(if (isHindi) "मोबाइल नंबर (Phone Number) *" else "Phone Number *") },
+                                        leadingIcon = { Icon(Icons.Outlined.Phone, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = editEmail,
+                                        onValueChange = { editEmail = it },
+                                        label = { Text(if (isHindi) "ईमेल पता (Email Address) *" else "Email Address *") },
+                                        leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = editState,
+                                        onValueChange = { editState = it },
+                                        label = { Text(if (isHindi) "राज्य (State) *" else "State (राज्य) *") },
+                                        leadingIcon = { Icon(Icons.Outlined.Map, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = editArea,
+                                        onValueChange = { editArea = it },
+                                        label = { Text(if (isHindi) "शहर / गाँव (Area / City) *" else "Area / City (शहर / गाँव) *") },
+                                        leadingIcon = { Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = editAddress,
+                                        onValueChange = { editAddress = it },
+                                        label = { Text(if (isHindi) "पूरा पता / लैंडमार्क (Full Address)" else "Full Address / Landmark") },
+                                        leadingIcon = { Icon(Icons.Outlined.Home, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    HorizontalDivider(color = WorkoraBorderColor)
+
+                                    // 4. WORK / SKILL / RATE / EXPERIENCE / BIO DETAILS (Editable for All Users)
+                                    Text(
+                                        text = if (isHindi) "काम, अनुभव और मजदूरी रेट की जानकारी" else "Work Skill, Experience & Rate Details",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = WorkoraPrimaryNavy
+                                    )
+
+                                    Text(
+                                        text = if (isHindi) "अपनी श्रेणी चुनें या नीचे लिखें:" else "Tap to select category or type below:",
+                                        fontSize = 12.sp,
+                                        color = WorkoraSecondaryText
+                                    )
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        skillCategories.forEach { cat ->
+                                            val selected = editSkill.equals(cat, ignoreCase = true)
+                                            Surface(
+                                                color = if (selected) WorkoraPrimaryNavy else WorkoraBgGray,
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = BorderStroke(1.dp, if (selected) WorkoraPrimaryNavy else WorkoraBorderColor),
+                                                modifier = Modifier.clickable { editSkill = cat }
+                                            ) {
+                                                Text(
+                                                    text = cat,
+                                                    color = if (selected) WorkoraWhite else WorkoraMainText,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    OutlinedTextField(
+                                        value = editSkill,
+                                        onValueChange = { editSkill = it },
+                                        label = { Text(if (isHindi) "काम की श्रेणी / स्किल (Category / Skill)" else "Category / Skill (काम की श्रेणी)") },
+                                        leadingIcon = { Icon(Icons.Outlined.Construction, contentDescription = null, tint = WorkoraSecondaryText) },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = editExp,
+                                            onValueChange = { editExp = it },
+                                            label = { Text(if (isHindi) "अनुभव (जैसे 4 yrs)" else "Experience (e.g. 4 yrs)") },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = editRate,
+                                            onValueChange = { input -> editRate = input.filter { it.isDigit() }.take(5) },
+                                            label = { Text(if (isHindi) "प्रतिदिन रेट (₹)" else "Daily Rate (₹)") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    OutlinedTextField(
+                                        value = editBio,
+                                        onValueChange = { editBio = it },
+                                        label = { Text(if (isHindi) "अपने बारे में / काम का विवरण (About)" else "About Yourself / Work Bio") },
+                                        placeholder = {
+                                            Text(
+                                                if (isHindi) "अपने काम और अनुभव के बारे में लिखें..." else "Write about your work skills and experience...",
+                                                fontSize = 13.sp,
+                                                color = WorkoraSecondaryText
+                                            )
+                                        },
+                                        minLines = 3,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
 
                                     Button(
                                         onClick = {
                                             if (editName.isBlank() || editPhone.isBlank() || editArea.isBlank()) {
-                                                Toast.makeText(context, if (isHindi) "कृपया नाम, फोन और एरिया भरें" else "Name, Phone and Area cannot be empty", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(
+                                                    context,
+                                                    if (isHindi) "कृपया नाम, मोबाइल नंबर और शहर/एरिया भरें" else "Please fill Name, Phone and Area/City",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                             } else {
                                                 savedName = editName.trim()
                                                 savedPhone = editPhone.trim()
+                                                if (editEmail.contains("@")) {
+                                                    savedEmail = editEmail.trim()
+                                                    authPrefs.edit().putString("last_logged_in_email", savedEmail).apply()
+                                                }
                                                 savedState = editState.trim()
                                                 savedArea = editArea.trim()
+                                                savedAddress = editAddress.trim()
                                                 savedSkill = editSkill.trim()
                                                 savedExperience = editExp.trim()
                                                 savedRate = editRate.filter { it.isDigit() }
+                                                savedBio = editBio.trim()
+                                                savedProfilePhoto = editProfilePhoto
+                                                savedPhoto1 = editPhoto1
+                                                savedPhoto2 = editPhoto2
+                                                savedPhoto3 = editPhoto3
 
                                                 profilePrefs.edit()
                                                     .putString("user_name", savedName)
                                                     .putString("user_phone", savedPhone)
                                                     .putString("user_state", savedState)
                                                     .putString("user_location", savedArea)
+                                                    .putString("user_address", savedAddress)
                                                     .putString("user_skill", savedSkill)
                                                     .putString("user_experience", savedExperience)
                                                     .putString("user_rate", savedRate)
+                                                    .putString("user_bio", savedBio)
+                                                    .putString("user_profile_photo", savedProfilePhoto)
+                                                    .putString("user_photo_1", savedPhoto1)
+                                                    .putString("user_photo_2", savedPhoto2)
+                                                    .putString("user_photo_3", savedPhoto3)
                                                     .apply()
 
-                                                saveFullProfileToFirebase(
+                                                saveCompleteProfileToFirebase(
                                                     email = savedEmail,
                                                     name = savedName,
                                                     phone = savedPhone,
                                                     state = savedState,
                                                     area = savedArea,
+                                                    address = savedAddress,
                                                     role = if (role == UserRole.LABOUR) "Worker" else "Customer",
                                                     skill = savedSkill,
                                                     experience = savedExperience,
-                                                    dailyRate = savedRate.toIntOrNull() ?: 0
+                                                    dailyRate = savedRate.toIntOrNull() ?: 0,
+                                                    bio = savedBio,
+                                                    profilePhoto = savedProfilePhoto,
+                                                    photo1 = savedPhoto1,
+                                                    photo2 = savedPhoto2,
+                                                    photo3 = savedPhoto3
                                                 )
 
                                                 onUpdateProfile(savedName, savedPhone, savedArea)
-                                                Toast.makeText(context, if (isHindi) "प्रोफाइल अपडेट हो गई ✓" else "Profile updated ✓", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(
+                                                    context,
+                                                    if (isHindi) "प्रोफाइल और फोटो सफलतापूर्वक सेव हो गए ✓" else "Profile & Photos saved successfully ✓",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                                 currentSubPage = SettingsSubPage.MAIN
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(52.dp)
                                     ) {
-                                        Text(if (isHindi) "बदलाव सेव करें" else "Save Changes", color = WorkoraWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                        Text(
+                                            text = if (isHindi) "बदलाव सेव करें (Save Changes)" else "Save Changes",
+                                            color = WorkoraWhite,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
                                     }
                                 }
                             }
@@ -1280,6 +1741,122 @@ fun ProfileScreen(
     }
 }
 
+// =========================================================================
+// REUSABLE PROFILE PHOTO & 3-PHOTO UPLOAD COMPONENTS
+// =========================================================================
+@Composable
+internal fun UserProfilePhotoView(
+    base64Photo: String,
+    size: Dp = 66.dp
+) {
+    val decodedBitmap = remember(base64Photo) { decodeBase64ToBitmap(base64Photo) }
+    if (decodedBitmap != null) {
+        Image(
+            bitmap = decodedBitmap,
+            contentDescription = "Profile Photo",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .border(2.dp, WorkoraAccentOrange, CircleShape)
+        )
+    } else {
+        SettingsWorkerAvatar(size = size)
+    }
+}
+
+@Composable
+internal fun ThreePhotoUploadBox(
+    label: String,
+    base64Data: String,
+    onPickClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val bitmap = remember(base64Data) { decodeBase64ToBitmap(base64Data) }
+
+    Surface(
+        color = WorkoraBgGray,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (bitmap != null) WorkoraAccentOrange else WorkoraBorderColor),
+        modifier = modifier
+            .height(104.dp)
+            .clickable { onPickClick() }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = label,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xAA000000))
+                        .clickable { onRemoveClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove",
+                        tint = WorkoraWhite,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Surface(
+                    color = Color(0xAA083D91),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = label,
+                        color = WorkoraWhite,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.AddPhotoAlternate,
+                        contentDescription = label,
+                        tint = WorkoraPrimaryNavy,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WorkoraMainText,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "+ Upload",
+                        fontSize = 10.sp,
+                        color = WorkoraAccentOrange,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SettingsBottomWaveDecoration() {
     Canvas(
@@ -1429,7 +2006,7 @@ private fun SettingsBottomBarItem(
 }
 
 @Composable
-private fun SettingsWorkerAvatar(size: Dp = 66.dp) {
+internal fun SettingsWorkerAvatar(size: Dp = 66.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -1478,11 +2055,12 @@ private fun safeFirebaseKey(email: String): String {
         .replace(" ", "")
 }
 
-private fun fetchRealUserProfileFromFirebase(
+private fun fetchCompleteProfileFromFirebase(
     email: String,
-    onLoaded: (String, String, String, String, String, String, String) -> Unit
+    onLoaded: (Map<String, String>) -> Unit
 ) {
     Thread {
+        val map = mutableMapOf<String, String>()
         try {
             val key = safeFirebaseKey(email)
             val conn = URL("$SETTINGS_FIREBASE_URL/users/$key.json").openConnection() as HttpURLConnection
@@ -1492,39 +2070,46 @@ private fun fetchRealUserProfileFromFirebase(
                 val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
                 if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
                     val obj = JSONObject(resp)
-                    val name = obj.optString("name", "")
-                    val phone = obj.optString("phone", "")
-                    val state = obj.optString("state", "")
-                    val loc = obj.optString("location", "")
-                    val skill = obj.optString("skill", "")
-                    val exp = obj.optString("experience", "")
-                    val rate = obj.optInt("dailyRate", 0).takeIf { it > 0 }?.toString() ?: ""
-                    Handler(Looper.getMainLooper()).post {
-                        onLoaded(name, phone, state, loc, skill, exp, rate)
-                    }
-                    conn.disconnect()
-                    return@Thread
+                    map["name"] = obj.optString("name", "")
+                    map["phone"] = obj.optString("phone", "")
+                    map["state"] = obj.optString("state", "")
+                    map["location"] = obj.optString("location", "")
+                    map["address"] = obj.optString("address", "")
+                    map["skill"] = obj.optString("skill", "")
+                    map["experience"] = obj.optString("experience", "")
+                    map["dailyRate"] = obj.optInt("dailyRate", 0).takeIf { it > 0 }?.toString() ?: ""
+                    map["bio"] = obj.optString("bio", "")
+                    map["profilePhoto"] = obj.optString("profilePhoto", "")
+                    map["photo1"] = obj.optString("photo1", "")
+                    map["photo2"] = obj.optString("photo2", "")
+                    map["photo3"] = obj.optString("photo3", "")
                 }
             }
             conn.disconnect()
         } catch (_: Exception) {
         }
         Handler(Looper.getMainLooper()).post {
-            onLoaded("", "", "", "", "", "", "")
+            onLoaded(map)
         }
     }.start()
 }
 
-private fun saveFullProfileToFirebase(
+private fun saveCompleteProfileToFirebase(
     email: String,
     name: String,
     phone: String,
     state: String,
     area: String,
+    address: String,
     role: String,
     skill: String,
     experience: String,
-    dailyRate: Int
+    dailyRate: Int,
+    bio: String,
+    profilePhoto: String,
+    photo1: String,
+    photo2: String,
+    photo3: String
 ) {
     Thread {
         try {
@@ -1540,10 +2125,16 @@ private fun saveFullProfileToFirebase(
                 put("email", email)
                 put("state", state)
                 put("location", area)
+                put("address", address)
                 put("role", role)
                 put("skill", skill)
                 put("experience", experience)
                 put("dailyRate", dailyRate)
+                put("bio", bio)
+                put("profilePhoto", profilePhoto)
+                put("photo1", photo1)
+                put("photo2", photo2)
+                put("photo3", photo3)
             }
             OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
             conn.responseCode
