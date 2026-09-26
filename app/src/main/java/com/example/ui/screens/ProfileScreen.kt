@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -53,6 +54,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.model.UserRole
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -614,7 +617,7 @@ fun ProfileScreen(
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Place,
                                         title = if (isHindi) "शहर / राज्य (Area / State)" else "Area / State",
-                                        subtitle = if (isHindi) "अपना क्षेत्र या राज्य बदलें" else "Change your area or state",
+                                        subtitle = if (isHindi) "अपना क्षेत्र या राज्य बदलें (Live Location)" else "Change your area or state (Live Location)",
                                         valueText = savedArea.ifBlank { if (isHindi) "सेट नहीं है" else "Not set" },
                                         onClick = { showAreaDialog = true }
                                     )
@@ -769,6 +772,9 @@ fun ProfileScreen(
                     }
                 }
 
+                // =========================================================================
+                // COMPLETE EDIT PROFILE SCREEN (With Live Location Auto-Suggestions)
+                // =========================================================================
                 SettingsSubPage.EDIT_PROFILE -> {
                     var editName by remember { mutableStateOf(savedName) }
                     var editPhone by remember { mutableStateOf(savedPhone) }
@@ -985,7 +991,7 @@ fun ProfileScreen(
                                     HorizontalDivider(color = WorkoraBorderColor)
 
                                     Text(
-                                        text = if (isHindi) "व्यक्तिगत और लोकेशन जानकारी" else "Personal & Location Details",
+                                        text = if (isHindi) "व्यक्तिगत और लाइव लोकेशन जानकारी" else "Personal & Live Location Details",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = WorkoraPrimaryNavy
@@ -1023,21 +1029,22 @@ fun ProfileScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     )
 
+                                    // LIVE REAL LOCATION AUTO-SUGGEST FIELD FOR AREA / CITY & STATE
+                                    LiveLocationAutoCompleteField(
+                                        value = editArea,
+                                        onValueChange = { editArea = it },
+                                        onLocationSelected = { _, areaPart, statePart ->
+                                            editArea = areaPart
+                                            editState = statePart
+                                        },
+                                        label = if (isHindi) "शहर / गाँव (Area / City - Live Location) *" else "Area / City (शहर / गाँव - Live Location) *"
+                                    )
+
                                     OutlinedTextField(
                                         value = editState,
                                         onValueChange = { editState = it },
                                         label = { Text(if (isHindi) "राज्य (State) *" else "State (राज्य) *") },
                                         leadingIcon = { Icon(Icons.Outlined.Map, contentDescription = null, tint = WorkoraSecondaryText) },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    OutlinedTextField(
-                                        value = editArea,
-                                        onValueChange = { editArea = it },
-                                        label = { Text(if (isHindi) "शहर / गाँव (Area / City) *" else "Area / City (शहर / गाँव) *") },
-                                        leadingIcon = { Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = WorkoraSecondaryText) },
                                         singleLine = true,
                                         shape = RoundedCornerShape(12.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -1597,40 +1604,93 @@ fun ProfileScreen(
         )
     }
 
+    // =========================================================================
+    // AREA / STATE DIALOG WITH LIVE REAL LOCATION AUTO-SUGGESTIONS
+    // =========================================================================
     if (showAreaDialog) {
         var tempState by remember { mutableStateOf(savedState) }
         var tempArea by remember { mutableStateOf(savedArea) }
-        AlertDialog(
+
+        Dialog(
             onDismissRequest = { showAreaDialog = false },
-            containerColor = WorkoraWhite,
-            title = { Text(if (isHindi) "राज्य और शहर बदलें" else "Change State & Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = tempState, onValueChange = { tempState = it }, label = { Text(if (isHindi) "राज्य (State)" else "State") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = tempArea, onValueChange = { tempArea = it }, label = { Text(if (isHindi) "शहर / क्षेत्र (City / Area)" else "City / Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (tempArea.isNotBlank()) {
-                            savedState = tempState.trim()
-                            savedArea = tempArea.trim()
-                            profilePrefs.edit()
-                                .putString("user_state", savedState)
-                                .putString("user_location", savedArea)
-                                .apply()
-                            syncUserFieldToFirebase(savedEmail, "state", savedState)
-                            syncUserFieldToFirebase(savedEmail, "location", savedArea)
-                            onUpdateProfile(savedName, savedPhone, savedArea)
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = WorkoraWhite)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = if (isHindi) "राज्य और शहर बदलें (Live Location)" else "Change State & Area (Live Location)",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WorkoraMainText
+                    )
+                    Text(
+                        text = if (isHindi) "शहर या गाँव का नाम लिखें — नीचे अपने आप असली लोकेशन दिखेंगी:" else "Type your city or village — real locations will suggest below:",
+                        fontSize = 12.sp,
+                        color = WorkoraSecondaryText
+                    )
+
+                    LiveLocationAutoCompleteField(
+                        value = tempArea,
+                        onValueChange = { tempArea = it },
+                        onLocationSelected = { _, areaPart, statePart ->
+                            tempArea = areaPart
+                            tempState = statePart
+                        },
+                        label = if (isHindi) "शहर / क्षेत्र (City / Area) *" else "City / Area *"
+                    )
+
+                    OutlinedTextField(
+                        value = tempState,
+                        onValueChange = { tempState = it },
+                        label = { Text(if (isHindi) "राज्य (State) *" else "State *") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showAreaDialog = false }) {
+                            Text(if (isHindi) "रद्द करें" else "Cancel")
                         }
-                        showAreaDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) { Text(if (isHindi) "सेव करें" else "Save", color = WorkoraWhite) }
-            },
-            dismissButton = { TextButton(onClick = { showAreaDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") } }
-        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (tempArea.isNotBlank()) {
+                                    savedState = tempState.trim()
+                                    savedArea = tempArea.trim()
+                                    profilePrefs.edit()
+                                        .putString("user_state", savedState)
+                                        .putString("user_location", savedArea)
+                                        .apply()
+                                    syncUserFieldToFirebase(savedEmail, "state", savedState)
+                                    syncUserFieldToFirebase(savedEmail, "location", savedArea)
+                                    onUpdateProfile(savedName, savedPhone, savedArea)
+                                }
+                                showAreaDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
+                        ) {
+                            Text(if (isHindi) "सेव करें" else "Save", color = WorkoraWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showLanguageDialog) {
