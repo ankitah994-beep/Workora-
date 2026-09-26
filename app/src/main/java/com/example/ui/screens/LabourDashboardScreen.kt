@@ -37,7 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.Job
 import com.example.model.User
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -47,20 +46,20 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-internal val LabourNavyPrimary = Color(0xFF083D91)
-internal val LabourDarkNavyBtn = Color(0xFF0B2345)
-internal val LabourOrangeAccent = Color(0xFFFF8C00)
-internal val LabourBgLight = Color(0xFFF8FAFC)
-internal val LabourWhite = Color(0xFFFFFFFF)
-internal val LabourMainText = Color(0xFF0B2345)
-internal val LabourSecondaryText = Color(0xFF687280)
-internal val LabourBorder = Color(0xFFE5EAF0)
-internal val LabourSuccessGreen = Color(0xFF16A34A)
-internal val LabourRateBadgeBg = Color(0xFFFEF9C3)
-internal val LabourRateBadgeBorder = Color(0xFFFDE047)
-internal val LabourRateTextOrange = Color(0xFFD97706)
+private val LabourNavyPrimary = Color(0xFF083D91)
+private val LabourDarkNavyBtn = Color(0xFF0B2345)
+private val LabourOrangeAccent = Color(0xFFFF8C00)
+private val LabourBgLight = Color(0xFFF8FAFC)
+private val LabourWhite = Color(0xFFFFFFFF)
+private val LabourMainText = Color(0xFF0B2345)
+private val LabourSecondaryText = Color(0xFF687280)
+private val LabourBorder = Color(0xFFE5EAF0)
+private val LabourSuccessGreen = Color(0xFF16A34A)
+private val LabourRateBadgeBg = Color(0xFFFEF9C3)
+private val LabourRateBadgeBorder = Color(0xFFFDE047)
+private val LabourRateTextOrange = Color(0xFFD97706)
 
-internal const val LABOUR_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+private const val LABOUR_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
 internal data class LabourWorkRequestItem(
     val id: String,
@@ -80,9 +79,9 @@ internal data class LabourWorkRequestItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <CatT, TabT> LabourDashboardScreen(
+fun <JobT, CatT, TabT> LabourDashboardScreen(
     currentUser: User? = null,
-    jobs: List<Job> = emptyList(),
+    jobs: List<JobT> = emptyList(),
     applications: List<*> = emptyList<Any?>(),
     selectedCategory: CatT,
     onCategorySelected: (CatT) -> Unit = {},
@@ -90,10 +89,10 @@ fun <CatT, TabT> LabourDashboardScreen(
     onTabSelected: (TabT) -> Unit = {},
     isAvailable: Boolean = true,
     onToggleAvailability: () -> Unit = {},
-    onApplyJob: (Job) -> Unit = {},
-    onAcceptJob: (Job) -> Unit = {},
-    onRejectJob: (Job) -> Unit = {},
-    onCompleteJob: (String) -> Unit = {},
+    onApplyJob: (JobT) -> Unit = {},
+    onAcceptJob: (JobT) -> Unit = {},
+    onRejectJob: (JobT) -> Unit = {},
+    onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     toastMessage: String? = null,
