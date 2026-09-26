@@ -97,9 +97,9 @@ private data class BlockedUserEntry(
 @Composable
 fun ProfileScreen(
     role: UserRole = UserRole.CUSTOMER,
-    userName: String = "Ankit Ahirwar",
-    userPhone: String = "+91 6265798340",
-    userLocation: String = "Silwani, Raisen",
+    userName: String = "",
+    userPhone: String = "",
+    userLocation: String = "",
     onBack: () -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -123,26 +123,30 @@ fun ProfileScreen(
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.MAIN) }
     var isSyncing by remember { mutableStateOf(false) }
 
+    // Load ONLY real registered values (NO automatic fake defaults)
     var savedName by remember {
-        mutableStateOf(profilePrefs.getString("user_name", userName) ?: userName)
+        mutableStateOf(profilePrefs.getString("user_name", "") ?: "")
     }
     var savedPhone by remember {
-        mutableStateOf(profilePrefs.getString("user_phone", userPhone) ?: userPhone)
+        mutableStateOf(profilePrefs.getString("user_phone", "") ?: "")
     }
     var savedEmail by remember {
-        mutableStateOf(authPrefs.getString("last_logged_in_email", "ankitah994@gmail.com") ?: "ankitah994@gmail.com")
+        mutableStateOf(authPrefs.getString("last_logged_in_email", "") ?: "")
+    }
+    var savedState by remember {
+        mutableStateOf(profilePrefs.getString("user_state", "") ?: "")
     }
     var savedArea by remember {
-        mutableStateOf(profilePrefs.getString("user_location", userLocation) ?: userLocation)
+        mutableStateOf(profilePrefs.getString("user_location", "") ?: "")
     }
     var savedSkill by remember {
-        mutableStateOf(profilePrefs.getString("user_skill", if (role == UserRole.LABOUR) "Electrician" else "Customer") ?: "Electrician")
+        mutableStateOf(profilePrefs.getString("user_skill", "") ?: "")
     }
     var savedExperience by remember {
-        mutableStateOf(profilePrefs.getString("user_experience", "4 yrs") ?: "4 yrs")
+        mutableStateOf(profilePrefs.getString("user_experience", "") ?: "")
     }
     var savedRate by remember {
-        mutableStateOf(profilePrefs.getString("user_rate", "650") ?: "650")
+        mutableStateOf(profilePrefs.getString("user_rate", "") ?: "")
     }
 
     var notificationsMasterToggle by remember {
@@ -182,44 +186,40 @@ fun ProfileScreen(
     }
 
     LaunchedEffect(savedEmail) {
-        isSyncing = true
-        fetchRealUserProfileFromFirebase(
-            email = savedEmail,
-            onLoaded = { name, phone, area, skill, exp, rate ->
-                if (name.isNotBlank()) {
+        if (savedEmail.isNotBlank()) {
+            isSyncing = true
+            fetchRealUserProfileFromFirebase(
+                email = savedEmail,
+                onLoaded = { name, phone, state, area, skill, exp, rate ->
                     savedName = name
-                    profilePrefs.edit().putString("user_name", name).apply()
-                }
-                if (phone.isNotBlank()) {
                     savedPhone = phone
-                    profilePrefs.edit().putString("user_phone", phone).apply()
-                }
-                if (area.isNotBlank()) {
+                    savedState = state
                     savedArea = area
-                    profilePrefs.edit().putString("user_location", area).apply()
-                }
-                if (skill.isNotBlank()) {
                     savedSkill = skill
-                    profilePrefs.edit().putString("user_skill", skill).apply()
-                }
-                if (exp.isNotBlank()) {
                     savedExperience = exp
-                    profilePrefs.edit().putString("user_experience", exp).apply()
-                }
-                if (rate.isNotBlank()) {
                     savedRate = rate
-                    profilePrefs.edit().putString("user_rate", rate).apply()
+
+                    profilePrefs.edit()
+                        .putString("user_name", name)
+                        .putString("user_phone", phone)
+                        .putString("user_state", state)
+                        .putString("user_location", area)
+                        .putString("user_skill", skill)
+                        .putString("user_experience", exp)
+                        .putString("user_rate", rate)
+                        .apply()
+
+                    isSyncing = false
                 }
-                isSyncing = false
+            )
+            fetchUserBookingsFromFirebase { list ->
+                myBookingsList.clear()
+                myBookingsList.addAll(list)
             }
-        )
-        fetchUserBookingsFromFirebase { list ->
-            myBookingsList.clear()
-            myBookingsList.addAll(list)
-        }
-        fetchBlockedUsersFromFirebase(savedEmail) { list ->
-            blockedUsersList.clear()
-            blockedUsersList.addAll(list)
+            fetchBlockedUsersFromFirebase(savedEmail) { list ->
+                blockedUsersList.clear()
+                blockedUsersList.addAll(list)
+            }
         }
     }
 
@@ -227,7 +227,6 @@ fun ProfileScreen(
         containerColor = WorkoraBgGray,
         bottomBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Reference Image Decorative Navy & Orange Wave Banner above Bottom Navigation
                 SettingsBottomWaveDecoration()
 
                 Surface(
@@ -395,7 +394,7 @@ fun ProfileScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. Top User Summary Card (Exact Reference Design)
+                        // 1. Top User Summary Card (Shows ONLY Real User Data)
                         item {
                             Card(
                                 modifier = Modifier
@@ -416,14 +415,18 @@ fun ProfileScreen(
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = savedName,
+                                            text = savedName.ifBlank { savedEmail.substringBefore("@").ifBlank { "Workora User" } },
                                             fontSize = 19.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = WorkoraMainText
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = savedSkill,
+                                            text = if (role == UserRole.LABOUR) {
+                                                savedSkill.ifBlank { "Worker" }
+                                            } else {
+                                                "Customer"
+                                            },
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = WorkoraSecondaryText
@@ -437,8 +440,12 @@ fun ProfileScreen(
                                                 modifier = Modifier.size(15.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
+                                            val locDisplay = listOf(savedArea, savedState)
+                                                .filter { it.isNotBlank() }
+                                                .joinToString(", ")
+                                                .ifBlank { "Tap to set location" }
                                             Text(
-                                                text = "$savedArea, 5 km",
+                                                text = locDisplay,
                                                 fontSize = 13.sp,
                                                 color = WorkoraSecondaryText
                                             )
@@ -453,7 +460,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 2. Primary Reference Grouped Card (Edit Profile, My Bookings, Notifications, Language, Help & Support, About Workora)
+                        // 2. Primary Reference Grouped Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -509,7 +516,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 3. Account & Security Details Card (Phone, Email, Area, Password, Blocked Users, Report, Terms, Privacy, Switch Role)
+                        // 3. Account & Security Details Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -523,7 +530,7 @@ fun ProfileScreen(
                                         icon = Icons.Outlined.Phone,
                                         title = "Phone Number",
                                         subtitle = "Manage your phone number",
-                                        valueText = savedPhone,
+                                        valueText = savedPhone.ifBlank { "Not set" },
                                         onClick = { showPhoneDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
@@ -531,15 +538,15 @@ fun ProfileScreen(
                                         icon = Icons.Outlined.Email,
                                         title = "Email",
                                         subtitle = "Manage your email address",
-                                        valueText = savedEmail,
+                                        valueText = savedEmail.ifBlank { "Not set" },
                                         onClick = { showEmailDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Place,
-                                        title = "Area",
-                                        subtitle = "Change your area",
-                                        valueText = savedArea,
+                                        title = "Area / State",
+                                        subtitle = "Change your area or state",
+                                        valueText = savedArea.ifBlank { "Not set" },
                                         onClick = { showAreaDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
@@ -589,7 +596,7 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 4. Separate Logout & Delete Account Card (Exact Reference Design)
+                        // 4. Logout & Delete Account Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -693,6 +700,7 @@ fun ProfileScreen(
                 SettingsSubPage.EDIT_PROFILE -> {
                     var editName by remember { mutableStateOf(savedName) }
                     var editPhone by remember { mutableStateOf(savedPhone) }
+                    var editState by remember { mutableStateOf(savedState) }
                     var editArea by remember { mutableStateOf(savedArea) }
                     var editSkill by remember { mutableStateOf(savedSkill) }
                     var editExp by remember { mutableStateOf(savedExperience) }
@@ -720,33 +728,44 @@ fun ProfileScreen(
                                         SettingsWorkerAvatar(size = 64.dp)
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
-                                            Text(editName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                                            Text(savedSkill, fontSize = 13.sp, color = WorkoraAccentOrange, fontWeight = FontWeight.SemiBold)
+                                            Text(editName.ifBlank { "Your Profile" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                                            Text(
+                                                text = if (role == UserRole.LABOUR) editSkill.ifBlank { "Worker" } else "Customer",
+                                                fontSize = 13.sp,
+                                                color = WorkoraAccentOrange,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
                                         }
                                     }
 
-                                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Full Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text("Area / City") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editSkill, onValueChange = { editSkill = it }, label = { Text("Category / Skill") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editExp, onValueChange = { editExp = it }, label = { Text("Experience") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text("Daily Rate (₹)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Full Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editState, onValueChange = { editState = it }, label = { Text("State (राज्य) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text("Area / City (शहर / गाँव) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                                    if (role == UserRole.LABOUR) {
+                                        OutlinedTextField(value = editSkill, onValueChange = { editSkill = it }, label = { Text("Category / Skill *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                        OutlinedTextField(value = editExp, onValueChange = { editExp = it }, label = { Text("Experience (e.g. 3 yrs) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                        OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text("Daily Rate (₹) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    }
 
                                     Button(
                                         onClick = {
-                                            if (editName.isBlank() || editPhone.isBlank()) {
-                                                Toast.makeText(context, "Name and Phone cannot be empty", Toast.LENGTH_SHORT).show()
+                                            if (editName.isBlank() || editPhone.isBlank() || editArea.isBlank()) {
+                                                Toast.makeText(context, "Name, Phone and Area cannot be empty", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 savedName = editName.trim()
                                                 savedPhone = editPhone.trim()
+                                                savedState = editState.trim()
                                                 savedArea = editArea.trim()
                                                 savedSkill = editSkill.trim()
                                                 savedExperience = editExp.trim()
-                                                savedRate = editRate.filter { it.isDigit() }.ifEmpty { "600" }
+                                                savedRate = editRate.filter { it.isDigit() }
 
                                                 profilePrefs.edit()
                                                     .putString("user_name", savedName)
                                                     .putString("user_phone", savedPhone)
+                                                    .putString("user_state", savedState)
                                                     .putString("user_location", savedArea)
                                                     .putString("user_skill", savedSkill)
                                                     .putString("user_experience", savedExperience)
@@ -757,11 +776,12 @@ fun ProfileScreen(
                                                     email = savedEmail,
                                                     name = savedName,
                                                     phone = savedPhone,
+                                                    state = savedState,
                                                     area = savedArea,
-                                                    role = role.name,
+                                                    role = if (role == UserRole.LABOUR) "Worker" else "Customer",
                                                     skill = savedSkill,
                                                     experience = savedExperience,
-                                                    dailyRate = savedRate.toIntOrNull() ?: 600
+                                                    dailyRate = savedRate.toIntOrNull() ?: 0
                                                 )
 
                                                 onUpdateProfile(savedName, savedPhone, savedArea)
@@ -1096,19 +1116,31 @@ fun ProfileScreen(
     }
 
     if (showAreaDialog) {
+        var tempState by remember { mutableStateOf(savedState) }
         var tempArea by remember { mutableStateOf(savedArea) }
         AlertDialog(
             onDismissRequest = { showAreaDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Change Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = { OutlinedTextField(value = tempArea, onValueChange = { tempArea = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            title = { Text("Change State & Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = tempState, onValueChange = { tempState = it }, label = { Text("State") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempArea, onValueChange = { tempArea = it }, label = { Text("City / Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         if (tempArea.isNotBlank()) {
+                            savedState = tempState.trim()
                             savedArea = tempArea.trim()
-                            profilePrefs.edit().putString("user_location", savedArea).apply()
+                            profilePrefs.edit()
+                                .putString("user_state", savedState)
+                                .putString("user_location", savedArea)
+                                .apply()
+                            syncUserFieldToFirebase(savedEmail, "state", savedState)
                             syncUserFieldToFirebase(savedEmail, "location", savedArea)
+                            onUpdateProfile(savedName, savedPhone, savedArea)
                         }
                         showAreaDialog = false
                     },
@@ -1390,12 +1422,16 @@ private fun SettingsWorkerAvatar(size: Dp = 66.dp) {
 }
 
 private fun safeFirebaseKey(email: String): String {
-    return email.trim().lowercase(Locale.US).replace(".", "_").replace("@", "_at_")
+    return email.trim().lowercase(Locale.US)
+        .replace(".", "_")
+        .replace("@", "_at_")
+        .replace("+", "")
+        .replace(" ", "")
 }
 
 private fun fetchRealUserProfileFromFirebase(
     email: String,
-    onLoaded: (String, String, String, String, String, String) -> Unit
+    onLoaded: (String, String, String, String, String, String, String) -> Unit
 ) {
     Thread {
         try {
@@ -1409,12 +1445,13 @@ private fun fetchRealUserProfileFromFirebase(
                     val obj = JSONObject(resp)
                     val name = obj.optString("name", "")
                     val phone = obj.optString("phone", "")
+                    val state = obj.optString("state", "")
                     val loc = obj.optString("location", "")
                     val skill = obj.optString("skill", "")
                     val exp = obj.optString("experience", "")
                     val rate = obj.optInt("dailyRate", 0).takeIf { it > 0 }?.toString() ?: ""
                     Handler(Looper.getMainLooper()).post {
-                        onLoaded(name, phone, loc, skill, exp, rate)
+                        onLoaded(name, phone, state, loc, skill, exp, rate)
                     }
                     conn.disconnect()
                     return@Thread
@@ -1424,7 +1461,7 @@ private fun fetchRealUserProfileFromFirebase(
         } catch (_: Exception) {
         }
         Handler(Looper.getMainLooper()).post {
-            onLoaded("", "", "", "", "", "")
+            onLoaded("", "", "", "", "", "", "")
         }
     }.start()
 }
@@ -1433,6 +1470,7 @@ private fun saveFullProfileToFirebase(
     email: String,
     name: String,
     phone: String,
+    state: String,
     area: String,
     role: String,
     skill: String,
@@ -1451,14 +1489,12 @@ private fun saveFullProfileToFirebase(
                 put("name", name)
                 put("phone", phone)
                 put("email", email)
+                put("state", state)
                 put("location", area)
                 put("role", role)
                 put("skill", skill)
                 put("experience", experience)
                 put("dailyRate", dailyRate)
-                put("status", "Active")
-                put("availability", "Available")
-                put("joined", SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()))
             }
             OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
             conn.responseCode
@@ -1505,12 +1541,12 @@ private fun fetchUserBookingsFromFirebase(onLoaded: (List<UserBookingItem>) -> U
                             UserBookingItem(
                                 id = k,
                                 title = obj.optString("title", "Work Booking"),
-                                category = obj.optString("category", "General"),
-                                location = obj.optString("location", "Silwani, Raisen"),
-                                rate = obj.optInt("dailyRate", 600),
+                                category = obj.optString("category", ""),
+                                location = obj.optString("location", ""),
+                                rate = obj.optInt("dailyRate", 0),
                                 status = obj.optString("status", "PENDING").uppercase(Locale.US),
-                                date = obj.optString("date", "Today"),
-                                customerName = obj.optString("customerName", "Ankit Ahirwar")
+                                date = obj.optString("date", ""),
+                                customerName = obj.optString("customerName", "")
                             )
                         )
                     }
@@ -1595,3 +1631,4 @@ private fun submitReportToFirebase(name: String, phone: String, subject: String,
         }
     }.start()
 }
+the
