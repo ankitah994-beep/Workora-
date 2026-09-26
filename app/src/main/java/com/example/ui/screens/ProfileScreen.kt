@@ -110,7 +110,6 @@ fun ProfileScreen(
     val context = LocalContext.current
     val activity = context as? Activity
 
-    // Ensure mobile Settings screen always stays in Portrait orientation
     DisposableEffect(Unit) {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         onDispose { }
@@ -123,7 +122,6 @@ fun ProfileScreen(
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.MAIN) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    // Load ONLY real registered values (NO automatic fake defaults)
     var savedName by remember {
         mutableStateOf(profilePrefs.getString("user_name", "") ?: "")
     }
@@ -302,7 +300,6 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Top Navy Header
             Surface(
                 color = WorkoraPrimaryNavy,
                 shadowElevation = 4.dp
@@ -394,7 +391,6 @@ fun ProfileScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. Top User Summary Card (Shows ONLY Real User Data)
                         item {
                             Card(
                                 modifier = Modifier
@@ -460,7 +456,6 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 2. Primary Reference Grouped Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -516,7 +511,6 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 3. Account & Security Details Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -596,7 +590,6 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 4. Logout & Delete Account Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1631,4 +1624,3 @@ private fun submitReportToFirebase(name: String, phone: String, subject: String,
         }
     }.start()
 }
-the
