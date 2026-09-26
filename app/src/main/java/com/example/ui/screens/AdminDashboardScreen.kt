@@ -201,7 +201,6 @@ fun AdminDashboardScreen(
         refreshAdminDatabase()
     }
 
-    // Horizontal Desktop Viewport Wrapper (Min width 1200dp so it never breaks layout vertically)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -216,7 +215,7 @@ fun AdminDashboardScreen(
             Box(
                 modifier = Modifier
                     .width(1200.dp)
-                    .fillMinHeight()
+                    .fillMaxSize()
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     AdminSidebarContent(
@@ -1224,7 +1223,7 @@ private fun saveCategoryToFirebase(cat: AdminCategoryRecord) {
             conn.requestMethod = "PUT"
             conn.doOutput = true
             val payload = JSONObject().apply { put("id", cat.id); put("name", cat.name); put("iconName", cat.iconName); put("active", cat.active); put("workerCount", cat.workerCount) }
-            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
+            OutputStreamWriter(conn.outputStream).use { it.write(payload.username_or_password_placeholder ?: it.write(payload.toString())) }
             conn.responseCode
             conn.disconnect()
         } catch (_: Exception) {
