@@ -1286,6 +1286,9 @@ fun ProfileScreen(
                     }
                 }
 
+                // =========================================================================
+                // MY BOOKINGS SCREEN ("PENDING" in Red + Fixed Single-Line Status Layout)
+                // =========================================================================
                 SettingsSubPage.MY_BOOKINGS -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -1312,19 +1315,55 @@ fun ProfileScreen(
                             }
                         } else {
                             items(myBookingsList) { bk ->
+                                val isPendingOrRed = bk.status.equals("PENDING", ignoreCase = true) ||
+                                    bk.status.equals("REJECTED", ignoreCase = true) ||
+                                    bk.status.equals("CANCELLED", ignoreCase = true)
+
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                                     border = BorderStroke(1.dp, WorkoraBorderColor)
                                 ) {
-                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text(bk.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                                            Text(bk.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraSuccessGreen)
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Text(
+                                                text = bk.title,
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WorkoraMainText,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(end = 10.dp)
+                                            )
+                                            Text(
+                                                text = bk.status,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = if (isPendingOrRed) WorkoraDangerRed else WorkoraSuccessGreen,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
                                         }
-                                        Text("${bk.category} • ${bk.location}", fontSize = 13.sp, color = WorkoraSecondaryText)
-                                        Text("₹${bk.rate}/${if (isHindi) "दिन" else "day"} • ${bk.date}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraAccentOrange)
+                                        Text(
+                                            text = listOf(bk.category, bk.location).filter { it.isNotBlank() }.joinToString(" • "),
+                                            fontSize = 13.sp,
+                                            color = WorkoraSecondaryText
+                                        )
+                                        val rateText = "₹${bk.rate}/${if (isHindi) "दिन" else "day"}"
+                                        Text(
+                                            text = if (bk.date.isNotBlank()) "$rateText • ${bk.date}" else rateText,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = WorkoraAccentOrange
+                                        )
                                     }
                                 }
                             }
@@ -2268,3 +2307,4 @@ private fun submitReportToFirebase(name: String, phone: String, subject: String,
         }
     }.start()
 }
+to
