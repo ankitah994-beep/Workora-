@@ -77,6 +77,23 @@ internal data class LabourWorkRequestItem(
     val urgency: String
 )
 
+private fun translateLabourCategory(category: String, isHindi: Boolean): String {
+    if (!isHindi) return category
+    return when (category.trim().lowercase(Locale.US)) {
+        "all" -> "सभी (All)"
+        "mason" -> "राजमिस्त्री (Mason)"
+        "electrician" -> "इलेक्ट्रीशियन (Electrician)"
+        "plumber" -> "प्लंबर (Plumber)"
+        "painter" -> "पेंटर (Painter)"
+        "carpenter" -> "बढ़ई (Carpenter)"
+        "general labour" -> "मजदूर (General Labour)"
+        "tile worker" -> "टाइल्स कारीगर (Tile Worker)"
+        "cleaner" -> "सफाई कर्मी (Cleaner)"
+        "farm worker" -> "कृषि मजदूर (Farm Worker)"
+        else -> category
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <JobT, CatT, TabT> LabourDashboardScreen(
@@ -103,6 +120,12 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
 
+    LaunchedEffect(Unit) {
+        AppLanguageManager.init(context)
+    }
+    val selectedLanguage = AppLanguageManager.currentLanguage
+    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
+
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
             Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
@@ -110,11 +133,11 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
     }
 
     val workerName = profilePrefs.getString("user_name", "")?.ifBlank {
-        authPrefs.getString("last_logged_in_email", "Worker")?.substringBefore("@") ?: "Worker"
+        authPrefs.getString("last_logged_in_email", if (isHindi) "कारीगर" else "Worker")?.substringBefore("@") ?: "Worker"
     } ?: "Worker"
-    val workerSkill = profilePrefs.getString("user_skill", "")?.ifBlank { "Skilled Worker" } ?: "Skilled Worker"
-    val workerArea = profilePrefs.getString("user_location", "")?.ifBlank { "Local Area" } ?: "Local Area"
-    val workerExp = profilePrefs.getString("user_experience", "")?.ifBlank { "Experienced" } ?: "Experienced"
+    val workerSkill = profilePrefs.getString("user_skill", "")?.ifBlank { if (isHindi) "कुशल कारीगर" else "Skilled Worker" } ?: "Skilled Worker"
+    val workerArea = profilePrefs.getString("user_location", "")?.ifBlank { if (isHindi) "स्थानीय क्षेत्र" else "Local Area" } ?: "Local Area"
+    val workerExp = profilePrefs.getString("user_experience", "")?.ifBlank { if (isHindi) "अनुभवी" else "Experienced" } ?: "Experienced"
     val workerRate = profilePrefs.getString("user_rate", "")?.ifBlank { "600" } ?: "600"
 
     var selectedCategoryFilter by remember { mutableStateOf("All") }
@@ -212,7 +235,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
         chatPrefs.edit()
             .putString("chat_partner_id", req.id)
             .putString("chat_partner_name", req.customerName)
-            .putString("chat_partner_role", "Customer • ${req.title}")
+            .putString("chat_partner_role", "${if (isHindi) "ग्राहक" else "Customer"} • ${req.title}")
             .putString("chat_partner_phone", req.customerPhone)
             .putString("chat_partner_area", req.location)
             .apply()
@@ -223,6 +246,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
         val req = selectedCustomerRequestForProfile!!
         CustomerAndJobDetailProfileScreen(
             request = req,
+            isHindi = isHindi,
             onBack = { selectedCustomerRequestForProfile = null },
             onCallCustomer = {
                 val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
@@ -239,7 +263,11 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                     workRequestsList[idx] = updated
                     selectedCustomerRequestForProfile = updated
                     updateJobStatusInFirebase(req.id, "ACCEPTED", workerName)
-                    Toast.makeText(context, "Work Request Accepted! ✓", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        if (isHindi) "काम की रिक्वेस्ट स्वीकार कर ली गई! ✓" else "Work Request Accepted! ✓",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         )
@@ -264,25 +292,25 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                 ) {
                     LabourBottomNavItem(
                         icon = Icons.Default.Home,
-                        label = "Home",
+                        label = if (isHindi) "होम" else "Home",
                         isSelected = true,
                         onClick = { selectedCategoryFilter = "All" }
                     )
                     LabourBottomNavItem(
                         icon = Icons.Outlined.WorkOutline,
-                        label = "My Jobs",
+                        label = if (isHindi) "मेरे काम" else "My Jobs",
                         isSelected = false,
                         onClick = { selectedCategoryFilter = "All" }
                     )
                     LabourBottomNavItem(
                         icon = Icons.Outlined.Chat,
-                        label = "Chat",
+                        label = if (isHindi) "चैट" else "Chat",
                         isSelected = false,
                         onClick = onOpenChat
                     )
                     LabourBottomNavItem(
                         icon = Icons.Outlined.Person,
-                        label = "Profile",
+                        label = if (isHindi) "प्रोफाइल" else "Profile",
                         isSelected = false,
                         onClick = onOpenProfile
                     )
@@ -315,7 +343,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = "Worker Dashboard",
+                            text = if (isHindi) "कारीगर डैशबोर्ड" else "Worker Dashboard",
                             color = Color(0xFFCBD5E1),
                             fontSize = 12.sp
                         )
@@ -331,7 +359,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                             modifier = Modifier.clickable { onSwitchRole() }
                         ) {
                             Text(
-                                text = "Customer Mode",
+                                text = if (isHindi) "कस्टमर मोड" else "Customer Mode",
                                 color = LabourWhite,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -364,19 +392,19 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                                     color = LabourMainText
                                 )
                                 Text(
-                                    text = workerSkill,
+                                    text = translateLabourCategory(workerSkill, isHindi),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = LabourNavyPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "📍 $workerArea • Exp: $workerExp",
+                                    text = "📍 $workerArea • ${if (isHindi) "अनुभव:" else "Exp:"} $workerExp",
                                     fontSize = 12.sp,
                                     color = LabourSecondaryText
                                 )
                                 Text(
-                                    text = "Daily Rate: ₹$workerRate/day",
+                                    text = "${if (isHindi) "प्रतिदिन रेट:" else "Daily Rate:"} ₹$workerRate/${if (isHindi) "दिन" else "day"}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = LabourOrangeAccent
@@ -400,7 +428,11 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isAvailable) "Available for work" else "Currently Busy",
+                                    text = if (isAvailable) {
+                                        if (isHindi) "काम के लिए उपलब्ध (Available)" else "Available for work"
+                                    } else {
+                                        if (isHindi) "अभी व्यस्त (Currently Busy)" else "Currently Busy"
+                                    },
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isAvailable) LabourSuccessGreen else Color(0xFFDC2626)
@@ -437,7 +469,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                             modifier = Modifier.clickable { selectedCategoryFilter = c }
                         ) {
                             Text(
-                                text = c,
+                                text = translateLabourCategory(c, isHindi),
                                 color = if (selected) LabourWhite else LabourMainText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
@@ -457,13 +489,13 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Customer Work Requests (${filteredRequests.size})",
+                        text = if (isHindi) "ग्राहकों के काम की रिक्वेस्ट (${filteredRequests.size})" else "Customer Work Requests (${filteredRequests.size})",
                         fontSize = 19.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = LabourMainText
                     )
                     Text(
-                        text = "See All >",
+                        text = if (isHindi) "सभी देखें >" else "See All >",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = LabourNavyPrimary,
@@ -475,6 +507,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
             items(filteredRequests, key = { it.id }) { req ->
                 CustomerWorkRequestCard(
                     request = req,
+                    isHindi = isHindi,
                     onCardClick = {
                         selectedCustomerRequestForProfile = req
                     },
@@ -494,6 +527,7 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
 @Composable
 internal fun CustomerWorkRequestCard(
     request: LabourWorkRequestItem,
+    isHindi: Boolean,
     onCardClick: () -> Unit,
     onCallCustomerClick: () -> Unit,
     onMessageIconClick: () -> Unit
@@ -544,7 +578,7 @@ internal fun CustomerWorkRequestCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${request.title} (${request.category})",
+                        text = "${request.title} (${translateLabourCategory(request.category, isHindi)})",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = LabourNavyPrimary,
@@ -578,7 +612,7 @@ internal fun CustomerWorkRequestCard(
                     border = BorderStroke(1.dp, LabourRateBadgeBorder)
                 ) {
                     Text(
-                        text = "₹${request.dailyRate}/दिन",
+                        text = "₹${request.dailyRate}/${if (isHindi) "दिन" else "day"}",
                         color = LabourRateTextOrange,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -613,7 +647,7 @@ internal fun CustomerWorkRequestCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Call Now",
+                        text = if (isHindi) "अभी कॉल करें (Call Now)" else "Call Now",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = LabourWhite
@@ -644,6 +678,7 @@ internal fun CustomerWorkRequestCard(
 @Composable
 internal fun CustomerAndJobDetailProfileScreen(
     request: LabourWorkRequestItem,
+    isHindi: Boolean,
     onBack: () -> Unit,
     onCallCustomer: () -> Unit,
     onChatWithCustomer: () -> Unit,
@@ -673,7 +708,7 @@ internal fun CustomerAndJobDetailProfileScreen(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "Customer & Work Profile",
+                    text = if (isHindi) "ग्राहक और काम का विवरण" else "Customer & Work Profile",
                     color = LabourWhite,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -720,7 +755,7 @@ internal fun CustomerAndJobDetailProfileScreen(
                                 color = LabourMainText
                             )
                             Text(
-                                text = "Verified Customer",
+                                text = if (isHindi) "सत्यापित ग्राहक (Verified Customer)" else "Verified Customer",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = LabourSuccessGreen
@@ -735,11 +770,35 @@ internal fun CustomerAndJobDetailProfileScreen(
 
                     HorizontalDivider(color = LabourBorder)
 
-                    Text("Work Title: ${request.title}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = LabourMainText)
-                    Text("Category Needed: ${request.category}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = LabourNavyPrimary)
-                    Text("Offered Rate: ₹${request.dailyRate}/दिन • Workers Needed: ${request.workersNeeded}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = LabourOrangeAccent)
-                    Text("Customer Phone: ${request.customerPhone}", fontSize = 14.sp, color = LabourMainText)
-                    Text("Work Description:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = LabourMainText)
+                    Text(
+                        text = "${if (isHindi) "काम:" else "Work Title:"} ${request.title}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = LabourMainText
+                    )
+                    Text(
+                        text = "${if (isHindi) "श्रेणी:" else "Category Needed:"} ${translateLabourCategory(request.category, isHindi)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = LabourNavyPrimary
+                    )
+                    Text(
+                        text = "${if (isHindi) "प्रतिदिन रेट:" else "Offered Rate:"} ₹${request.dailyRate}/${if (isHindi) "दिन" else "day"} • ${if (isHindi) "कारीगर चाहिए:" else "Workers Needed:"} ${request.workersNeeded}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = LabourOrangeAccent
+                    )
+                    Text(
+                        text = "${if (isHindi) "ग्राहक का नंबर:" else "Customer Phone:"} ${request.customerPhone}",
+                        fontSize = 14.sp,
+                        color = LabourMainText
+                    )
+                    Text(
+                        text = if (isHindi) "काम का पूरा विवरण:" else "Work Description:",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = LabourMainText
+                    )
                     Text(request.description, fontSize = 14.sp, color = LabourSecondaryText)
                 }
             }
@@ -758,7 +817,7 @@ internal fun CustomerAndJobDetailProfileScreen(
                 ) {
                     Icon(Icons.Default.Call, contentDescription = null, tint = LabourWhite, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Call Now", color = LabourWhite, fontWeight = FontWeight.Bold)
+                    Text(if (isHindi) "कॉल करें" else "Call Now", color = LabourWhite, fontWeight = FontWeight.Bold)
                 }
 
                 Button(
@@ -771,7 +830,7 @@ internal fun CustomerAndJobDetailProfileScreen(
                 ) {
                     Icon(Icons.Outlined.Chat, contentDescription = null, tint = LabourWhite, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Live Chat", color = LabourWhite, fontWeight = FontWeight.Bold)
+                    Text(if (isHindi) "लाइव चैट" else "Live Chat", color = LabourWhite, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -786,7 +845,11 @@ internal fun CustomerAndJobDetailProfileScreen(
                     .height(54.dp)
             ) {
                 Text(
-                    text = if (request.status == "ACCEPTED") "Work Request Accepted ✓" else "Accept Work Request",
+                    text = if (request.status == "ACCEPTED") {
+                        if (isHindi) "काम स्वीकार किया गया ✓" else "Work Request Accepted ✓"
+                    } else {
+                        if (isHindi) "काम स्वीकार करें (Accept Work)" else "Accept Work Request"
+                    },
                     color = LabourWhite,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.ExtraBold
