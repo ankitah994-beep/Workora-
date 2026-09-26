@@ -1,7 +1,9 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -26,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +70,7 @@ private enum class SettingsSubPage {
     BLOCKED_USERS,
     REPORT_PROBLEM,
     HELP_SUPPORT,
+    ABOUT_WORKORA,
     TERMS,
     PRIVACY_POLICY
 }
@@ -104,6 +108,14 @@ fun ProfileScreen(
     onUpdateProfile: (String, String, String) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
+
+    // Ensure mobile Settings screen always stays in Portrait orientation
+    DisposableEffect(Unit) {
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        onDispose { }
+    }
+
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
@@ -111,7 +123,6 @@ fun ProfileScreen(
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.MAIN) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    // Real User Profile State
     var savedName by remember {
         mutableStateOf(profilePrefs.getString("user_name", userName) ?: userName)
     }
@@ -134,7 +145,6 @@ fun ProfileScreen(
         mutableStateOf(profilePrefs.getString("user_rate", "650") ?: "650")
     }
 
-    // Real Preferences State
     var notificationsMasterToggle by remember {
         mutableStateOf(settingsPrefs.getBoolean("notif_master", true))
     }
@@ -155,11 +165,9 @@ fun ProfileScreen(
     }
     val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true)
 
-    // Real Firebase Lists for Bookings & Blocked Users
     val myBookingsList = remember { mutableStateListOf<UserBookingItem>() }
     val blockedUsersList = remember { mutableStateListOf<BlockedUserEntry>() }
 
-    // Dialog states
     var showPhoneDialog by remember { mutableStateOf(false) }
     var showEmailDialog by remember { mutableStateOf(false) }
     var showAreaDialog by remember { mutableStateOf(false) }
@@ -173,7 +181,6 @@ fun ProfileScreen(
             authPrefs.getString("saved_user_role", "") == "ADMIN"
     }
 
-    // Load Real Profile, Bookings & Blocked Users from Firebase on start
     LaunchedEffect(savedEmail) {
         isSyncing = true
         fetchRealUserProfileFromFirebase(
@@ -219,69 +226,73 @@ fun ProfileScreen(
     Scaffold(
         containerColor = WorkoraBgGray,
         bottomBar = {
-            Surface(
-                color = WorkoraWhite,
-                shadowElevation = 12.dp,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(vertical = 10.dp, horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Reference Image Decorative Navy & Orange Wave Banner above Bottom Navigation
+                SettingsBottomWaveDecoration()
+
+                Surface(
+                    color = WorkoraWhite,
+                    shadowElevation = 12.dp
                 ) {
-                    if (role == UserRole.CUSTOMER) {
-                        SettingsBottomBarItem(
-                            icon = Icons.Outlined.Home,
-                            label = if (isHindi) "होम" else "Home",
-                            selected = false,
-                            onClick = onBack
-                        )
-                        SettingsBottomBarItem(
-                            icon = Icons.Outlined.Search,
-                            label = if (isHindi) "खोजें" else "Search",
-                            selected = false,
-                            onClick = onBack
-                        )
-                        SettingsBottomBarItem(
-                            icon = Icons.Outlined.EventNote,
-                            label = if (isHindi) "बुकिंग्स" else "Bookings",
-                            selected = currentSubPage == SettingsSubPage.MY_BOOKINGS,
-                            onClick = { currentSubPage = SettingsSubPage.MY_BOOKINGS }
-                        )
-                        SettingsBottomBarItem(
-                            icon = Icons.Default.Person,
-                            label = if (isHindi) "प्रोफाइल" else "Profile",
-                            selected = currentSubPage != SettingsSubPage.MY_BOOKINGS,
-                            onClick = { currentSubPage = SettingsSubPage.MAIN }
-                        )
-                    } else {
-                        SettingsBottomBarItem(
-                            icon = Icons.Outlined.Home,
-                            label = if (isHindi) "होम" else "Home",
-                            selected = false,
-                            onClick = onBack
-                        )
-                        SettingsBottomBarItem(
-                            icon = Icons.Outlined.NotificationsNone,
-                            label = if (isHindi) "रिक्वेस्ट" else "Requests",
-                            selected = currentSubPage == SettingsSubPage.NOTIFICATIONS,
-                            onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
-                        )
-                        SettingsBottomBarItem(
-                            icon = Icons.Outlined.WorkOutline,
-                            label = if (isHindi) "काम" else "Jobs",
-                            selected = currentSubPage == SettingsSubPage.MY_BOOKINGS,
-                            onClick = { currentSubPage = SettingsSubPage.MY_BOOKINGS }
-                        )
-                        SettingsBottomBarItem(
-                            icon = Icons.Default.Person,
-                            label = if (isHindi) "प्रोफाइल" else "Profile",
-                            selected = currentSubPage == SettingsSubPage.MAIN,
-                            onClick = { currentSubPage = SettingsSubPage.MAIN }
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(vertical = 10.dp, horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (role == UserRole.CUSTOMER) {
+                            SettingsBottomBarItem(
+                                icon = Icons.Outlined.Home,
+                                label = if (isHindi) "होम" else "Home",
+                                selected = false,
+                                onClick = onBack
+                            )
+                            SettingsBottomBarItem(
+                                icon = Icons.Outlined.Search,
+                                label = if (isHindi) "खोजें" else "Search",
+                                selected = false,
+                                onClick = onBack
+                            )
+                            SettingsBottomBarItem(
+                                icon = Icons.Outlined.EventNote,
+                                label = if (isHindi) "बुकिंग्स" else "Bookings",
+                                selected = currentSubPage == SettingsSubPage.MY_BOOKINGS,
+                                onClick = { currentSubPage = SettingsSubPage.MY_BOOKINGS }
+                            )
+                            SettingsBottomBarItem(
+                                icon = Icons.Default.Person,
+                                label = if (isHindi) "प्रोफाइल" else "Profile",
+                                selected = currentSubPage != SettingsSubPage.MY_BOOKINGS,
+                                onClick = { currentSubPage = SettingsSubPage.MAIN }
+                            )
+                        } else {
+                            SettingsBottomBarItem(
+                                icon = Icons.Outlined.Home,
+                                label = if (isHindi) "होम" else "Home",
+                                selected = false,
+                                onClick = onBack
+                            )
+                            SettingsBottomBarItem(
+                                icon = Icons.Outlined.NotificationsNone,
+                                label = if (isHindi) "रिक्वेस्ट" else "Requests",
+                                selected = currentSubPage == SettingsSubPage.NOTIFICATIONS,
+                                onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
+                            )
+                            SettingsBottomBarItem(
+                                icon = Icons.Outlined.WorkOutline,
+                                label = if (isHindi) "काम" else "Jobs",
+                                selected = currentSubPage == SettingsSubPage.MY_BOOKINGS,
+                                onClick = { currentSubPage = SettingsSubPage.MY_BOOKINGS }
+                            )
+                            SettingsBottomBarItem(
+                                icon = Icons.Default.Person,
+                                label = if (isHindi) "प्रोफाइल" else "Profile",
+                                selected = currentSubPage == SettingsSubPage.MAIN,
+                                onClick = { currentSubPage = SettingsSubPage.MAIN }
+                            )
+                        }
                     }
                 }
             }
@@ -322,14 +333,15 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = when (currentSubPage) {
-                                SettingsSubPage.MAIN -> if (isHindi) "सेटिंग्स (Settings)" else "Settings"
+                                SettingsSubPage.MAIN -> if (isHindi) "सेटिंग्स" else "Settings"
                                 SettingsSubPage.EDIT_PROFILE -> if (isHindi) "प्रोफाइल एडिट करें" else "Edit Profile"
                                 SettingsSubPage.MY_BOOKINGS -> if (isHindi) "मेरी बुकिंग्स" else "My Bookings"
-                                SettingsSubPage.NOTIFICATIONS -> if (isHindi) "नोटिफिकेशन सेटिंग्स" else "Notification Settings"
+                                SettingsSubPage.NOTIFICATIONS -> if (isHindi) "नोटिफिकेशन" else "Notifications"
                                 SettingsSubPage.CHANGE_PASSWORD -> if (isHindi) "पासवर्ड बदलें" else "Change Password"
                                 SettingsSubPage.BLOCKED_USERS -> if (isHindi) "ब्लॉक किए गए यूजर" else "Blocked Users"
                                 SettingsSubPage.REPORT_PROBLEM -> if (isHindi) "समस्या रिपोर्ट करें" else "Report a Problem"
                                 SettingsSubPage.HELP_SUPPORT -> if (isHindi) "सहायता केंद्र" else "Help & Support"
+                                SettingsSubPage.ABOUT_WORKORA -> "About Workora"
                                 SettingsSubPage.TERMS -> "Terms & Conditions"
                                 SettingsSubPage.PRIVACY_POLICY -> "Privacy Policy"
                             },
@@ -381,9 +393,9 @@ fun ProfileScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // Top Profile Summary Card
+                        // 1. Top User Summary Card (Exact Reference Design)
                         item {
                             Card(
                                 modifier = Modifier
@@ -400,33 +412,33 @@ fun ProfileScreen(
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    SettingsWorkerAvatar(size = 64.dp)
+                                    SettingsWorkerAvatar(size = 66.dp)
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = savedName,
-                                            fontSize = 18.sp,
+                                            fontSize = 19.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = WorkoraMainText
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = if (role == UserRole.LABOUR) "$savedSkill • ₹$savedRate/day" else "Customer Account",
+                                            text = savedSkill,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = WorkoraPrimaryNavy
+                                            color = WorkoraSecondaryText
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
                                                 imageVector = Icons.Outlined.LocationOn,
                                                 contentDescription = null,
-                                                tint = WorkoraSecondaryText,
+                                                tint = WorkoraPrimaryNavy,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = savedArea,
+                                                text = "$savedArea, 5 km",
                                                 fontSize = 13.sp,
                                                 color = WorkoraSecondaryText
                                             )
@@ -435,16 +447,14 @@ fun ProfileScreen(
                                     Icon(
                                         imageVector = Icons.Default.ChevronRight,
                                         contentDescription = "Edit Profile",
-                                        tint = WorkoraSecondaryText
+                                        tint = WorkoraMainText
                                     )
                                 }
                             }
                         }
 
-                        // SECTION 1: Account
+                        // 2. Primary Reference Grouped Card (Edit Profile, My Bookings, Notifications, Language, Help & Support, About Workora)
                         item {
-                            SettingsSectionHeader(if (isHindi) "अकाउंट (Account)" else "Account")
-                            Spacer(modifier = Modifier.height(8.dp))
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
@@ -455,106 +465,24 @@ fun ProfileScreen(
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Person,
-                                        title = if (isHindi) "प्रोफाइल (Profile)" else "Profile",
-                                        subtitle = if (isHindi) "अपनी व्यक्तिगत जानकारी अपडेट करें" else "Manage your personal information",
+                                        title = if (isHindi) "प्रोफाइल एडिट करें" else "Edit Profile",
+                                        subtitle = if (isHindi) "अपनी व्यक्तिगत जानकारी अपडेट करें" else "Update your personal details",
                                         onClick = { currentSubPage = SettingsSubPage.EDIT_PROFILE }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.EventNote,
-                                        title = if (isHindi) "मेरी बुकिंग्स (My Bookings)" else "My Bookings",
+                                        title = if (isHindi) "मेरी बुकिंग्स" else "My Bookings",
                                         subtitle = if (isHindi) "अपनी बुकिंग और काम का इतिहास देखें" else "View your bookings and history",
-                                        valueText = "${myBookingsList.size}",
                                         onClick = { currentSubPage = SettingsSubPage.MY_BOOKINGS }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
-                                        icon = Icons.Outlined.Phone,
-                                        title = if (isHindi) "फ़ोन नंबर (Phone Number)" else "Phone Number",
-                                        subtitle = if (isHindi) "अपना मोबाइल नंबर बदलें" else "Manage your phone number",
-                                        valueText = savedPhone,
-                                        onClick = { showPhoneDialog = true }
+                                        icon = Icons.Outlined.Notifications,
+                                        title = if (isHindi) "नोटिफिकेशन" else "Notifications",
+                                        subtitle = if (isHindi) "नोटिफिकेशन प्रबंधित करें" else "Manage your notifications",
+                                        onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
                                     )
-                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
-                                    SettingsRowItem(
-                                        icon = Icons.Outlined.Email,
-                                        title = if (isHindi) "ईमेल (Email)" else "Email",
-                                        subtitle = if (isHindi) "अपना ईमेल पता प्रबंधित करें" else "Manage your email address",
-                                        valueText = savedEmail,
-                                        onClick = { showEmailDialog = true }
-                                    )
-                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
-                                    SettingsRowItem(
-                                        icon = Icons.Outlined.Place,
-                                        title = if (isHindi) "एरिया / शहर (Area)" else "Area",
-                                        subtitle = if (isHindi) "अपना क्षेत्र बदलें" else "Change your area",
-                                        valueText = savedArea,
-                                        onClick = { showAreaDialog = true }
-                                    )
-                                }
-                            }
-                        }
-
-                        // SECTION 2: Preferences
-                        item {
-                            SettingsSectionHeader(if (isHindi) "प्राथमिकताएं (Preferences)" else "Preferences")
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                                border = BorderStroke(1.dp, WorkoraBorderColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { currentSubPage = SettingsSubPage.NOTIFICATIONS }
-                                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(WorkoraPrimaryNavy),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Notifications,
-                                                contentDescription = null,
-                                                tint = WorkoraWhite,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(14.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = if (isHindi) "नोटिफिकेशन (Notifications)" else "Notifications",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = WorkoraMainText
-                                            )
-                                            Text(
-                                                text = if (isHindi) "नोटिफिकेशन सेटिंग्स प्रबंधित करें" else "Manage your notifications",
-                                                fontSize = 12.sp,
-                                                color = WorkoraSecondaryText
-                                            )
-                                        }
-                                        Switch(
-                                            checked = notificationsMasterToggle,
-                                            onCheckedChange = { checked ->
-                                                notificationsMasterToggle = checked
-                                                settingsPrefs.edit().putBoolean("notif_master", checked).apply()
-                                                syncUserFieldToFirebase(savedEmail, "notificationsEnabled", checked.toString())
-                                            },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = WorkoraWhite,
-                                                checkedTrackColor = WorkoraSuccessGreen
-                                            )
-                                        )
-                                    }
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Language,
@@ -565,20 +493,24 @@ fun ProfileScreen(
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
-                                        icon = Icons.Outlined.Place,
-                                        title = if (isHindi) "लोकेशन (Location)" else "Location",
-                                        subtitle = savedArea,
-                                        valueText = "Current area",
-                                        onClick = { showAreaDialog = true }
+                                        icon = Icons.Outlined.HelpOutline,
+                                        title = if (isHindi) "सहायता और समर्थन" else "Help & Support",
+                                        subtitle = if (isHindi) "मदद लें या संपर्क करें" else "Get help or contact us",
+                                        onClick = { currentSubPage = SettingsSubPage.HELP_SUPPORT }
+                                    )
+                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
+                                    SettingsRowItem(
+                                        icon = Icons.Outlined.Info,
+                                        title = "About Workora",
+                                        subtitle = "Version 1.0.0",
+                                        onClick = { currentSubPage = SettingsSubPage.ABOUT_WORKORA }
                                     )
                                 }
                             }
                         }
 
-                        // SECTION 3: Privacy & Security
+                        // 3. Account & Security Details Card (Phone, Email, Area, Password, Blocked Users, Report, Terms, Privacy, Switch Role)
                         item {
-                            SettingsSectionHeader(if (isHindi) "सुरक्षा (Privacy & Security)" else "Privacy & Security")
-                            Spacer(modifier = Modifier.height(8.dp))
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
@@ -588,47 +520,49 @@ fun ProfileScreen(
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     SettingsRowItem(
+                                        icon = Icons.Outlined.Phone,
+                                        title = "Phone Number",
+                                        subtitle = "Manage your phone number",
+                                        valueText = savedPhone,
+                                        onClick = { showPhoneDialog = true }
+                                    )
+                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
+                                    SettingsRowItem(
+                                        icon = Icons.Outlined.Email,
+                                        title = "Email",
+                                        subtitle = "Manage your email address",
+                                        valueText = savedEmail,
+                                        onClick = { showEmailDialog = true }
+                                    )
+                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
+                                    SettingsRowItem(
+                                        icon = Icons.Outlined.Place,
+                                        title = "Area",
+                                        subtitle = "Change your area",
+                                        valueText = savedArea,
+                                        onClick = { showAreaDialog = true }
+                                    )
+                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
+                                    SettingsRowItem(
                                         icon = Icons.Outlined.Lock,
-                                        title = if (isHindi) "पासवर्ड बदलें (Change Password)" else "Change Password",
-                                        subtitle = if (isHindi) "अपना पासवर्ड अपडेट करें" else "Update your account password",
+                                        title = "Change Password",
+                                        subtitle = "Update your account password",
                                         onClick = { currentSubPage = SettingsSubPage.CHANGE_PASSWORD }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.PersonOff,
-                                        title = if (isHindi) "ब्लॉक किए गए यूजर (Blocked Users)" else "Blocked Users",
-                                        subtitle = if (isHindi) "ब्लॉक किए गए अकाउंट देखें" else "Manage blocked accounts",
+                                        title = "Blocked Users",
+                                        subtitle = "Manage blocked accounts",
                                         valueText = "${blockedUsersList.size}",
                                         onClick = { currentSubPage = SettingsSubPage.BLOCKED_USERS }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Flag,
-                                        title = if (isHindi) "समस्या रिपोर्ट करें (Report a Problem)" else "Report a Problem",
-                                        subtitle = if (isHindi) "किसी भी समस्या की जानकारी दें" else "Tell us about an issue",
+                                        title = "Report a Problem",
+                                        subtitle = "Tell us about an issue",
                                         onClick = { currentSubPage = SettingsSubPage.REPORT_PROBLEM }
-                                    )
-                                }
-                            }
-                        }
-
-                        // SECTION 4: Support
-                        item {
-                            SettingsSectionHeader(if (isHindi) "सहायता (Support)" else "Support")
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                                border = BorderStroke(1.dp, WorkoraBorderColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    SettingsRowItem(
-                                        icon = Icons.Outlined.HelpOutline,
-                                        title = if (isHindi) "सहायता केंद्र (Help & Support)" else "Help & Support",
-                                        subtitle = if (isHindi) "मदद लें या हमसे संपर्क करें" else "Get help or contact us",
-                                        onClick = { currentSubPage = SettingsSubPage.HELP_SUPPORT }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
@@ -644,14 +578,19 @@ fun ProfileScreen(
                                         subtitle = "How we protect your data",
                                         onClick = { currentSubPage = SettingsSubPage.PRIVACY_POLICY }
                                     )
+                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
+                                    SettingsRowItem(
+                                        icon = Icons.Outlined.SwapHoriz,
+                                        title = "Switch Role (${if (role == UserRole.CUSTOMER) "Worker Mode" else "Customer Mode"})",
+                                        subtitle = "Switch between Customer and Labour view",
+                                        onClick = onSwitchRole
+                                    )
                                 }
                             }
                         }
 
-                        // SECTION 5: Account Actions
+                        // 4. Separate Logout & Delete Account Card (Exact Reference Design)
                         item {
-                            SettingsSectionHeader(if (isHindi) "अकाउंट एक्शन (Account)" else "Account")
-                            Spacer(modifier = Modifier.height(8.dp))
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
@@ -660,14 +599,6 @@ fun ProfileScreen(
                                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    SettingsRowItem(
-                                        icon = Icons.Outlined.SwapHoriz,
-                                        title = "Switch Role (${if (role == UserRole.CUSTOMER) "Worker Mode" else "Customer Mode"})",
-                                        subtitle = "Switch between Customer and Labour view",
-                                        onClick = onSwitchRole
-                                    )
-                                    HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
-
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -677,7 +608,7 @@ fun ProfileScreen(
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(40.dp)
+                                                .size(42.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(Color(0xFFFEE2E2)),
                                             contentAlignment = Alignment.Center
@@ -686,14 +617,14 @@ fun ProfileScreen(
                                                 imageVector = Icons.Outlined.Logout,
                                                 contentDescription = "Logout",
                                                 tint = WorkoraDangerRed,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         }
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = if (isHindi) "लॉगआउट (Logout)" else "Logout",
-                                                fontSize = 15.sp,
+                                                text = "Logout",
+                                                fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = WorkoraDangerRed
                                             )
@@ -706,7 +637,7 @@ fun ProfileScreen(
                                         Icon(
                                             imageVector = Icons.Default.ChevronRight,
                                             contentDescription = null,
-                                            tint = WorkoraSecondaryText
+                                            tint = WorkoraMainText
                                         )
                                     }
 
@@ -721,7 +652,7 @@ fun ProfileScreen(
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(40.dp)
+                                                .size(42.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(Color(0xFFFEE2E2)),
                                             contentAlignment = Alignment.Center
@@ -730,19 +661,19 @@ fun ProfileScreen(
                                                 imageVector = Icons.Outlined.DeleteForever,
                                                 contentDescription = "Delete Account",
                                                 tint = WorkoraDangerRed,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         }
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = if (isHindi) "अकाउंट हमेशा के लिए डिलीट करें" else "Delete Account",
+                                                text = "Delete Account",
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = WorkoraDangerRed
                                             )
                                             Text(
-                                                text = "Permanently remove your account and data",
+                                                text = "Permanently remove your account",
                                                 fontSize = 12.sp,
                                                 color = WorkoraSecondaryText
                                             )
@@ -750,7 +681,7 @@ fun ProfileScreen(
                                         Icon(
                                             imageVector = Icons.Default.ChevronRight,
                                             contentDescription = null,
-                                            tint = WorkoraSecondaryText
+                                            tint = WorkoraMainText
                                         )
                                     }
                                 }
@@ -759,7 +690,6 @@ fun ProfileScreen(
                     }
                 }
 
-                // SUB-PAGE: Edit Profile (Live Sync to Firebase /users and /workers)
                 SettingsSubPage.EDIT_PROFILE -> {
                     var editName by remember { mutableStateOf(savedName) }
                     var editPhone by remember { mutableStateOf(savedPhone) }
@@ -790,63 +720,17 @@ fun ProfileScreen(
                                         SettingsWorkerAvatar(size = 64.dp)
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
-                                            Text(
-                                                text = editName,
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = WorkoraMainText
-                                            )
-                                            Text(
-                                                text = if (role == UserRole.LABOUR) "Worker Account" else "Customer Account",
-                                                fontSize = 13.sp,
-                                                color = WorkoraAccentOrange,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
+                                            Text(editName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                                            Text(savedSkill, fontSize = 13.sp, color = WorkoraAccentOrange, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
 
-                                    OutlinedTextField(
-                                        value = editName,
-                                        onValueChange = { editName = it },
-                                        label = { Text("Full Name") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = editPhone,
-                                        onValueChange = { editPhone = it },
-                                        label = { Text("Phone Number") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = editArea,
-                                        onValueChange = { editArea = it },
-                                        label = { Text("Area / City") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = editSkill,
-                                        onValueChange = { editSkill = it },
-                                        label = { Text("Category / Skill (e.g. Electrician, Mason)") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = editExp,
-                                        onValueChange = { editExp = it },
-                                        label = { Text("Experience (e.g. 5 yrs)") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = editRate,
-                                        onValueChange = { editRate = it },
-                                        label = { Text("Daily Rate (₹)") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Full Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text("Area / City") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editSkill, onValueChange = { editSkill = it }, label = { Text("Category / Skill") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editExp, onValueChange = { editExp = it }, label = { Text("Experience") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text("Daily Rate (₹)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
                                     Button(
                                         onClick = {
@@ -881,22 +765,15 @@ fun ProfileScreen(
                                                 )
 
                                                 onUpdateProfile(savedName, savedPhone, savedArea)
-                                                Toast.makeText(context, "Profile saved & synced to cloud ✓", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Profile updated ✓", Toast.LENGTH_SHORT).show()
                                                 currentSubPage = SettingsSubPage.MAIN
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
                                         shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp)
+                                        modifier = Modifier.fillMaxWidth().height(48.dp)
                                     ) {
-                                        Text(
-                                            text = "Save Changes",
-                                            color = WorkoraWhite,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp
-                                        )
+                                        Text("Save Changes", color = WorkoraWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     }
                                 }
                             }
@@ -904,7 +781,6 @@ fun ProfileScreen(
                     }
                 }
 
-                // SUB-PAGE: My Bookings (Real Firebase /jobs List)
                 SettingsSubPage.MY_BOOKINGS -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -920,29 +796,12 @@ fun ProfileScreen(
                                     border = BorderStroke(1.dp, WorkoraBorderColor)
                                 ) {
                                     Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(32.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(32.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.EventNote,
-                                            contentDescription = null,
-                                            tint = WorkoraSecondaryText,
-                                            modifier = Modifier.size(48.dp)
-                                        )
+                                        Icon(Icons.Outlined.EventNote, contentDescription = null, tint = WorkoraSecondaryText, modifier = Modifier.size(48.dp))
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        Text(
-                                            text = "No Bookings Found",
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WorkoraMainText
-                                        )
-                                        Text(
-                                            text = "Your active and past work bookings will appear here.",
-                                            fontSize = 13.sp,
-                                            color = WorkoraSecondaryText
-                                        )
+                                        Text("No Bookings Yet", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
                                     }
                                 }
                             }
@@ -954,55 +813,13 @@ fun ProfileScreen(
                                     colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                                     border = BorderStroke(1.dp, WorkoraBorderColor)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = bk.title,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = WorkoraMainText
-                                            )
-                                            Surface(
-                                                color = Color(0xFFDCFCE7),
-                                                shape = RoundedCornerShape(50)
-                                            ) {
-                                                Text(
-                                                    text = bk.status,
-                                                    color = WorkoraSuccessGreen,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                                )
-                                            }
+                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(bk.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                                            Text(bk.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraSuccessGreen)
                                         }
-                                        Text(
-                                            text = "${bk.category} • ${bk.location}",
-                                            fontSize = 13.sp,
-                                            color = WorkoraSecondaryText
-                                        )
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = "Customer: ${bk.customerName}",
-                                                fontSize = 12.sp,
-                                                color = WorkoraSecondaryText
-                                            )
-                                            Text(
-                                                text = "₹${bk.rate}/day",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = WorkoraAccentOrange
-                                            )
-                                        }
+                                        Text("${bk.category} • ${bk.location}", fontSize = 13.sp, color = WorkoraSecondaryText)
+                                        Text("₹${bk.rate}/day • ${bk.date}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraAccentOrange)
                                     }
                                 }
                             }
@@ -1010,25 +827,31 @@ fun ProfileScreen(
                     }
                 }
 
-                // SUB-PAGE: Notifications
                 SettingsSubPage.NOTIFICATIONS -> {
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             NotificationToggleRow(
+                                title = "All Notifications",
+                                subtitle = "Master notification switch",
+                                checked = notificationsMasterToggle,
+                                onCheckedChange = {
+                                    notificationsMasterToggle = it
+                                    settingsPrefs.edit().putBoolean("notif_master", it).apply()
+                                }
+                            )
+                            HorizontalDivider(color = WorkoraBorderColor)
+                            NotificationToggleRow(
                                 title = "Work requests",
-                                subtitle = "Receive alerts for new work requests in your area",
+                                subtitle = "Receive alerts for new work requests",
                                 checked = notifWorkRequests,
                                 onCheckedChange = {
                                     notifWorkRequests = it
                                     settingsPrefs.edit().putBoolean("notif_work_requests", it).apply()
-                                    syncUserFieldToFirebase(savedEmail, "notif_work_requests", it.toString())
                                 }
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
@@ -1039,36 +862,32 @@ fun ProfileScreen(
                                 onCheckedChange = {
                                     notifBookingUpdates = it
                                     settingsPrefs.edit().putBoolean("notif_booking_updates", it).apply()
-                                    syncUserFieldToFirebase(savedEmail, "notif_booking_updates", it.toString())
                                 }
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
                             NotificationToggleRow(
                                 title = "Messages",
-                                subtitle = "Direct chat notifications from customers and workers",
+                                subtitle = "Direct chat notifications",
                                 checked = notifMessages,
                                 onCheckedChange = {
                                     notifMessages = it
                                     settingsPrefs.edit().putBoolean("notif_messages", it).apply()
-                                    syncUserFieldToFirebase(savedEmail, "notif_messages", it.toString())
                                 }
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
                             NotificationToggleRow(
                                 title = "Promotional notifications",
-                                subtitle = "Tips, announcements, and platform updates",
+                                subtitle = "Platform tips and announcements",
                                 checked = notifPromotional,
                                 onCheckedChange = {
                                     notifPromotional = it
                                     settingsPrefs.edit().putBoolean("notif_promotional", it).apply()
-                                    syncUserFieldToFirebase(savedEmail, "notif_promotional", it.toString())
                                 }
                             )
                         }
                     }
                 }
 
-                // SUB-PAGE: Change Password
                 SettingsSubPage.CHANGE_PASSWORD -> {
                     var currentPassword by remember { mutableStateOf("") }
                     var newPassword by remember { mutableStateOf("") }
@@ -1076,299 +895,79 @@ fun ProfileScreen(
                     var errorMsg by remember { mutableStateOf<String?>(null) }
 
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = "Update Your Password",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = WorkoraMainText
-                            )
-                            Text(
-                                text = "Minimum 8 characters with at least 1 letter and 1 number.",
-                                fontSize = 12.sp,
-                                color = WorkoraSecondaryText
-                            )
-
-                            OutlinedTextField(
-                                value = currentPassword,
-                                onValueChange = {
-                                    currentPassword = it
-                                    errorMsg = null
-                                },
-                                label = { Text("Current Password") },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            OutlinedTextField(
-                                value = newPassword,
-                                onValueChange = {
-                                    newPassword = it
-                                    errorMsg = null
-                                },
-                                label = { Text("New Password") },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            OutlinedTextField(
-                                value = confirmPassword,
-                                onValueChange = {
-                                    confirmPassword = it
-                                    errorMsg = null
-                                },
-                                label = { Text("Confirm New Password") },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Change Password", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it; errorMsg = null }, label = { Text("Current Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = newPassword, onValueChange = { newPassword = it; errorMsg = null }, label = { Text("New Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = confirmPassword, onValueChange = { confirmPassword = it; errorMsg = null }, label = { Text("Confirm New Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
 
                             if (!errorMsg.isNullOrBlank()) {
-                                Text(
-                                    text = errorMsg!!,
-                                    color = WorkoraDangerRed,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Text(errorMsg!!, color = WorkoraDangerRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
 
                             Button(
                                 onClick = {
-                                    val storedPass = authPrefs.getString("saved_password_$savedEmail", null)
-                                    val hasLetter = newPassword.any { it.isLetter() }
-                                    val hasDigit = newPassword.any { it.isDigit() }
-                                    when {
-                                        currentPassword.isBlank() || newPassword.isBlank() || confirmPassword.isBlank() -> {
-                                            errorMsg = "All password fields are required."
-                                        }
-                                        storedPass != null && storedPass != currentPassword -> {
-                                            errorMsg = "Current password does not match your account password."
-                                        }
-                                        newPassword.length < 8 || !hasLetter || !hasDigit -> {
-                                            errorMsg = "New password must be at least 8 characters and contain a letter and number."
-                                        }
-                                        newPassword != confirmPassword -> {
-                                            errorMsg = "New password and confirmation do not match."
-                                        }
-                                        else -> {
-                                            authPrefs.edit().putString("saved_password_$savedEmail", newPassword).apply()
-                                            syncUserFieldToFirebase(savedEmail, "password", newPassword)
-                                            Toast.makeText(context, "Password changed in cloud & locally ✓", Toast.LENGTH_SHORT).show()
-                                            currentSubPage = SettingsSubPage.MAIN
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                            ) {
-                                Text(
-                                    text = "Change Password",
-                                    color = WorkoraWhite,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // SUB-PAGE: Blocked Users (Real Add Block & Unblock with Firebase)
-                SettingsSubPage.BLOCKED_USERS -> {
-                    var blockNameInput by remember { mutableStateOf("") }
-                    var blockPhoneInput by remember { mutableStateOf("") }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                                border = BorderStroke(1.dp, WorkoraBorderColor)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Text(
-                                        text = "Block a User",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = WorkoraMainText
-                                    )
-                                    OutlinedTextField(
-                                        value = blockNameInput,
-                                        onValueChange = { blockNameInput = it },
-                                        label = { Text("User Name") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = blockPhoneInput,
-                                        onValueChange = { blockPhoneInput = it },
-                                        label = { Text("Phone Number") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Button(
-                                        onClick = {
-                                            if (blockNameInput.isNotBlank() && blockPhoneInput.isNotBlank()) {
-                                                val entry = BlockedUserEntry(
-                                                    key = "blk_${System.currentTimeMillis()}",
-                                                    name = blockNameInput.trim(),
-                                                    phone = blockPhoneInput.trim(),
-                                                    blockedOn = SimpleDateFormat("d MMM yyyy", Locale.US).format(Date())
-                                                )
-                                                blockedUsersList.add(entry)
-                                                addBlockedUserToFirebase(savedEmail, entry)
-                                                blockNameInput = ""
-                                                blockPhoneInput = ""
-                                                Toast.makeText(context, "${entry.name} blocked", Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraDangerRed),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Block User", color = WorkoraWhite, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        if (blockedUsersList.isEmpty()) {
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                                    border = BorderStroke(1.dp, WorkoraBorderColor)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(28.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.PersonOff,
-                                            contentDescription = null,
-                                            tint = WorkoraSecondaryText,
-                                            modifier = Modifier.size(44.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text("No Blocked Users", fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                                    }
-                                }
-                            }
-                        } else {
-                            items(blockedUsersList) { item ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                                    border = BorderStroke(1.dp, WorkoraBorderColor)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(14.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(item.name, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                                            Text("${item.phone} • Blocked ${item.blockedOn}", fontSize = 12.sp, color = WorkoraSecondaryText)
-                                        }
-                                        OutlinedButton(
-                                            onClick = {
-                                                blockedUsersList.remove(item)
-                                                removeBlockedUserFromFirebase(savedEmail, item.key)
-                                                Toast.makeText(context, "${item.name} unblocked", Toast.LENGTH_SHORT).show()
-                                            },
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Text("Unblock", color = WorkoraSuccessGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // SUB-PAGE: Report a Problem
-                SettingsSubPage.REPORT_PROBLEM -> {
-                    var problemSubject by remember { mutableStateOf("") }
-                    var problemDetails by remember { mutableStateOf("") }
-
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
-                        border = BorderStroke(1.dp, WorkoraBorderColor)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = "Report an Issue",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = WorkoraMainText
-                            )
-                            OutlinedTextField(
-                                value = problemSubject,
-                                onValueChange = { problemSubject = it },
-                                label = { Text("Subject (e.g. Booking issue, Fake profile)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = problemDetails,
-                                onValueChange = { problemDetails = it },
-                                label = { Text("Describe the problem in detail") },
-                                minLines = 4,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Button(
-                                onClick = {
-                                    if (problemSubject.isBlank() || problemDetails.isBlank()) {
-                                        Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                                    if (currentPassword.isBlank() || newPassword.length < 6 || newPassword != confirmPassword) {
+                                        errorMsg = "Please enter valid matching passwords (min 6 characters)."
                                     } else {
-                                        submitReportToFirebase(savedName, savedPhone, problemSubject, problemDetails)
-                                        Toast.makeText(context, "Report sent to Admin Panel ✓", Toast.LENGTH_SHORT).show()
+                                        authPrefs.edit().putString("saved_password_$savedEmail", newPassword).apply()
+                                        syncUserFieldToFirebase(savedEmail, "password", newPassword)
+                                        Toast.makeText(context, "Password updated ✓", Toast.LENGTH_SHORT).show()
                                         currentSubPage = SettingsSubPage.MAIN
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Text("Change Password", color = WorkoraWhite, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                SettingsSubPage.BLOCKED_USERS -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
+                        border = BorderStroke(1.dp, WorkoraBorderColor)
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("No Blocked Users", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text("You haven't blocked any users on Workora.", fontSize = 13.sp, color = WorkoraSecondaryText)
+                        }
+                    }
+                }
+
+                SettingsSubPage.REPORT_PROBLEM -> {
+                    var subject by remember { mutableStateOf("") }
+                    var details by remember { mutableStateOf("") }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
+                        border = BorderStroke(1.dp, WorkoraBorderColor)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Report a Problem", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            OutlinedTextField(value = subject, onValueChange = { subject = it }, label = { Text("Subject") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = details, onValueChange = { details = it }, label = { Text("Problem Details") }, minLines = 4, modifier = Modifier.fillMaxWidth())
+                            Button(
+                                onClick = {
+                                    if (subject.isNotBlank() && details.isNotBlank()) {
+                                        submitReportToFirebase(savedName, savedPhone, subject, details)
+                                        Toast.makeText(context, "Report submitted ✓", Toast.LENGTH_SHORT).show()
+                                        currentSubPage = SettingsSubPage.MAIN
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("Submit Report", color = WorkoraWhite, fontWeight = FontWeight.Bold)
                             }
@@ -1376,117 +975,72 @@ fun ProfileScreen(
                     }
                 }
 
-                // SUB-PAGE: Help & Support
                 SettingsSubPage.HELP_SUPPORT -> {
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = "Workora Help Center",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = WorkoraMainText
-                            )
-                            Text(
-                                text = "Need assistance with bookings, worker verification, or account settings? Reach out to our support team directly.",
-                                fontSize = 13.sp,
-                                color = WorkoraSecondaryText
-                            )
-                            HorizontalDivider(color = WorkoraBorderColor)
-                            Text(
-                                text = "Support Email: ankitah994@gmail.com",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = WorkoraMainText
-                            )
-                            Text(
-                                text = "Helpline: +91 6265798340",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = WorkoraMainText
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Button(
-                                    onClick = onOpenChat,
-                                    colors = ButtonDefaults.buttonColors(containerColor = WorkoraPrimaryNavy),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("Open Support Chat", color = WorkoraWhite, fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Help & Support", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text("Support Email: ankitah994@gmail.com\nHelpline: +91 6265798340", fontSize = 14.sp, color = WorkoraSecondaryText)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = onOpenChat, colors = ButtonDefaults.buttonColors(containerColor = WorkoraPrimaryNavy), modifier = Modifier.weight(1f)) {
+                                    Text("Live Support Chat", color = WorkoraWhite)
                                 }
                                 OutlinedButton(
                                     onClick = {
-                                        val dial = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340"))
-                                        context.startActivity(dial)
+                                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340")))
                                     },
-                                    shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Call Helpline", color = WorkoraPrimaryNavy, fontWeight = FontWeight.Bold)
+                                    Text("Call Helpline", color = WorkoraPrimaryNavy)
                                 }
                             }
                         }
                     }
                 }
 
-                SettingsSubPage.TERMS -> {
+                SettingsSubPage.ABOUT_WORKORA -> {
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text("Workora Terms & Conditions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            Text(
-                                "1. Workora connects local customers and skilled workers directly with 0% commission.\n" +
-                                    "2. Users must provide accurate phone, area, and skill details.\n" +
-                                    "3. Any fraudulent job posting or abusive behavior will result in immediate account suspension by the Admin.",
-                                fontSize = 13.sp,
-                                color = WorkoraSecondaryText
-                            )
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("WORKORA — Find. Hire. Work.", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WorkoraPrimaryNavy)
+                            Text("Version 1.0.0", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WorkoraAccentOrange)
+                            Text("Workora connects verified local workers and customers directly with 0% commission.", fontSize = 13.sp, color = WorkoraSecondaryText)
+                        }
+                    }
+                }
+
+                SettingsSubPage.TERMS -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
+                        border = BorderStroke(1.dp, WorkoraBorderColor)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Terms & Conditions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text("1. Direct hiring with 0% commission.\n2. Accurate profile & location required.\n3. Fraudulent activity leads to account block.", fontSize = 13.sp, color = WorkoraSecondaryText)
                         }
                     }
                 }
 
                 SettingsSubPage.PRIVACY_POLICY -> {
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = WorkoraWhite),
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text("Workora Privacy Policy", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            Text(
-                                "Your phone number, area, and work profile are used solely to match customers and workers on Workora. Passwords are never shared with third parties.",
-                                fontSize = 13.sp,
-                                color = WorkoraSecondaryText
-                            )
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Privacy Policy", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text("Your personal data and phone number are securely stored and used only for connecting bookings on Workora.", fontSize = 13.sp, color = WorkoraSecondaryText)
                         }
                     }
                 }
@@ -1494,22 +1048,13 @@ fun ProfileScreen(
         }
     }
 
-    // Phone Update Dialog
     if (showPhoneDialog) {
         var tempPhone by remember { mutableStateOf(savedPhone) }
         AlertDialog(
             onDismissRequest = { showPhoneDialog = false },
             containerColor = WorkoraWhite,
             title = { Text("Update Phone Number", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = {
-                OutlinedTextField(
-                    value = tempPhone,
-                    onValueChange = { tempPhone = it },
-                    label = { Text("Phone Number") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
+            text = { OutlinedTextField(value = tempPhone, onValueChange = { tempPhone = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1517,80 +1062,46 @@ fun ProfileScreen(
                             savedPhone = tempPhone.trim()
                             profilePrefs.edit().putString("user_phone", savedPhone).apply()
                             syncUserFieldToFirebase(savedEmail, "phone", savedPhone)
-                            onUpdateProfile(savedName, savedPhone, savedArea)
-                            Toast.makeText(context, "Phone updated", Toast.LENGTH_SHORT).show()
                         }
                         showPhoneDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) {
-                    Text("Save", color = WorkoraWhite, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("Save", color = WorkoraWhite) }
             },
-            dismissButton = {
-                TextButton(onClick = { showPhoneDialog = false }) {
-                    Text("Cancel", color = WorkoraSecondaryText)
-                }
-            }
+            dismissButton = { TextButton(onClick = { showPhoneDialog = false }) { Text("Cancel") } }
         )
     }
 
-    // Email Update Dialog
     if (showEmailDialog) {
         var tempEmail by remember { mutableStateOf(savedEmail) }
         AlertDialog(
             onDismissRequest = { showEmailDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Update Email Address", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = {
-                OutlinedTextField(
-                    value = tempEmail,
-                    onValueChange = { tempEmail = it },
-                    label = { Text("Email Address") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
+            title = { Text("Update Email", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            text = { OutlinedTextField(value = tempEmail, onValueChange = { tempEmail = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (tempEmail.isNotBlank() && tempEmail.contains("@")) {
+                        if (tempEmail.contains("@")) {
                             savedEmail = tempEmail.trim()
                             authPrefs.edit().putString("last_logged_in_email", savedEmail).apply()
-                            syncUserFieldToFirebase(savedEmail, "email", savedEmail)
-                            Toast.makeText(context, "Email updated", Toast.LENGTH_SHORT).show()
                         }
                         showEmailDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) {
-                    Text("Save", color = WorkoraWhite, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("Save", color = WorkoraWhite) }
             },
-            dismissButton = {
-                TextButton(onClick = { showEmailDialog = false }) {
-                    Text("Cancel", color = WorkoraSecondaryText)
-                }
-            }
+            dismissButton = { TextButton(onClick = { showEmailDialog = false }) { Text("Cancel") } }
         )
     }
 
-    // Area Update Dialog
     if (showAreaDialog) {
         var tempArea by remember { mutableStateOf(savedArea) }
         AlertDialog(
             onDismissRequest = { showAreaDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Change Your Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = {
-                OutlinedTextField(
-                    value = tempArea,
-                    onValueChange = { tempArea = it },
-                    label = { Text("Area / City (e.g. Silwani, Raisen)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
+            title = { Text("Change Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            text = { OutlinedTextField(value = tempArea, onValueChange = { tempArea = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1598,25 +1109,16 @@ fun ProfileScreen(
                             savedArea = tempArea.trim()
                             profilePrefs.edit().putString("user_location", savedArea).apply()
                             syncUserFieldToFirebase(savedEmail, "location", savedArea)
-                            onUpdateProfile(savedName, savedPhone, savedArea)
-                            Toast.makeText(context, "Area updated to $savedArea", Toast.LENGTH_SHORT).show()
                         }
                         showAreaDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) {
-                    Text("Save", color = WorkoraWhite, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("Save", color = WorkoraWhite) }
             },
-            dismissButton = {
-                TextButton(onClick = { showAreaDialog = false }) {
-                    Text("Cancel", color = WorkoraSecondaryText)
-                }
-            }
+            dismissButton = { TextButton(onClick = { showAreaDialog = false }) { Text("Cancel") } }
         )
     }
 
-    // Language Selection Dialog
     if (showLanguageDialog) {
         val languages = listOf("English", "Hindi")
         AlertDialog(
@@ -1624,7 +1126,7 @@ fun ProfileScreen(
             containerColor = WorkoraWhite,
             title = { Text("Select Language", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column {
                     languages.forEach { lang ->
                         Row(
                             modifier = Modifier
@@ -1638,7 +1140,7 @@ fun ProfileScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
-                                selected = selectedLanguage.equals(lang, ignoreCase = true),
+                                selected = selectedLanguage.equals(lang, true),
                                 onClick = {
                                     selectedLanguage = lang
                                     settingsPrefs.edit().putString("app_language", lang).apply()
@@ -1646,37 +1148,21 @@ fun ProfileScreen(
                                 }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = lang,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = WorkoraMainText
-                            )
+                            Text(lang, fontSize = 15.sp, color = WorkoraMainText)
                         }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
-                    Text("Close", color = WorkoraPrimaryNavy, fontWeight = FontWeight.Bold)
-                }
-            }
+            confirmButton = { TextButton(onClick = { showLanguageDialog = false }) { Text("Close") } }
         )
     }
 
-    // Logout Confirmation Dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             containerColor = WorkoraWhite,
             title = { Text("Confirm Logout", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = {
-                Text(
-                    text = "Are you sure you want to log out of your Workora account?",
-                    color = WorkoraSecondaryText,
-                    fontSize = 14.sp
-                )
-            },
+            text = { Text("Are you sure you want to sign out from your account?", color = WorkoraSecondaryText) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1684,31 +1170,18 @@ fun ProfileScreen(
                         onLogout()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraDangerRed)
-                ) {
-                    Text("Logout", color = WorkoraWhite, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("Logout", color = WorkoraWhite, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancel", color = WorkoraMainText)
-                }
-            }
+            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") } }
         )
     }
 
-    // Delete Account Confirmation Dialog (Real Firebase Deletion)
     if (showDeleteAccountDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
             containerColor = WorkoraWhite,
             title = { Text("Delete Account Permanently?", fontWeight = FontWeight.Bold, color = WorkoraDangerRed) },
-            text = {
-                Text(
-                    text = "Warning: Account deletion is permanent and cannot be undone. All your profile data, bookings, and history will be permanently removed from Firebase.",
-                    color = WorkoraMainText,
-                    fontSize = 14.sp
-                )
-            },
+            text = { Text("Warning: Account deletion is permanent and cannot be undone.", color = WorkoraMainText) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1716,32 +1189,44 @@ fun ProfileScreen(
                         deleteAccountFromFirebase(savedEmail)
                         profilePrefs.edit().clear().apply()
                         authPrefs.edit().clear().apply()
-                        Toast.makeText(context, "Account permanently deleted from server", Toast.LENGTH_SHORT).show()
                         onLogout()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraDangerRed)
-                ) {
-                    Text("Delete Permanently", color = WorkoraWhite, fontWeight = FontWeight.Bold)
-                }
+                ) { Text("Delete Permanently", color = WorkoraWhite, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteAccountDialog = false }) {
-                    Text("Cancel", color = WorkoraMainText, fontWeight = FontWeight.SemiBold)
-                }
-            }
+            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text("Cancel") } }
         )
     }
 }
 
 @Composable
-private fun SettingsSectionHeader(title: String) {
-    Text(
-        text = title,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = WorkoraSecondaryText,
-        modifier = Modifier.padding(start = 4.dp)
-    )
+private fun SettingsBottomWaveDecoration() {
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .background(WorkoraBgGray)
+    ) {
+        val w = size.width
+        val h = size.height
+
+        val orangePath = Path().apply {
+            moveTo(w * 0.45f, h)
+            cubicTo(w * 0.65f, h * 0.1f, w * 0.85f, 0f, w, h * 0.35f)
+            lineTo(w, h)
+            close()
+        }
+        drawPath(path = orangePath, color = WorkoraAccentOrange)
+
+        val navyPath = Path().apply {
+            moveTo(0f, h * 0.25f)
+            cubicTo(w * 0.28f, 0f, w * 0.48f, h * 0.95f, w, h * 0.45f)
+            lineTo(w, h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(path = navyPath, color = WorkoraPrimaryNavy)
+    }
 }
 
 @Composable
@@ -1756,12 +1241,12 @@ private fun SettingsRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(42.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(WorkoraPrimaryNavy),
             contentAlignment = Alignment.Center
@@ -1778,7 +1263,7 @@ private fun SettingsRowItem(
             Text(
                 text = title,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
                 color = WorkoraMainText
             )
             Spacer(modifier = Modifier.height(2.dp))
@@ -1803,7 +1288,7 @@ private fun SettingsRowItem(
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = WorkoraSecondaryText
+            tint = WorkoraMainText
         )
     }
 }
@@ -1822,17 +1307,8 @@ private fun NotificationToggleRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = WorkoraMainText
-            )
-            Text(
-                text = subtitle,
-                fontSize = 12.sp,
-                color = WorkoraSecondaryText
-            )
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = WorkoraMainText)
+            Text(subtitle, fontSize = 12.sp, color = WorkoraSecondaryText)
         }
         Switch(
             checked = checked,
@@ -1860,12 +1336,7 @@ private fun SettingsBottomBarItem(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(imageVector = icon, contentDescription = label, tint = tint, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
@@ -1877,13 +1348,13 @@ private fun SettingsBottomBarItem(
 }
 
 @Composable
-private fun SettingsWorkerAvatar(size: Dp = 64.dp) {
+private fun SettingsWorkerAvatar(size: Dp = 66.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
 
         drawCircle(
-            color = Color(0xFFEFF6FF),
+            color = Color(0xFFE2E8F0),
             radius = w * 0.5f,
             center = Offset(w * 0.5f, h * 0.5f)
         )
@@ -1892,35 +1363,32 @@ private fun SettingsWorkerAvatar(size: Dp = 64.dp) {
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = true,
-            topLeft = Offset(w * 0.18f, h * 0.62f),
-            size = Size(w * 0.64f, h * 0.52f)
+            topLeft = Offset(w * 0.16f, h * 0.60f),
+            size = Size(w * 0.68f, h * 0.54f)
         )
         drawCircle(
             color = Color(0xFFFFCC80),
-            radius = w * 0.2f,
-            center = Offset(w * 0.5f, h * 0.44f)
+            radius = w * 0.21f,
+            center = Offset(w * 0.5f, h * 0.43f)
         )
         drawArc(
             color = WorkoraAccentOrange,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = true,
-            topLeft = Offset(w * 0.26f, h * 0.16f),
-            size = Size(w * 0.48f, h * 0.32f)
+            topLeft = Offset(w * 0.25f, h * 0.15f),
+            size = Size(w * 0.50f, h * 0.32f)
         )
         drawLine(
             color = WorkoraAccentOrange,
-            start = Offset(w * 0.22f, h * 0.32f),
-            end = Offset(w * 0.78f, h * 0.32f),
+            start = Offset(w * 0.22f, h * 0.31f),
+            end = Offset(w * 0.78f, h * 0.31f),
             strokeWidth = w * 0.06f,
             cap = StrokeCap.Round
         )
     }
 }
 
-// ==================================================
-// REAL FIREBASE SYNC FUNCTIONS FOR SETTINGS
-// ==================================================
 private fun safeFirebaseKey(email: String): String {
     return email.trim().lowercase(Locale.US).replace(".", "_").replace("@", "_at_")
 }
@@ -2009,9 +1477,7 @@ private fun syncUserFieldToFirebase(email: String, fieldName: String, value: Str
             conn.requestMethod = "PATCH"
             conn.setRequestProperty("Content-Type", "application/json")
             conn.doOutput = true
-            val payload = JSONObject().apply {
-                put(fieldName, value)
-            }
+            val payload = JSONObject().apply { put(fieldName, value) }
             OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
             conn.responseCode
             conn.disconnect()
@@ -2053,9 +1519,7 @@ private fun fetchUserBookingsFromFirebase(onLoaded: (List<UserBookingItem>) -> U
             conn.disconnect()
         } catch (_: Exception) {
         }
-        Handler(Looper.getMainLooper()).post {
-            onLoaded(list)
-        }
+        Handler(Looper.getMainLooper()).post { onLoaded(list) }
     }.start()
 }
 
@@ -2089,45 +1553,7 @@ private fun fetchBlockedUsersFromFirebase(email: String, onLoaded: (List<Blocked
             conn.disconnect()
         } catch (_: Exception) {
         }
-        Handler(Looper.getMainLooper()).post {
-            onLoaded(list)
-        }
-    }.start()
-}
-
-private fun addBlockedUserToFirebase(email: String, entry: BlockedUserEntry) {
-    Thread {
-        try {
-            val userKey = safeFirebaseKey(email)
-            val url = URL("$SETTINGS_FIREBASE_URL/blocked_users/$userKey/${entry.key}.json")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "PUT"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            val payload = JSONObject().apply {
-                put("name", entry.name)
-                put("phone", entry.phone)
-                put("blockedOn", entry.blockedOn)
-            }
-            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
-            conn.responseCode
-            conn.disconnect()
-        } catch (_: Exception) {
-        }
-    }.start()
-}
-
-private fun removeBlockedUserFromFirebase(email: String, blockKey: String) {
-    Thread {
-        try {
-            val userKey = safeFirebaseKey(email)
-            val url = URL("$SETTINGS_FIREBASE_URL/blocked_users/$userKey/$blockKey.json")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "DELETE"
-            conn.responseCode
-            conn.disconnect()
-        } catch (_: Exception) {
-        }
+        Handler(Looper.getMainLooper()).post { onLoaded(list) }
     }.start()
 }
 
