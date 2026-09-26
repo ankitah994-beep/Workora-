@@ -15,7 +15,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -60,6 +59,32 @@ private val WorkoraSuccessGreen = Color(0xFF16A34A)
 private val WorkoraDangerRed = Color(0xFFDC2626)
 
 private const val SETTINGS_FIREBASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+
+// =========================================================================
+// GLOBAL LANGUAGE MANAGER (Shared across the entire Workora App)
+// =========================================================================
+internal object AppLanguageManager {
+    var currentLanguage by mutableStateOf("English")
+
+    fun init(context: Context) {
+        val prefs = context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE)
+        currentLanguage = prefs.getString("app_language", "English") ?: "English"
+    }
+
+    fun setLanguage(context: Context, language: String) {
+        currentLanguage = language
+        context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE)
+            .edit()
+            .putString("app_language", language)
+            .apply()
+    }
+
+    fun isHindi(context: Context): Boolean {
+        init(context)
+        return currentLanguage.equals("Hindi", ignoreCase = true) ||
+            currentLanguage.contains("हिंदी")
+    }
+}
 
 private enum class SettingsSubPage {
     MAIN,
@@ -115,6 +140,10 @@ fun ProfileScreen(
         onDispose { }
     }
 
+    LaunchedEffect(Unit) {
+        AppLanguageManager.init(context)
+    }
+
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
@@ -162,10 +191,9 @@ fun ProfileScreen(
     var notifPromotional by remember {
         mutableStateOf(settingsPrefs.getBoolean("notif_promotional", false))
     }
-    var selectedLanguage by remember {
-        mutableStateOf(settingsPrefs.getString("app_language", "English") ?: "English")
-    }
-    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true)
+
+    val selectedLanguage = AppLanguageManager.currentLanguage
+    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
 
     val myBookingsList = remember { mutableStateListOf<UserBookingItem>() }
     val blockedUsersList = remember { mutableStateListOf<BlockedUserEntry>() }
@@ -336,10 +364,10 @@ fun ProfileScreen(
                                 SettingsSubPage.CHANGE_PASSWORD -> if (isHindi) "पासवर्ड बदलें" else "Change Password"
                                 SettingsSubPage.BLOCKED_USERS -> if (isHindi) "ब्लॉक किए गए यूजर" else "Blocked Users"
                                 SettingsSubPage.REPORT_PROBLEM -> if (isHindi) "समस्या रिपोर्ट करें" else "Report a Problem"
-                                SettingsSubPage.HELP_SUPPORT -> if (isHindi) "सहायता केंद्र" else "Help & Support"
-                                SettingsSubPage.ABOUT_WORKORA -> "About Workora"
-                                SettingsSubPage.TERMS -> "Terms & Conditions"
-                                SettingsSubPage.PRIVACY_POLICY -> "Privacy Policy"
+                                SettingsSubPage.HELP_SUPPORT -> if (isHindi) "सहायता और समर्थन" else "Help & Support"
+                                SettingsSubPage.ABOUT_WORKORA -> if (isHindi) "Workora के बारे में" else "About Workora"
+                                SettingsSubPage.TERMS -> if (isHindi) "नियम और शर्तें" else "Terms & Conditions"
+                                SettingsSubPage.PRIVACY_POLICY -> if (isHindi) "गोपनीयता नीति" else "Privacy Policy"
                             },
                             color = WorkoraWhite,
                             fontSize = 20.sp,
@@ -365,7 +393,7 @@ fun ProfileScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Admin Panel",
+                                    text = if (isHindi) "एडमिन पैनल" else "Admin Panel",
                                     color = WorkoraWhite,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -391,6 +419,7 @@ fun ProfileScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
+                        // 1. Top User Profile Card
                         item {
                             Card(
                                 modifier = Modifier
@@ -411,7 +440,7 @@ fun ProfileScreen(
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = savedName.ifBlank { savedEmail.substringBefore("@").ifBlank { "Workora User" } },
+                                            text = savedName.ifBlank { savedEmail.substringBefore("@").ifBlank { if (isHindi) "Workora यूजर" else "Workora User" } },
                                             fontSize = 19.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = WorkoraMainText
@@ -419,9 +448,9 @@ fun ProfileScreen(
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = if (role == UserRole.LABOUR) {
-                                                savedSkill.ifBlank { "Worker" }
+                                                savedSkill.ifBlank { if (isHindi) "कारीगर / वर्कर" else "Worker" }
                                             } else {
-                                                "Customer"
+                                                if (isHindi) "ग्राहक (Customer)" else "Customer"
                                             },
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Medium,
@@ -439,7 +468,7 @@ fun ProfileScreen(
                                             val locDisplay = listOf(savedArea, savedState)
                                                 .filter { it.isNotBlank() }
                                                 .joinToString(", ")
-                                                .ifBlank { "Tap to set location" }
+                                                .ifBlank { if (isHindi) "लोकेशन सेट करने के लिए टैप करें" else "Tap to set location" }
                                             Text(
                                                 text = locDisplay,
                                                 fontSize = 13.sp,
@@ -456,6 +485,7 @@ fun ProfileScreen(
                             }
                         }
 
+                        // 2. Primary Settings Card (Fully Bilingual)
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -489,28 +519,29 @@ fun ProfileScreen(
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Language,
                                         title = if (isHindi) "भाषा (Language)" else "Language",
-                                        subtitle = if (isHindi) "ऐप की भाषा बदलें" else "Change app language",
-                                        valueText = selectedLanguage,
+                                        subtitle = if (isHindi) "पूरे ऐप की भाषा बदलें" else "Change entire app language",
+                                        valueText = if (isHindi) "हिंदी (Hindi)" else "English",
                                         onClick = { showLanguageDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.HelpOutline,
                                         title = if (isHindi) "सहायता और समर्थन" else "Help & Support",
-                                        subtitle = if (isHindi) "मदद लें या संपर्क करें" else "Get help or contact us",
+                                        subtitle = if (isHindi) "मदद लें या हमसे संपर्क करें" else "Get help or contact us",
                                         onClick = { currentSubPage = SettingsSubPage.HELP_SUPPORT }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Info,
-                                        title = "About Workora",
-                                        subtitle = "Version 1.0.0",
+                                        title = if (isHindi) "Workora के बारे में" else "About Workora",
+                                        subtitle = if (isHindi) "संस्करण 1.0.0" else "Version 1.0.0",
                                         onClick = { currentSubPage = SettingsSubPage.ABOUT_WORKORA }
                                     )
                                 }
                             }
                         }
 
+                        // 3. Account & Security Details Card (100% Translated in Hindi & English)
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -522,74 +553,79 @@ fun ProfileScreen(
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Phone,
-                                        title = "Phone Number",
-                                        subtitle = "Manage your phone number",
-                                        valueText = savedPhone.ifBlank { "Not set" },
+                                        title = if (isHindi) "मोबाइल नंबर" else "Phone Number",
+                                        subtitle = if (isHindi) "अपना फोन नंबर प्रबंधित करें" else "Manage your phone number",
+                                        valueText = savedPhone.ifBlank { if (isHindi) "सेट नहीं है" else "Not set" },
                                         onClick = { showPhoneDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Email,
-                                        title = "Email",
-                                        subtitle = "Manage your email address",
-                                        valueText = savedEmail.ifBlank { "Not set" },
+                                        title = if (isHindi) "ईमेल पता" else "Email",
+                                        subtitle = if (isHindi) "अपना ईमेल पता प्रबंधित करें" else "Manage your email address",
+                                        valueText = savedEmail.ifBlank { if (isHindi) "सेट नहीं है" else "Not set" },
                                         onClick = { showEmailDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Place,
-                                        title = "Area / State",
-                                        subtitle = "Change your area or state",
-                                        valueText = savedArea.ifBlank { "Not set" },
+                                        title = if (isHindi) "शहर / राज्य (Area / State)" else "Area / State",
+                                        subtitle = if (isHindi) "अपना क्षेत्र या राज्य बदलें" else "Change your area or state",
+                                        valueText = savedArea.ifBlank { if (isHindi) "सेट नहीं है" else "Not set" },
                                         onClick = { showAreaDialog = true }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Lock,
-                                        title = "Change Password",
-                                        subtitle = "Update your account password",
+                                        title = if (isHindi) "पासवर्ड बदलें" else "Change Password",
+                                        subtitle = if (isHindi) "अपने अकाउंट का पासवर्ड अपडेट करें" else "Update your account password",
                                         onClick = { currentSubPage = SettingsSubPage.CHANGE_PASSWORD }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.PersonOff,
-                                        title = "Blocked Users",
-                                        subtitle = "Manage blocked accounts",
+                                        title = if (isHindi) "ब्लॉक किए गए यूजर" else "Blocked Users",
+                                        subtitle = if (isHindi) "ब्लॉक किए गए अकाउंट प्रबंधित करें" else "Manage blocked accounts",
                                         valueText = "${blockedUsersList.size}",
                                         onClick = { currentSubPage = SettingsSubPage.BLOCKED_USERS }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Flag,
-                                        title = "Report a Problem",
-                                        subtitle = "Tell us about an issue",
+                                        title = if (isHindi) "समस्या रिपोर्ट करें" else "Report a Problem",
+                                        subtitle = if (isHindi) "हमें किसी समस्या के बारे में बताएं" else "Tell us about an issue",
                                         onClick = { currentSubPage = SettingsSubPage.REPORT_PROBLEM }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Description,
-                                        title = "Terms & Conditions",
-                                        subtitle = "Read Workora terms of service",
+                                        title = if (isHindi) "नियम और शर्तें" else "Terms & Conditions",
+                                        subtitle = if (isHindi) "Workora की सेवा शर्तें पढ़ें" else "Read Workora terms of service",
                                         onClick = { currentSubPage = SettingsSubPage.TERMS }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.Shield,
-                                        title = "Privacy Policy",
-                                        subtitle = "How we protect your data",
+                                        title = if (isHindi) "गोपनीयता नीति (Privacy Policy)" else "Privacy Policy",
+                                        subtitle = if (isHindi) "हम आपके डेटा की सुरक्षा कैसे करते हैं" else "How we protect your data",
                                         onClick = { currentSubPage = SettingsSubPage.PRIVACY_POLICY }
                                     )
                                     HorizontalDivider(color = WorkoraBorderColor, thickness = 1.dp)
                                     SettingsRowItem(
                                         icon = Icons.Outlined.SwapHoriz,
-                                        title = "Switch Role (${if (role == UserRole.CUSTOMER) "Worker Mode" else "Customer Mode"})",
-                                        subtitle = "Switch between Customer and Labour view",
+                                        title = if (isHindi) {
+                                            "रोल बदलें (${if (role == UserRole.CUSTOMER) "वर्कर मोड" else "कस्टमर मोड"})"
+                                        } else {
+                                            "Switch Role (${if (role == UserRole.CUSTOMER) "Worker Mode" else "Customer Mode"})"
+                                        },
+                                        subtitle = if (isHindi) "कस्टमर और वर्कर मोड के बीच बदलें" else "Switch between Customer and Worker view",
                                         onClick = onSwitchRole
                                     )
                                 }
                             }
                         }
 
+                        // 4. Logout & Delete Account Card (Fully Bilingual)
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -623,13 +659,13 @@ fun ProfileScreen(
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "Logout",
+                                                text = if (isHindi) "लॉगआउट (Logout)" else "Logout",
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = WorkoraDangerRed
                                             )
                                             Text(
-                                                text = "Sign out from your account",
+                                                text = if (isHindi) "अपने अकाउंट से साइन आउट करें" else "Sign out from your account",
                                                 fontSize = 12.sp,
                                                 color = WorkoraSecondaryText
                                             )
@@ -667,13 +703,13 @@ fun ProfileScreen(
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "Delete Account",
+                                                text = if (isHindi) "अकाउंट डिलीट करें" else "Delete Account",
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = WorkoraDangerRed
                                             )
                                             Text(
-                                                text = "Permanently remove your account",
+                                                text = if (isHindi) "अपना अकाउंट स्थायी रूप से हटाएं" else "Permanently remove your account",
                                                 fontSize = 12.sp,
                                                 color = WorkoraSecondaryText
                                             )
@@ -721,9 +757,9 @@ fun ProfileScreen(
                                         SettingsWorkerAvatar(size = 64.dp)
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
-                                            Text(editName.ifBlank { "Your Profile" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                                            Text(editName.ifBlank { if (isHindi) "आपकी प्रोफाइल" else "Your Profile" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
                                             Text(
-                                                text = if (role == UserRole.LABOUR) editSkill.ifBlank { "Worker" } else "Customer",
+                                                text = if (role == UserRole.LABOUR) editSkill.ifBlank { if (isHindi) "कारीगर" else "Worker" } else if (isHindi) "ग्राहक" else "Customer",
                                                 fontSize = 13.sp,
                                                 color = WorkoraAccentOrange,
                                                 fontWeight = FontWeight.SemiBold
@@ -731,21 +767,21 @@ fun ProfileScreen(
                                         }
                                     }
 
-                                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Full Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editState, onValueChange = { editState = it }, label = { Text("State (राज्य) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text("Area / City (शहर / गाँव) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text(if (isHindi) "पूरा नाम *" else "Full Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text(if (isHindi) "मोबाइल नंबर *" else "Phone Number *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editState, onValueChange = { editState = it }, label = { Text(if (isHindi) "राज्य (State) *" else "State *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    OutlinedTextField(value = editArea, onValueChange = { editArea = it }, label = { Text(if (isHindi) "शहर / गाँव (Area / City) *" else "Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
                                     if (role == UserRole.LABOUR) {
-                                        OutlinedTextField(value = editSkill, onValueChange = { editSkill = it }, label = { Text("Category / Skill *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                        OutlinedTextField(value = editExp, onValueChange = { editExp = it }, label = { Text("Experience (e.g. 3 yrs) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                        OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text("Daily Rate (₹) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                        OutlinedTextField(value = editSkill, onValueChange = { editSkill = it }, label = { Text(if (isHindi) "काम की श्रेणी (Skill) *" else "Category / Skill *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                        OutlinedTextField(value = editExp, onValueChange = { editExp = it }, label = { Text(if (isHindi) "अनुभव (जैसे 3 yrs) *" else "Experience (e.g. 3 yrs) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                        OutlinedTextField(value = editRate, onValueChange = { editRate = it }, label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                                     }
 
                                     Button(
                                         onClick = {
                                             if (editName.isBlank() || editPhone.isBlank() || editArea.isBlank()) {
-                                                Toast.makeText(context, "Name, Phone and Area cannot be empty", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, if (isHindi) "कृपया नाम, फोन और एरिया भरें" else "Name, Phone and Area cannot be empty", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 savedName = editName.trim()
                                                 savedPhone = editPhone.trim()
@@ -778,7 +814,7 @@ fun ProfileScreen(
                                                 )
 
                                                 onUpdateProfile(savedName, savedPhone, savedArea)
-                                                Toast.makeText(context, "Profile updated ✓", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, if (isHindi) "प्रोफाइल अपडेट हो गई ✓" else "Profile updated ✓", Toast.LENGTH_SHORT).show()
                                                 currentSubPage = SettingsSubPage.MAIN
                                             }
                                         },
@@ -786,7 +822,7 @@ fun ProfileScreen(
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.fillMaxWidth().height(48.dp)
                                     ) {
-                                        Text("Save Changes", color = WorkoraWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                        Text(if (isHindi) "बदलाव सेव करें" else "Save Changes", color = WorkoraWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     }
                                 }
                             }
@@ -814,7 +850,7 @@ fun ProfileScreen(
                                     ) {
                                         Icon(Icons.Outlined.EventNote, contentDescription = null, tint = WorkoraSecondaryText, modifier = Modifier.size(48.dp))
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        Text("No Bookings Yet", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                                        Text(if (isHindi) "अभी कोई बुकिंग नहीं है" else "No Bookings Yet", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
                                     }
                                 }
                             }
@@ -832,7 +868,7 @@ fun ProfileScreen(
                                             Text(bk.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraSuccessGreen)
                                         }
                                         Text("${bk.category} • ${bk.location}", fontSize = 13.sp, color = WorkoraSecondaryText)
-                                        Text("₹${bk.rate}/day • ${bk.date}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraAccentOrange)
+                                        Text("₹${bk.rate}/${if (isHindi) "दिन" else "day"} • ${bk.date}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraAccentOrange)
                                     }
                                 }
                             }
@@ -849,8 +885,8 @@ fun ProfileScreen(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             NotificationToggleRow(
-                                title = "All Notifications",
-                                subtitle = "Master notification switch",
+                                title = if (isHindi) "सभी नोटिफिकेशन" else "All Notifications",
+                                subtitle = if (isHindi) "मास्टर नोटिफिकेशन स्विच" else "Master notification switch",
                                 checked = notificationsMasterToggle,
                                 onCheckedChange = {
                                     notificationsMasterToggle = it
@@ -859,8 +895,8 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
                             NotificationToggleRow(
-                                title = "Work requests",
-                                subtitle = "Receive alerts for new work requests",
+                                title = if (isHindi) "काम की रिक्वेस्ट" else "Work requests",
+                                subtitle = if (isHindi) "नए काम के अलर्ट प्राप्त करें" else "Receive alerts for new work requests",
                                 checked = notifWorkRequests,
                                 onCheckedChange = {
                                     notifWorkRequests = it
@@ -869,8 +905,8 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
                             NotificationToggleRow(
-                                title = "Booking updates",
-                                subtitle = "Status changes on your active bookings",
+                                title = if (isHindi) "बुकिंग अपडेट्स" else "Booking updates",
+                                subtitle = if (isHindi) "आपकी बुकिंग की स्थिति में बदलाव" else "Status changes on your active bookings",
                                 checked = notifBookingUpdates,
                                 onCheckedChange = {
                                     notifBookingUpdates = it
@@ -879,8 +915,8 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
                             NotificationToggleRow(
-                                title = "Messages",
-                                subtitle = "Direct chat notifications",
+                                title = if (isHindi) "चैट मैसेज" else "Messages",
+                                subtitle = if (isHindi) "डायरेक्ट लाइव चैट नोटिफिकेशन" else "Direct chat notifications",
                                 checked = notifMessages,
                                 onCheckedChange = {
                                     notifMessages = it
@@ -889,8 +925,8 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = WorkoraBorderColor)
                             NotificationToggleRow(
-                                title = "Promotional notifications",
-                                subtitle = "Platform tips and announcements",
+                                title = if (isHindi) "प्रमोशनल अपडेट्स" else "Promotional notifications",
+                                subtitle = if (isHindi) "टिप्स और नई घोषणाएं" else "Platform tips and announcements",
                                 checked = notifPromotional,
                                 onCheckedChange = {
                                     notifPromotional = it
@@ -914,10 +950,10 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Change Password", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it; errorMsg = null }, label = { Text("Current Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = newPassword, onValueChange = { newPassword = it; errorMsg = null }, label = { Text("New Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = confirmPassword, onValueChange = { confirmPassword = it; errorMsg = null }, label = { Text("Confirm New Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                            Text(if (isHindi) "पासवर्ड बदलें" else "Change Password", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            OutlinedTextField(value = currentPassword, onValueChange = { currentPassword = it; errorMsg = null }, label = { Text(if (isHindi) "वर्तमान पासवर्ड" else "Current Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = newPassword, onValueChange = { newPassword = it; errorMsg = null }, label = { Text(if (isHindi) "नया पासवर्ड" else "New Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = confirmPassword, onValueChange = { confirmPassword = it; errorMsg = null }, label = { Text(if (isHindi) "नया पासवर्ड कन्फर्म करें" else "Confirm New Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
 
                             if (!errorMsg.isNullOrBlank()) {
                                 Text(errorMsg!!, color = WorkoraDangerRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -926,18 +962,18 @@ fun ProfileScreen(
                             Button(
                                 onClick = {
                                     if (currentPassword.isBlank() || newPassword.length < 6 || newPassword != confirmPassword) {
-                                        errorMsg = "Please enter valid matching passwords (min 6 characters)."
+                                        errorMsg = if (isHindi) "कृपया कम से कम 6 अक्षरों का सही पासवर्ड भरें।" else "Please enter valid matching passwords (min 6 characters)."
                                     } else {
                                         authPrefs.edit().putString("saved_password_$savedEmail", newPassword).apply()
                                         syncUserFieldToFirebase(savedEmail, "password", newPassword)
-                                        Toast.makeText(context, "Password updated ✓", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, if (isHindi) "पासवर्ड बदल दिया गया ✓" else "Password updated ✓", Toast.LENGTH_SHORT).show()
                                         currentSubPage = SettingsSubPage.MAIN
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
                                 modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) {
-                                Text("Change Password", color = WorkoraWhite, fontWeight = FontWeight.Bold)
+                                Text(if (isHindi) "पासवर्ड अपडेट करें" else "Change Password", color = WorkoraWhite, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -951,8 +987,8 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("No Blocked Users", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            Text("You haven't blocked any users on Workora.", fontSize = 13.sp, color = WorkoraSecondaryText)
+                            Text(if (isHindi) "कोई ब्लॉक यूजर नहीं है" else "No Blocked Users", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text(if (isHindi) "आपने किसी भी यूजर को ब्लॉक नहीं किया है।" else "You haven't blocked any users on Workora.", fontSize = 13.sp, color = WorkoraSecondaryText)
                         }
                     }
                 }
@@ -968,21 +1004,21 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Report a Problem", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            OutlinedTextField(value = subject, onValueChange = { subject = it }, label = { Text("Subject") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = details, onValueChange = { details = it }, label = { Text("Problem Details") }, minLines = 4, modifier = Modifier.fillMaxWidth())
+                            Text(if (isHindi) "समस्या रिपोर्ट करें" else "Report a Problem", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            OutlinedTextField(value = subject, onValueChange = { subject = it }, label = { Text(if (isHindi) "विषय (Subject)" else "Subject") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = details, onValueChange = { details = it }, label = { Text(if (isHindi) "समस्या का विवरण" else "Problem Details") }, minLines = 4, modifier = Modifier.fillMaxWidth())
                             Button(
                                 onClick = {
                                     if (subject.isNotBlank() && details.isNotBlank()) {
                                         submitReportToFirebase(savedName, savedPhone, subject, details)
-                                        Toast.makeText(context, "Report submitted ✓", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, if (isHindi) "रिपोर्ट भेज दी गई ✓" else "Report submitted ✓", Toast.LENGTH_SHORT).show()
                                         currentSubPage = SettingsSubPage.MAIN
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Submit Report", color = WorkoraWhite, fontWeight = FontWeight.Bold)
+                                Text(if (isHindi) "रिपोर्ट सबमिट करें" else "Submit Report", color = WorkoraWhite, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -996,11 +1032,11 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Help & Support", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text(if (isHindi) "सहायता और समर्थन" else "Help & Support", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
                             Text("Support Email: ankitah994@gmail.com\nHelpline: +91 6265798340", fontSize = 14.sp, color = WorkoraSecondaryText)
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Button(onClick = onOpenChat, colors = ButtonDefaults.buttonColors(containerColor = WorkoraPrimaryNavy), modifier = Modifier.weight(1f)) {
-                                    Text("Live Support Chat", color = WorkoraWhite)
+                                    Text(if (isHindi) "लाइव चैट सहायता" else "Live Support Chat", color = WorkoraWhite)
                                 }
                                 OutlinedButton(
                                     onClick = {
@@ -1008,7 +1044,7 @@ fun ProfileScreen(
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Call Helpline", color = WorkoraPrimaryNavy)
+                                    Text(if (isHindi) "हेल्पलाइन कॉल करें" else "Call Helpline", color = WorkoraPrimaryNavy)
                                 }
                             }
                         }
@@ -1024,8 +1060,12 @@ fun ProfileScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("WORKORA — Find. Hire. Work.", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WorkoraPrimaryNavy)
-                            Text("Version 1.0.0", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WorkoraAccentOrange)
-                            Text("Workora connects verified local workers and customers directly with 0% commission.", fontSize = 13.sp, color = WorkoraSecondaryText)
+                            Text(if (isHindi) "संस्करण 1.0.0" else "Version 1.0.0", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WorkoraAccentOrange)
+                            Text(
+                                text = if (isHindi) "Workora स्थानीय कारीगरों और ग्राहकों को बिना किसी कमीशन (0% Commission) के सीधे जोड़ता है।" else "Workora connects verified local workers and customers directly with 0% commission.",
+                                fontSize = 13.sp,
+                                color = WorkoraSecondaryText
+                            )
                         }
                     }
                 }
@@ -1038,8 +1078,12 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Terms & Conditions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            Text("1. Direct hiring with 0% commission.\n2. Accurate profile & location required.\n3. Fraudulent activity leads to account block.", fontSize = 13.sp, color = WorkoraSecondaryText)
+                            Text(if (isHindi) "नियम और शर्तें" else "Terms & Conditions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text(
+                                text = if (isHindi) "1. 0% कमीशन के साथ सीधी बुकिंग।\n2. सही प्रोफाइल और लोकेशन देना अनिवार्य है।\n3. गलत गतिविधि होने पर अकाउंट ब्लॉक किया जा सकता है।" else "1. Direct hiring with 0% commission.\n2. Accurate profile & location required.\n3. Fraudulent activity leads to account block.",
+                                fontSize = 13.sp,
+                                color = WorkoraSecondaryText
+                            )
                         }
                     }
                 }
@@ -1052,8 +1096,12 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, WorkoraBorderColor)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Privacy Policy", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
-                            Text("Your personal data and phone number are securely stored and used only for connecting bookings on Workora.", fontSize = 13.sp, color = WorkoraSecondaryText)
+                            Text(if (isHindi) "गोपनीयता नीति" else "Privacy Policy", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WorkoraMainText)
+                            Text(
+                                text = if (isHindi) "आपका व्यक्तिगत डेटा और मोबाइल नंबर पूरी तरह सुरक्षित है और केवल Workora पर काम व बुकिंग से जोड़ने के लिए उपयोग किया जाता है।" else "Your personal data and phone number are securely stored and used only for connecting bookings on Workora.",
+                                fontSize = 13.sp,
+                                color = WorkoraSecondaryText
+                            )
                         }
                     }
                 }
@@ -1066,7 +1114,7 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showPhoneDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Update Phone Number", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            title = { Text(if (isHindi) "मोबाइल नंबर अपडेट करें" else "Update Phone Number", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
             text = { OutlinedTextField(value = tempPhone, onValueChange = { tempPhone = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = {
                 Button(
@@ -1079,9 +1127,9 @@ fun ProfileScreen(
                         showPhoneDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) { Text("Save", color = WorkoraWhite) }
+                ) { Text(if (isHindi) "सेव करें" else "Save", color = WorkoraWhite) }
             },
-            dismissButton = { TextButton(onClick = { showPhoneDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showPhoneDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") } }
         )
     }
 
@@ -1090,7 +1138,7 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showEmailDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Update Email", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            title = { Text(if (isHindi) "ईमेल अपडेट करें" else "Update Email", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
             text = { OutlinedTextField(value = tempEmail, onValueChange = { tempEmail = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = {
                 Button(
@@ -1102,9 +1150,9 @@ fun ProfileScreen(
                         showEmailDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) { Text("Save", color = WorkoraWhite) }
+                ) { Text(if (isHindi) "सेव करें" else "Save", color = WorkoraWhite) }
             },
-            dismissButton = { TextButton(onClick = { showEmailDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showEmailDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") } }
         )
     }
 
@@ -1114,11 +1162,11 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showAreaDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Change State & Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            title = { Text(if (isHindi) "राज्य और शहर बदलें" else "Change State & Area", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = tempState, onValueChange = { tempState = it }, label = { Text("State") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = tempArea, onValueChange = { tempArea = it }, label = { Text("City / Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempState, onValueChange = { tempState = it }, label = { Text(if (isHindi) "राज्य (State)" else "State") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempArea, onValueChange = { tempArea = it }, label = { Text(if (isHindi) "शहर / क्षेत्र (City / Area)" else "City / Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -1138,47 +1186,55 @@ fun ProfileScreen(
                         showAreaDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraAccentOrange)
-                ) { Text("Save", color = WorkoraWhite) }
+                ) { Text(if (isHindi) "सेव करें" else "Save", color = WorkoraWhite) }
             },
-            dismissButton = { TextButton(onClick = { showAreaDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showAreaDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") } }
         )
     }
 
     if (showLanguageDialog) {
-        val languages = listOf("English", "Hindi")
+        val languages = listOf("English" to "English", "Hindi" to "हिंदी (Hindi)")
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Select Language", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            title = { Text(if (isHindi) "पूरे ऐप की भाषा चुनें" else "Select App Language", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
             text = {
                 Column {
-                    languages.forEach { lang ->
+                    languages.forEach { (code, label) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    selectedLanguage = lang
-                                    settingsPrefs.edit().putString("app_language", lang).apply()
+                                    AppLanguageManager.setLanguage(context, code)
+                                    Toast.makeText(
+                                        context,
+                                        if (code == "Hindi") "पूरे ऐप की भाषा हिंदी कर दी गई है ✓" else "App language changed to English ✓",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     showLanguageDialog = false
                                 }
                                 .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
-                                selected = selectedLanguage.equals(lang, true),
+                                selected = selectedLanguage.equals(code, true),
                                 onClick = {
-                                    selectedLanguage = lang
-                                    settingsPrefs.edit().putString("app_language", lang).apply()
+                                    AppLanguageManager.setLanguage(context, code)
+                                    Toast.makeText(
+                                        context,
+                                        if (code == "Hindi") "पूरे ऐप की भाषा हिंदी कर दी गई है ✓" else "App language changed to English ✓",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     showLanguageDialog = false
                                 }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(lang, fontSize = 15.sp, color = WorkoraMainText)
+                            Text(label, fontSize = 15.sp, color = WorkoraMainText, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showLanguageDialog = false }) { Text("Close") } }
+            confirmButton = { TextButton(onClick = { showLanguageDialog = false }) { Text(if (isHindi) "बंद करें" else "Close") } }
         )
     }
 
@@ -1186,8 +1242,8 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Confirm Logout", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
-            text = { Text("Are you sure you want to sign out from your account?", color = WorkoraSecondaryText) },
+            title = { Text(if (isHindi) "लॉगआउट कन्फर्म करें" else "Confirm Logout", fontWeight = FontWeight.Bold, color = WorkoraMainText) },
+            text = { Text(if (isHindi) "क्या आप वाकई अपने अकाउंट से लॉगआउट करना चाहते हैं?" else "Are you sure you want to sign out from your account?", color = WorkoraSecondaryText) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1195,9 +1251,9 @@ fun ProfileScreen(
                         onLogout()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraDangerRed)
-                ) { Text("Logout", color = WorkoraWhite, fontWeight = FontWeight.Bold) }
+                ) { Text(if (isHindi) "लॉगआउट" else "Logout", color = WorkoraWhite, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") } }
         )
     }
 
@@ -1205,8 +1261,8 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
             containerColor = WorkoraWhite,
-            title = { Text("Delete Account Permanently?", fontWeight = FontWeight.Bold, color = WorkoraDangerRed) },
-            text = { Text("Warning: Account deletion is permanent and cannot be undone.", color = WorkoraMainText) },
+            title = { Text(if (isHindi) "अकाउंट स्थायी रूप से डिलीट करें?" else "Delete Account Permanently?", fontWeight = FontWeight.Bold, color = WorkoraDangerRed) },
+            text = { Text(if (isHindi) "चेतावनी: अकाउंट डिलीट होने के बाद वापस नहीं लाया जा सकता।" else "Warning: Account deletion is permanent and cannot be undone.", color = WorkoraMainText) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1217,9 +1273,9 @@ fun ProfileScreen(
                         onLogout()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraDangerRed)
-                ) { Text("Delete Permanently", color = WorkoraWhite, fontWeight = FontWeight.Bold) }
+                ) { Text(if (isHindi) "स्थायी रूप से हटाएं" else "Delete Permanently", color = WorkoraWhite, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel") } }
         )
     }
 }
