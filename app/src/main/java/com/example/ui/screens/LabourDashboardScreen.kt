@@ -37,7 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.*
+import com.example.model.Job
+import com.example.model.User
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -46,23 +47,22 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-private val LabourNavyPrimary = Color(0xFF083D91)
-private val LabourDarkNavyBtn = Color(0xFF0B2345)
-private val LabourOrangeAccent = Color(0xFFFF8C00)
-private val LabourBgLight = Color(0xFFF8FAFC)
-private val LabourWhite = Color(0xFFFFFFFF)
-private val LabourMainText = Color(0xFF0B2345)
-private val LabourSecondaryText = Color(0xFF687280)
-private val LabourBorder = Color(0xFFE5EAF0)
-private val LabourSuccessGreen = Color(0xFF16A34A)
-private val LabourSuccessBg = Color(0xFFDCFCE7)
-private val LabourRateBadgeBg = Color(0xFFFEF9C3)
-private val LabourRateBadgeBorder = Color(0xFFFDE047)
-private val LabourRateTextOrange = Color(0xFFD97706)
+internal val LabourNavyPrimary = Color(0xFF083D91)
+internal val LabourDarkNavyBtn = Color(0xFF0B2345)
+internal val LabourOrangeAccent = Color(0xFFFF8C00)
+internal val LabourBgLight = Color(0xFFF8FAFC)
+internal val LabourWhite = Color(0xFFFFFFFF)
+internal val LabourMainText = Color(0xFF0B2345)
+internal val LabourSecondaryText = Color(0xFF687280)
+internal val LabourBorder = Color(0xFFE5EAF0)
+internal val LabourSuccessGreen = Color(0xFF16A34A)
+internal val LabourRateBadgeBg = Color(0xFFFEF9C3)
+internal val LabourRateBadgeBorder = Color(0xFFFDE047)
+internal val LabourRateTextOrange = Color(0xFFD97706)
 
-private const val LABOUR_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+internal const val LABOUR_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-private data class CustomerWorkRequestItem(
+internal data class LabourWorkRequestItem(
     val id: String,
     val title: String,
     val category: String,
@@ -80,14 +80,14 @@ private data class CustomerWorkRequestItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LabourDashboardScreen(
+fun <CatT, TabT> LabourDashboardScreen(
     currentUser: User? = null,
     jobs: List<Job> = emptyList(),
-    applications: List<*> = emptyList(),
-    selectedCategory: JobCategory? = null,
-    onCategorySelected: (JobCategory?) -> Unit = {},
-    activeTab: LabourTab = LabourTab.values().first(),
-    onTabSelected: (LabourTab) -> Unit = {},
+    applications: List<*> = emptyList<Any?>(),
+    selectedCategory: CatT,
+    onCategorySelected: (CatT) -> Unit = {},
+    activeTab: TabT,
+    onTabSelected: (TabT) -> Unit = {},
     isAvailable: Boolean = true,
     onToggleAvailability: () -> Unit = {},
     onApplyJob: (Job) -> Unit = {},
@@ -110,7 +110,6 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Worker's own registered details from SharedPreferences
     val workerName = profilePrefs.getString("user_name", "")?.ifBlank {
         authPrefs.getString("last_logged_in_email", "Worker")?.substringBefore("@") ?: "Worker"
     } ?: "Worker"
@@ -120,13 +119,11 @@ fun LabourDashboardScreen(
     val workerRate = profilePrefs.getString("user_rate", "")?.ifBlank { "600" } ?: "600"
 
     var selectedCategoryFilter by remember { mutableStateOf("All") }
-
-    // Holds the clicked Customer / Work Request so THAT Customer's profile opens (NOT the Worker's own profile!)
-    var selectedCustomerRequestForProfile by remember { mutableStateOf<CustomerWorkRequestItem?>(null) }
+    var selectedCustomerRequestForProfile by remember { mutableStateOf<LabourWorkRequestItem?>(null) }
 
     val defaultCustomerRequests = remember {
         listOf(
-            CustomerWorkRequestItem(
+            LabourWorkRequestItem(
                 id = "req_1",
                 title = "Fix home wiring & switchboards",
                 category = "Electrician",
@@ -141,7 +138,7 @@ fun LabourDashboardScreen(
                 status = "PENDING",
                 urgency = "Urgent"
             ),
-            CustomerWorkRequestItem(
+            LabourWorkRequestItem(
                 id = "req_2",
                 title = "House Plaster & Brick Work",
                 category = "Mason",
@@ -156,11 +153,11 @@ fun LabourDashboardScreen(
                 status = "PENDING",
                 urgency = "Normal"
             ),
-            CustomerWorkRequestItem(
+            LabourWorkRequestItem(
                 id = "req_3",
                 title = "Bathroom Pipeline & Tank Fitting",
                 category = "Plumber",
-                description = " overhead water tank installation and bathroom tap fitting work.",
+                description = "Overhead water tank installation and bathroom tap fitting work.",
                 customerName = "Vikash Singh",
                 customerPhone = "+91 9425012345",
                 location = "Bhopal Road, Silwani",
@@ -171,7 +168,7 @@ fun LabourDashboardScreen(
                 status = "PENDING",
                 urgency = "Normal"
             ),
-            CustomerWorkRequestItem(
+            LabourWorkRequestItem(
                 id = "req_4",
                 title = "2 BHK Full Interior Wall Painting",
                 category = "Painter",
@@ -190,12 +187,12 @@ fun LabourDashboardScreen(
     }
 
     val workRequestsList = remember {
-        mutableStateListOf<CustomerWorkRequestItem>().apply { addAll(defaultCustomerRequests) }
+        mutableStateListOf<LabourWorkRequestItem>().apply { addAll(defaultCustomerRequests) }
     }
 
     LaunchedEffect(Unit) {
         fetchLiveCustomerRequestsFromFirebase { cloudRequests ->
-            val merged = mutableListOf<CustomerWorkRequestItem>()
+            val merged = mutableListOf<LabourWorkRequestItem>()
             merged.addAll(cloudRequests)
             defaultCustomerRequests.forEach { def ->
                 if (merged.none { it.id == def.id || it.title.equals(def.title, true) }) {
@@ -212,8 +209,7 @@ fun LabourDashboardScreen(
         else workRequestsList.filter { it.category.equals(selectedCategoryFilter, ignoreCase = true) }
     }
 
-    // Helper to open Live Chat directly with the selected Customer
-    val openDirectLiveChatWithCustomer: (CustomerWorkRequestItem) -> Unit = { req ->
+    val openDirectLiveChatWithCustomer: (LabourWorkRequestItem) -> Unit = { req ->
         chatPrefs.edit()
             .putString("chat_partner_id", req.id)
             .putString("chat_partner_name", req.customerName)
@@ -224,7 +220,6 @@ fun LabourDashboardScreen(
         onOpenChat()
     }
 
-    // When Worker clicks on a Customer / Work Request Card, open THAT Customer's Profile & Job View!
     if (selectedCustomerRequestForProfile != null) {
         val req = selectedCustomerRequestForProfile!!
         CustomerAndJobDetailProfileScreen(
@@ -303,7 +298,6 @@ fun LabourDashboardScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Top Navy Header
             item {
                 Row(
                     modifier = Modifier
@@ -349,7 +343,6 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // Worker Summary + Availability Card (Matches Reference Image #4)
             item {
                 Card(
                     modifier = Modifier
@@ -427,7 +420,6 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // Category Filter Chips
             item {
                 val cats = listOf("All", "Mason", "Electrician", "Plumber", "Painter", "Carpenter", "General Labour")
                 Row(
@@ -457,7 +449,6 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // Section Title
             item {
                 Row(
                     modifier = Modifier
@@ -482,12 +473,10 @@ fun LabourDashboardScreen(
                 }
             }
 
-            // Customer Work Request Cards (Click opens Customer Profile; Call Now + Message Icon)
             items(filteredRequests, key = { it.id }) { req ->
                 CustomerWorkRequestCard(
                     request = req,
                     onCardClick = {
-                        // Opens THIS Customer's Profile & Work Details (NOT Worker's own profile!)
                         selectedCustomerRequestForProfile = req
                     },
                     onCallCustomerClick = {
@@ -495,7 +484,6 @@ fun LabourDashboardScreen(
                         context.startActivity(dialIntent)
                     },
                     onMessageIconClick = {
-                        // Immediately opens App's Live Chat with this Customer!
                         openDirectLiveChatWithCustomer(req)
                     }
                 )
@@ -504,12 +492,9 @@ fun LabourDashboardScreen(
     }
 }
 
-// ==================================================
-// CUSTOMER WORK REQUEST CARD (CALL NOW + MESSAGE ICON)
-// ==================================================
 @Composable
-private fun CustomerWorkRequestCard(
-    request: CustomerWorkRequestItem,
+internal fun CustomerWorkRequestCard(
+    request: LabourWorkRequestItem,
     onCardClick: () -> Unit,
     onCallCustomerClick: () -> Unit,
     onMessageIconClick: () -> Unit
@@ -605,7 +590,6 @@ private fun CustomerWorkRequestCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Call Now + Direct Message (Live Chat) Icon Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -637,7 +621,6 @@ private fun CustomerWorkRequestCard(
                     )
                 }
 
-                // Message / Live Chat Icon Button
                 Surface(
                     color = LabourNavyPrimary,
                     shape = RoundedCornerShape(14.dp),
@@ -659,12 +642,9 @@ private fun CustomerWorkRequestCard(
     }
 }
 
-// ==================================================
-// CUSTOMER PROFILE & WORK REQUEST DETAIL SCREEN
-// ==================================================
 @Composable
-private fun CustomerAndJobDetailProfileScreen(
-    request: CustomerWorkRequestItem,
+internal fun CustomerAndJobDetailProfileScreen(
+    request: LabourWorkRequestItem,
     onBack: () -> Unit,
     onCallCustomer: () -> Unit,
     onChatWithCustomer: () -> Unit,
@@ -818,7 +798,7 @@ private fun CustomerAndJobDetailProfileScreen(
 }
 
 @Composable
-private fun CustomerHardHatAvatar(size: Dp = 68.dp) {
+internal fun CustomerHardHatAvatar(size: Dp = 68.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -851,7 +831,7 @@ private fun CustomerHardHatAvatar(size: Dp = 68.dp) {
 }
 
 @Composable
-private fun LabourBottomNavItem(
+internal fun LabourBottomNavItem(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
@@ -876,11 +856,11 @@ private fun LabourBottomNavItem(
     }
 }
 
-private fun fetchLiveCustomerRequestsFromFirebase(
-    onLoaded: (List<CustomerWorkRequestItem>) -> Unit
+internal fun fetchLiveCustomerRequestsFromFirebase(
+    onLoaded: (List<LabourWorkRequestItem>) -> Unit
 ) {
     Thread {
-        val list = mutableListOf<CustomerWorkRequestItem>()
+        val list = mutableListOf<LabourWorkRequestItem>()
         try {
             val conn = URL("$LABOUR_FB_URL/jobs.json").openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
@@ -894,7 +874,7 @@ private fun fetchLiveCustomerRequestsFromFirebase(
                         val k = keys.next()
                         val obj = root.optJSONObject(k) ?: continue
                         list.add(
-                            CustomerWorkRequestItem(
+                            LabourWorkRequestItem(
                                 id = obj.optString("id", k),
                                 title = obj.optString("title", "Work Request"),
                                 category = obj.optString("category", "General Labour"),
@@ -922,7 +902,7 @@ private fun fetchLiveCustomerRequestsFromFirebase(
     }.start()
 }
 
-private fun updateJobStatusInFirebase(jobId: String, status: String, workerName: String) {
+internal fun updateJobStatusInFirebase(jobId: String, status: String, workerName: String) {
     Thread {
         try {
             val url = URL("$LABOUR_FB_URL/jobs/$jobId.json")
