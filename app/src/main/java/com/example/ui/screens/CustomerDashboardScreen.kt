@@ -81,7 +81,11 @@ internal data class CustFeaturedWorkerProfile(
     val isVerified: Boolean,
     val shirtColor: Color,
     val hatColor: Color,
-    val about: String
+    val about: String,
+    val profilePhoto: String = "",
+    val photo1: String = "",
+    val photo2: String = "",
+    val photo3: String = ""
 )
 
 private fun translateCategoryLabel(category: String, isHindi: Boolean): String {
@@ -99,6 +103,44 @@ private fun translateCategoryLabel(category: String, isHindi: Boolean): String {
         "farm worker" -> "कृषि मजदूर (Farm Worker)"
         else -> category
     }
+}
+
+// Smart Bilingual Search Engine (Matches English, Hindi, Hinglish, Multi-word & Partial queries)
+private fun matchesWorkerSmartSearch(worker: CustFeaturedWorkerProfile, rawQuery: String): Boolean {
+    val q = rawQuery.trim().lowercase(Locale.US)
+    if (q.isEmpty()) return true
+
+    val hindiCategory = translateCategoryLabel(worker.category, true).lowercase(Locale.US)
+    val extraSynonyms = when (worker.category.trim().lowercase(Locale.US)) {
+        "mason" -> "राजमिस्त्री मिस्त्री सिलाई चुनाई प्लास्टर ईंट घर निर्माण mistri rajmistri brick plaster"
+        "plumber" -> "प्लंबर नल पाइप फिटिंग टंकी पानी मोटर plumber nal pipe fitting tank"
+        "electrician" -> "इलेक्ट्रीशियन बिजली वायरिंग पंखा कूलर लाइट स्विच bijli wiring fan light switch"
+        "painter" -> "पेंटर पुट्टी पेंट रंगाई पुताई कलर painter putty paint color"
+        "carpenter" -> "बढ़ई फर्नीचर लकड़ी दरवाजा खिड़की पलंग badhai furniture wood door"
+        "general labour" -> "मजदूर लेबर हेल्पर लोडिंग अनलोडिंग खुदाई majdur labour helper"
+        "tile worker" -> "टाइल्स कारीगर पत्थर मार्बल ग्रेनाइट फर्श tile tiles marble granite floor worker"
+        "cleaner" -> "सफाई कर्मी क्लीनर झाड़ू पोछा टैंक सफाई safai cleaner cleaning"
+        "farm worker" -> "कृषि मजदूर खेती किसान फसल कटाई kheti farm kisan agriculture"
+        else -> ""
+    }
+
+    val searchableBlob = buildString {
+        append(worker.name.lowercase(Locale.US)).append(" ")
+        append(worker.category.lowercase(Locale.US)).append(" ")
+        append(hindiCategory).append(" ")
+        append(extraSynonyms).append(" ")
+        append(worker.area.lowercase(Locale.US)).append(" ")
+        append(worker.stateName.lowercase(Locale.US)).append(" ")
+        append(worker.phone.lowercase(Locale.US)).append(" ")
+        append(worker.dailyRate.toString()).append(" ")
+        append(worker.about.lowercase(Locale.US)).append(" ")
+        append("worker karigar कारीगर वर्कर")
+    }
+
+    // Check if full query is contained OR all individual words in query match
+    if (searchableBlob.contains(q)) return true
+    val words = q.split("\\s+".toRegex()).filter { it.isNotBlank() }
+    return words.isNotEmpty() && words.all { word -> searchableBlob.contains(word) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,9 +181,10 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         }
     }
 
-    var localSearchText by remember(searchQuery) { mutableStateOf(searchQuery) }
+    var localSearchText by remember { mutableStateOf(searchQuery) }
     var selectedSkillFilter by remember { mutableStateOf("All") }
-    var showAllWorkersModal by remember { mutableStateOf(false) }
+    var sortOption by remember { mutableStateOf("DEFAULT") } // DEFAULT, LOW_RATE, HIGH_RATING
+    var showSortFilterModal by remember { mutableStateOf(false) }
 
     var selectedWorkerForProfile by remember { mutableStateOf<CustFeaturedWorkerProfile?>(null) }
     var workerForHireRequest by remember { mutableStateOf<CustFeaturedWorkerProfile?>(null) }
@@ -329,16 +372,25 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
         }
     }
 
-    val filteredWorkers = remember(allWorkersList.size, localSearchText, selectedSkillFilter) {
-        allWorkersList.filter { w ->
-            val matchesCategory = selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
-            val matchesQuery = localSearchText.isBlank() ||
-                w.name.contains(localSearchText, ignoreCase = true) ||
-                w.category.contains(localSearchText, ignoreCase = true) ||
-                w.area.contains(localSearchText, ignoreCase = true)
-            matchesCategory && matchesQuery
+    // LIVE REAL-TIME FILTERING (No stale remember cache!)
+    val filteredWorkers = allWorkersList
+        .filter { w ->
+            val matchesCategory = if (localSearchText.isNotBlank()) {
+                // When user types in search bar, search across ALL workers unless category also matches
+                selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
+            } else {
+                selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
+            }
+            matchesCategory && matchesWorkerSmartSearch(w, localSearchText)
         }
-    }
+        .let { list ->
+            when (sortOption) {
+                "LOW_RATE" -> list.sortedBy { it.dailyRate }
+                "HIGH_RATE" -> list.sortedByDescending { it.dailyRate }
+                "HIGH_RATING" -> list.sortedByDescending { it.rating }
+                else -> list
+            }
+        }
 
     val openDirectLiveChatWithWorker: (CustFeaturedWorkerProfile) -> Unit = { worker ->
         chatPrefs.edit()
@@ -394,7 +446,10 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         icon = Icons.Default.Menu,
                         label = if (isHindi) "मेनू" else "Menu",
                         isSelected = true,
-                        onClick = { selectedSkillFilter = "All" }
+                        onClick = {
+                            selectedSkillFilter = "All"
+                            localSearchText = ""
+                        }
                     )
                     CustBottomNavItem(
                         icon = Icons.Outlined.History,
@@ -487,15 +542,19 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // REAL WORKING SEARCH BAR (Auto-resets category filter to "All" when typing!)
                     OutlinedTextField(
                         value = localSearchText,
-                        onValueChange = {
-                            localSearchText = it
-                            onSearchQueryChanged(it)
+                        onValueChange = { newText ->
+                            localSearchText = newText
+                            if (newText.isNotBlank() && selectedSkillFilter != "All") {
+                                selectedSkillFilter = "All"
+                            }
+                            onSearchQueryChanged(newText)
                         },
                         placeholder = {
                             Text(
-                                text = if (isHindi) "कारीगर खोजें (जैसे राजमिस्त्री, प्लंबर, इलेक्ट्रीशियन...)" else "Search for workers (e.g. mason, plumber, electrician...)",
+                                text = if (isHindi) "कारीगर खोजें (जैसे tile worker, cleaner, राजमिस्त्री...)" else "Search for workers (e.g. tile worker, cleaner, mason...)",
                                 fontSize = 13.sp,
                                 color = CustSecondaryText
                             )
@@ -504,15 +563,16 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             Icon(Icons.Outlined.Search, contentDescription = null, tint = CustSecondaryText)
                         },
                         trailingIcon = {
-                            if (localSearchText.isNotEmpty()) {
-                                IconButton(onClick = {
-                                    localSearchText = ""
-                                    onSearchQueryChanged("")
-                                }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = CustSecondaryText)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (localSearchText.isNotEmpty()) {
+                                    IconButton(onClick = {
+                                        localSearchText = ""
+                                        onSearchQueryChanged("")
+                                    }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = CustSecondaryText)
+                                    }
                                 }
-                            } else {
-                                IconButton(onClick = onOpenFilters) {
+                                IconButton(onClick = { showSortFilterModal = true }) {
                                     Icon(Icons.Outlined.Tune, contentDescription = "Filter", tint = CustNavyPrimary)
                                 }
                             }
@@ -532,8 +592,12 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                 }
             }
 
+            // Category Filter Chips Row (Includes ALL categories)
             item {
-                val categories = listOf("All", "Mason", "Plumber", "Electrician", "Painter", "Carpenter", "General Labour", "Tile Worker", "Cleaner")
+                val categories = listOf(
+                    "All", "Mason", "Plumber", "Electrician", "Painter",
+                    "Carpenter", "General Labour", "Tile Worker", "Cleaner", "Farm Worker"
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -547,7 +611,14 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                             color = if (isSelected) CustNavyPrimary else CustWhite,
                             shape = RoundedCornerShape(50),
                             border = BorderStroke(1.dp, if (isSelected) CustNavyPrimary else CustBorder),
-                            modifier = Modifier.clickable { selectedSkillFilter = cat }
+                            modifier = Modifier.clickable {
+                                selectedSkillFilter = cat
+                                // Clear search text when user explicitly taps a category pill so all workers of that category show
+                                if (localSearchText.isNotBlank()) {
+                                    localSearchText = ""
+                                    onSearchQueryChanged("")
+                                }
+                            }
                         ) {
                             Text(
                                 text = translateCategoryLabel(cat, isHindi),
@@ -629,29 +700,140 @@ fun <JobT, CatT, TabT> CustomerDashboardScreen(
                         modifier = Modifier.clickable {
                             selectedSkillFilter = "All"
                             localSearchText = ""
-                            showAllWorkersModal = true
+                            sortOption = "DEFAULT"
+                            onSearchQueryChanged("")
                         }
                     )
                 }
             }
 
-            items(filteredWorkers, key = { it.id }) { worker ->
-                CustFeaturedWorkerCardItem(
-                    worker = worker,
-                    isHindi = isHindi,
-                    onCardClick = {
-                        selectedWorkerForProfile = worker
-                    },
-                    onCallNowClick = {
-                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
-                        context.startActivity(dialIntent)
-                    },
-                    onMessageIconClick = {
-                        openDirectLiveChatWithWorker(worker)
+            if (filteredWorkers.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = CustWhite),
+                        border = BorderStroke(1.dp, CustBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.SearchOff,
+                                contentDescription = null,
+                                tint = CustSecondaryText,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isHindi) "\"$localSearchText\" के लिए कोई कारीगर नहीं मिला" else "No workers found for \"$localSearchText\"",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CustMainText
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    localSearchText = ""
+                                    selectedSkillFilter = "All"
+                                    sortOption = "DEFAULT"
+                                    onSearchQueryChanged("")
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent)
+                            ) {
+                                Text(if (isHindi) "सभी कारीगर दिखाएं" else "Show All Workers", color = CustWhite, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
-                )
+                }
+            } else {
+                items(filteredWorkers, key = { it.id }) { worker ->
+                    CustFeaturedWorkerCardItem(
+                        worker = worker,
+                        isHindi = isHindi,
+                        onCardClick = {
+                            selectedWorkerForProfile = worker
+                        },
+                        onCallNowClick = {
+                            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
+                            context.startActivity(dialIntent)
+                        },
+                        onMessageIconClick = {
+                            openDirectLiveChatWithWorker(worker)
+                        }
+                    )
+                }
             }
         }
+    }
+
+    // Real Filter & Sort Dialog (When user clicks Filter Tune icon in Search Bar)
+    if (showSortFilterModal) {
+        AlertDialog(
+            onDismissRequest = { showSortFilterModal = false },
+            containerColor = CustWhite,
+            title = {
+                Text(
+                    text = if (isHindi) "कारीगर फ़िल्टर और सॉर्ट करें" else "Filter & Sort Workers",
+                    fontWeight = FontWeight.Bold,
+                    color = CustMainText
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val options = listOf(
+                        "DEFAULT" to (if (isHindi) "डिफ़ॉल्ट (सभी प्रमुख कारीगर)" else "Default (Featured)"),
+                        "LOW_RATE" to (if (isHindi) "कम रेट से अधिक रेट (Low to High ₹)" else "Daily Rate: Low to High"),
+                        "HIGH_RATE" to (if (isHindi) "अधिक रेट से कम रेट (High to Low ₹)" else "Daily Rate: High to Low"),
+                        "HIGH_RATING" to (if (isHindi) "सबसे अच्छी रेटिंग (Top Rated ★)" else "Highest Rating First (★)")
+                    )
+                    options.forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    sortOption = key
+                                    showSortFilterModal = false
+                                }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = sortOption == key,
+                                onClick = {
+                                    sortOption = key
+                                    showSortFilterModal = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(label, fontSize = 14.sp, color = CustMainText, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sortOption = "DEFAULT"
+                        selectedSkillFilter = "All"
+                        localSearchText = ""
+                        showSortFilterModal = false
+                    }
+                ) {
+                    Text(if (isHindi) "रीसेट करें" else "Reset All", color = CustOrangeAccent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSortFilterModal = false }) {
+                    Text(if (isHindi) "बंद करें" else "Close", color = CustSecondaryText)
+                }
+            }
+        )
     }
 
     if (workerForHireRequest != null) {
@@ -878,11 +1060,15 @@ internal fun CustFeaturedWorkerCardItem(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CustWorkerAvatarCanvas(
-                    shirtColor = worker.shirtColor,
-                    hatColor = worker.hatColor,
-                    size = 64.dp
-                )
+                if (worker.profilePhoto.isNotBlank()) {
+                    UserProfilePhotoView(base64Photo = worker.profilePhoto, size = 64.dp)
+                } else {
+                    CustWorkerAvatarCanvas(
+                        shirtColor = worker.shirtColor,
+                        hatColor = worker.hatColor,
+                        size = 64.dp
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(14.dp))
 
@@ -1091,11 +1277,15 @@ internal fun CustWorkerFullProfileViewScreen(
                         .padding(20.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CustWorkerAvatarCanvas(
-                            shirtColor = worker.shirtColor,
-                            hatColor = worker.hatColor,
-                            size = 76.dp
-                        )
+                        if (worker.profilePhoto.isNotBlank()) {
+                            UserProfilePhotoView(base64Photo = worker.profilePhoto, size = 76.dp)
+                        } else {
+                            CustWorkerAvatarCanvas(
+                                shirtColor = worker.shirtColor,
+                                hatColor = worker.hatColor,
+                                size = 76.dp
+                            )
+                        }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1172,6 +1362,48 @@ internal fun CustWorkerFullProfileViewScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("₹${worker.dailyRate}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = CustOrangeAccent)
                             Text(if (isHindi) "प्रतिदिन रेट" else "Daily Rate", fontSize = 12.sp, color = CustSecondaryText)
+                        }
+                    }
+                }
+            }
+
+            // Show Worker's 3 Uploaded Work Photos if available
+            val uploadedPhotos = listOf(worker.photo1, worker.photo2, worker.photo3).filter { it.isNotBlank() }
+            if (uploadedPhotos.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = CustWhite),
+                    border = BorderStroke(1.dp, CustBorder)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = if (isHindi) "काम के फोटो (Work Portfolio)" else "Work Portfolio Photos",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CustMainText
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            uploadedPhotos.forEach { photoB64 ->
+                                val bmp = remember(photoB64) { decodeBase64ToBitmap(photoB64) }
+                                if (bmp != null) {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = bmp,
+                                        contentDescription = "Work Photo",
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(96.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1383,6 +1615,11 @@ internal fun fetchCustRegisteredWorkersFromFirebase(
                             val rate = obj.optInt("dailyRate", 0)
                             val rating = obj.optDouble("rating", 0.0).let { if (it.isNaN()) 0.0 else it }
                             val jobsCount = obj.optInt("bookingsCount", 0)
+                            val bio = obj.optString("bio", "").trim()
+                            val profilePhoto = obj.optString("profilePhoto", "")
+                            val p1 = obj.optString("photo1", "")
+                            val p2 = obj.optString("photo2", "")
+                            val p3 = obj.optString("photo3", "")
 
                             if (name.isNotEmpty() && skill.isNotEmpty() && rate > 0) {
                                 list.add(
@@ -1400,7 +1637,11 @@ internal fun fetchCustRegisteredWorkersFromFirebase(
                                         isVerified = true,
                                         shirtColor = Color(0xFF083D91),
                                         hatColor = Color(0xFFFF8C00),
-                                        about = "Verified $skill from $area ($state) with $exp of experience on Workora."
+                                        about = bio.ifEmpty { "Verified $skill from $area ($state) with $exp of experience on Workora." },
+                                        profilePhoto = profilePhoto,
+                                        photo1 = p1,
+                                        photo2 = p2,
+                                        photo3 = p3
                                     )
                                 )
                             }
