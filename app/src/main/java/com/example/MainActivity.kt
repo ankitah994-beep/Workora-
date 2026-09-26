@@ -1,6 +1,8 @@
 package com.example
 
+import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.widget.Toast
@@ -67,6 +69,7 @@ fun WorkoraApp(
     viewModel: WorkoraViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
 
@@ -96,6 +99,22 @@ fun WorkoraApp(
         mutableStateOf(authPrefs.getString("saved_admin_tier", "SUPER_ADMIN") ?: "SUPER_ADMIN")
     }
 
+    val handleAdminRoleSwitch: (String) -> Unit = { targetRole ->
+        isDirectAdminPanelOpen = false
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (targetRole.equals("CUSTOMER", ignoreCase = true)) {
+            authPrefs.edit().putString("saved_user_role", "CUSTOMER").apply()
+            viewModel.selectRole(UserRole.CUSTOMER)
+            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+            Toast.makeText(context, "Switched to Customer Mode ✓", Toast.LENGTH_SHORT).show()
+        } else {
+            authPrefs.edit().putString("saved_user_role", "LABOUR").apply()
+            viewModel.selectRole(UserRole.LABOUR)
+            viewModel.navigateTo(ScreenState.LABOUR_HOME)
+            Toast.makeText(context, "Switched to Worker Mode ✓", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     LaunchedEffect(Unit) {
         val isLogged = authPrefs.getBoolean("is_logged_in", false)
         val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
@@ -122,7 +141,18 @@ fun WorkoraApp(
                     isDirectAdminPanelOpen = false
                     viewModel.navigateTo(ScreenState.LOGIN)
                 } else if (!isDirectAdminPanelOpen) {
-                    viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                    val savedRole = authPrefs.getString("saved_user_role", null)
+                    when (savedRole) {
+                        "CUSTOMER" -> {
+                            viewModel.selectRole(UserRole.CUSTOMER)
+                            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+                        }
+                        "LABOUR" -> {
+                            viewModel.selectRole(UserRole.LABOUR)
+                            viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                        }
+                        else -> viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                    }
                 }
             }
         )
@@ -135,13 +165,15 @@ fun WorkoraApp(
             adminTier = activeAdminTier,
             onLogoutAdmin = {
                 isDirectAdminPanelOpen = false
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 authPrefs.edit()
                     .putBoolean("is_logged_in", false)
                     .remove("last_logged_in_email")
                     .remove("saved_user_role")
                     .apply()
                 viewModel.navigateTo(ScreenState.LOGIN)
-            }
+            },
+            onSwitchRoleFromAdmin = handleAdminRoleSwitch
         )
         return
     }
@@ -231,13 +263,15 @@ fun WorkoraApp(
                         adminTier = activeAdminTier,
                         onLogoutAdmin = {
                             isDirectAdminPanelOpen = false
+                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                             authPrefs.edit()
                                 .putBoolean("is_logged_in", false)
                                 .remove("last_logged_in_email")
                                 .remove("saved_user_role")
                                 .apply()
                             viewModel.navigateTo(ScreenState.LOGIN)
-                        }
+                        },
+                        onSwitchRoleFromAdmin = handleAdminRoleSwitch
                     )
                 }
                 ScreenState.CUSTOMER_HOME, ScreenState.POST_JOB -> {
@@ -334,7 +368,10 @@ fun WorkoraApp(
                             viewModel.navigateTo(ScreenState.LOGIN)
                         },
                         onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) },
-                        onOpenAdmin = { isDirectAdminPanelOpen = true },
+                        onOpenAdmin = {
+                            authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
+                            isDirectAdminPanelOpen = true
+                        },
                         onUpdateProfile = { _, _, _ -> }
                     )
                 }
