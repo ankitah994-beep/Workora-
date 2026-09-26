@@ -236,7 +236,6 @@ fun ProfileScreen(
         mutableStateOf(profilePrefs.getString("user_bio", "") ?: "")
     }
 
-    // Profile Photo + 3 Work/Portfolio Photos stored in SharedPreferences & Firebase
     var savedProfilePhoto by remember {
         mutableStateOf(profilePrefs.getString("user_profile_photo", "") ?: "")
     }
@@ -506,7 +505,6 @@ fun ProfileScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. Top User Profile Card (Shows uploaded Profile Photo + 3 Work Photos count)
                         item {
                             Card(
                                 modifier = Modifier
@@ -577,7 +575,6 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 2. Primary Settings Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -633,7 +630,6 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 3. Account & Security Details Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -717,7 +713,6 @@ fun ProfileScreen(
                             }
                         }
 
-                        // 4. Logout & Delete Account Card
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -838,7 +833,6 @@ fun ProfileScreen(
                     var editPhoto2 by remember { mutableStateOf(savedPhoto2) }
                     var editPhoto3 by remember { mutableStateOf(savedPhoto3) }
 
-                    // Target slot: 0 = Profile Photo, 1 = Photo 1, 2 = Photo 2, 3 = Photo 3
                     var activePhotoSlot by remember { mutableStateOf(0) }
 
                     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -986,16 +980,16 @@ fun ProfileScreen(
 
                                     HorizontalDivider(color = WorkoraBorderColor)
 
-                                    // 2. 3 PHOTOS UPLOAD SECTION (Photo 1, Photo 2, Photo 3)
+                                    // 2. 3 SAMPLE PHOTOS UPLOAD SECTION ("इमेज डाले" inside each box)
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
-                                            text = if (isHindi) "3 फोटो अपलोड करें (काम / आईडी / पोर्टफोलियो फोटो)" else "Upload 3 Photos (Work / ID / Portfolio Photos)",
+                                            text = if (isHindi) "काम की 3 सैंपल फोटो अपलोड करें" else "Upload 3 Work Sample Photos",
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = WorkoraPrimaryNavy
                                         )
                                         Text(
-                                            text = if (isHindi) "किसी भी बॉक्स पर टैप करके गैलरी से 3 फोटो अपलोड करें:" else "Tap any box below to upload up to 3 photos from gallery:",
+                                            text = if (isHindi) "नीचे के बॉक्स पर टैप करके गैलरी से 3 फोटो डालें:" else "Tap any box below to upload 3 photos from gallery:",
                                             fontSize = 12.sp,
                                             color = WorkoraSecondaryText
                                         )
@@ -1111,7 +1105,7 @@ fun ProfileScreen(
 
                                     HorizontalDivider(color = WorkoraBorderColor)
 
-                                    // 4. WORK / SKILL / RATE / EXPERIENCE / BIO DETAILS (Editable for All Users)
+                                    // 4. WORK / SKILL / RATE / EXPERIENCE / BIO DETAILS
                                     Text(
                                         text = if (isHindi) "काम, अनुभव और मजदूरी रेट की जानकारी" else "Work Skill, Experience & Rate Details",
                                         fontSize = 15.sp,
@@ -1154,6 +1148,7 @@ fun ProfileScreen(
                                         value = editSkill,
                                         onValueChange = { editSkill = it },
                                         label = { Text(if (isHindi) "काम की श्रेणी / स्किल (Category / Skill)" else "Category / Skill (काम की श्रेणी)") },
+                                        placeholder = { Text("अपना काम लिखे..", fontSize = 13.sp, color = WorkoraSecondaryText) },
                                         leadingIcon = { Icon(Icons.Outlined.Construction, contentDescription = null, tint = WorkoraSecondaryText) },
                                         singleLine = true,
                                         shape = RoundedCornerShape(12.dp),
@@ -1167,7 +1162,7 @@ fun ProfileScreen(
                                         OutlinedTextField(
                                             value = editExp,
                                             onValueChange = { editExp = it },
-                                            label = { Text(if (isHindi) "अनुभव (जैसे 4 yrs)" else "Experience (e.g. 4 yrs)") },
+                                            label = { Text(if (isHindi) "अनुभव (Experience)" else "Experience") },
                                             singleLine = true,
                                             shape = RoundedCornerShape(12.dp),
                                             modifier = Modifier.weight(1f)
@@ -1187,10 +1182,10 @@ fun ProfileScreen(
                                     OutlinedTextField(
                                         value = editBio,
                                         onValueChange = { editBio = it },
-                                        label = { Text(if (isHindi) "अपने बारे में / काम का विवरण (About)" else "About Yourself / Work Bio") },
+                                        label = { Text(if (isHindi) "काम का विवरण (Work Description)" else "Work Description / Bio") },
                                         placeholder = {
                                             Text(
-                                                if (isHindi) "अपने काम और अनुभव के बारे में लिखें..." else "Write about your work skills and experience...",
+                                                text = "अपना काम लिखे..",
                                                 fontSize = 13.sp,
                                                 color = WorkoraSecondaryText
                                             )
@@ -1742,7 +1737,7 @@ fun ProfileScreen(
 }
 
 // =========================================================================
-// REUSABLE PROFILE PHOTO & 3-PHOTO UPLOAD COMPONENTS
+// REUSABLE PROFILE PHOTO & 3-PHOTO UPLOAD COMPONENTS ("इमेज डाले" INSIDE BOX)
 // =========================================================================
 @Composable
 internal fun UserProfilePhotoView(
@@ -1845,11 +1840,13 @@ internal fun ThreePhotoUploadBox(
                         color = WorkoraMainText,
                         textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "+ Upload",
-                        fontSize = 10.sp,
+                        text = "इमेज डाले",
+                        fontSize = 11.sp,
                         color = WorkoraAccentOrange,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
