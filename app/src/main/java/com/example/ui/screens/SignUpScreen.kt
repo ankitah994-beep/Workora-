@@ -93,7 +93,7 @@ fun SignUpScreen(
     var workerDailyRate by remember { mutableStateOf("") }
     var userBio by remember { mutableStateOf("") }
 
-    // Profile Photo + 3 Additional Sample Photos Upload State
+    // Profile Photo + 3 Sample Work Photos Upload State
     var profilePhotoBase64 by remember { mutableStateOf("") }
     var photo1Base64 by remember { mutableStateOf("") }
     var photo2Base64 by remember { mutableStateOf("") }
@@ -331,10 +331,10 @@ fun SignUpScreen(
                     HorizontalDivider(color = SignUpBorderColor)
 
                     // =====================================================
-                    // PROFILE PHOTO UPLOAD + 3 SAMPLE PHOTOS ("इमेज डाले")
+                    // PROFILE PHOTO + 3 SAMPLE PHOTOS UPLOAD ("इमेज डाले")
                     // =====================================================
                     Text(
-                        text = if (isHindi) "प्रोफाइल फोटो और 3 सैंपल फोटो अपलोड करें" else "Upload Profile Photo & 3 Sample Photos",
+                        text = if (isHindi) "प्रोफाइल फोटो और काम की 3 सैंपल फोटो" else "Profile Photo & 3 Work Sample Photos",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = SignUpNavyPrimary
@@ -415,7 +415,7 @@ fun SignUpScreen(
                     }
 
                     Text(
-                        text = if (isHindi) "काम की 3 सैंपल फोटो डालने के लिए नीचे टैप करें:" else "Tap below to upload 3 work sample photos:",
+                        text = if (isHindi) "काम की सैंपल फोटो डालने के लिए नीचे बॉक्स पर टैप करें:" else "Tap the boxes below to add 3 sample photos:",
                         fontSize = 12.sp,
                         color = SignUpSecondaryText
                     )
@@ -521,7 +521,7 @@ fun SignUpScreen(
                             errorMessage = null
                         },
                         label = { Text(if (isHindi) "राज्य (State) *" else "State (राज्य) *") },
-                        placeholder = { Text(if (isHindi) "अपना राज्य लिखें" else "Enter your state", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        placeholder = { Text(if (isHindi) "अपने राज्य का नाम लिखें" else "Enter your state", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Map, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
