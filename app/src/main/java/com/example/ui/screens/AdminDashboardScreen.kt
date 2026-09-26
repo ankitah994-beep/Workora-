@@ -53,7 +53,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Strict Workora Design System Colors
 private val AdminPrimaryNavy = Color(0xFF083D91)
 private val AdminAccentOrange = Color(0xFFFF8C00)
 private val AdminBgLight = Color(0xFFF8FAFC)
@@ -85,8 +84,7 @@ private enum class AdminRoute(val title: String, val icon: ImageVector) {
     SETTINGS("Settings", Icons.Outlined.Settings)
 }
 
-// No fake defaults in data model — only real user data is stored
-private data class AdminUserRecord(
+internal data class AdminUserRecord(
     val key: String,
     val name: String,
     val phone: String,
@@ -104,7 +102,7 @@ private data class AdminUserRecord(
     val bookingsCount: Int = 0
 )
 
-private data class AdminBookingRecord(
+internal data class AdminBookingRecord(
     val id: String,
     val customerName: String,
     val customerPhone: String,
@@ -123,7 +121,7 @@ private data class AdminBookingRecord(
     val updatedDate: String
 )
 
-private data class AdminCategoryRecord(
+internal data class AdminCategoryRecord(
     val id: String,
     val name: String,
     val iconName: String,
@@ -131,7 +129,7 @@ private data class AdminCategoryRecord(
     val workerCount: Int
 )
 
-private data class AdminStateAreaRule(
+internal data class AdminStateAreaRule(
     val id: String,
     val stateName: String,
     val areaKeywords: String,
@@ -488,9 +486,6 @@ fun AdminDashboardScreen(
         }
     }
 
-    // ==================================================
-    // MODALS & DIALOGS (SHOWS ONLY REAL USER DETAILS)
-    // ==================================================
     if (showAddStateAreaModal) {
         var newStateName by remember { mutableStateOf("") }
         var newAreaKeywords by remember { mutableStateOf("") }
@@ -551,13 +546,7 @@ fun AdminDashboardScreen(
                         )
                         Switch(
                             checked = newIsEnabled,
-                            onCheckedChange = { newIsEnabled = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = AdminWhite,
-                                checkedTrackColor = AdminSuccessGreen,
-                                uncheckedThumbColor = AdminWhite,
-                                uncheckedTrackColor = AdminDangerRed
-                            )
+                            onCheckedChange = { newIsEnabled = it }
                         )
                     }
                     Row(
@@ -600,7 +589,6 @@ fun AdminDashboardScreen(
         }
     }
 
-    // View User / Worker Profile Details Modal (Displays ONLY Real User Input)
     if (selectedUserForDetail != null) {
         val u = selectedUserForDetail!!
         Dialog(
@@ -665,7 +653,6 @@ fun AdminDashboardScreen(
         }
     }
 
-    // Edit User Modal
     if (selectedUserForEdit != null) {
         val u = selectedUserForEdit!!
         var editName by remember(u) { mutableStateOf(u.name) }
@@ -1103,9 +1090,6 @@ fun AdminDashboardScreen(
     }
 }
 
-// ==================================================
-// STATE / AREA WISE ANALYTICS & ON/OFF CONTROL PAGE
-// ==================================================
 @Composable
 private fun AdminStateAreaControlPage(
     usersList: List<AdminUserRecord>,
@@ -1268,13 +1252,7 @@ private fun AdminStateAreaControlPage(
                         ) {
                             Switch(
                                 checked = rule.isServiceEnabled,
-                                onCheckedChange = { onToggleStateService(rule) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = AdminWhite,
-                                    checkedTrackColor = AdminSuccessGreen,
-                                    uncheckedThumbColor = AdminWhite,
-                                    uncheckedTrackColor = AdminDangerRed
-                                )
+                                onCheckedChange = { onToggleStateService(rule) }
                             )
                             OutlinedButton(
                                 onClick = { onFilterUsersByState(rule.stateName) },
@@ -1302,9 +1280,6 @@ private fun AdminStateAreaControlPage(
     }
 }
 
-// ==================================================
-// ADMIN SIDEBAR
-// ==================================================
 @Composable
 private fun AdminSidebarContent(
     currentRoute: AdminRoute,
@@ -1408,9 +1383,6 @@ private fun AdminSidebarContent(
     }
 }
 
-// ==================================================
-// ADMIN TOP BAR
-// ==================================================
 @Composable
 private fun AdminTopBar(
     searchQuery: String,
@@ -1648,9 +1620,6 @@ private fun AdminTopBar(
     HorizontalDivider(color = AdminBorder, thickness = 1.dp)
 }
 
-// ==================================================
-// DASHBOARD OVERVIEW
-// ==================================================
 @Composable
 private fun AdminDashboardOverviewPage(
     usersList: List<AdminUserRecord>,
@@ -1925,7 +1894,6 @@ private fun AdminDashboardOverviewPage(
         }
     }
 
-    // Row 3: Recent Users Table
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -2514,6 +2482,9 @@ private fun AdminReportsPage(
     }
 }
 
+// =========================================================================
+// REAL WORKING ADMIN SETTINGS PAGE
+// =========================================================================
 @Composable
 private fun AdminSettingsPage(
     loggedAdminEmail: String,
@@ -2526,7 +2497,9 @@ private fun AdminSettingsPage(
     onRequestLogout: () -> Unit
 ) {
     var appName by remember { mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA") }
-    var defaultArea by remember { mutableStateOf(settingsPrefs.getString("default_area", "") ?: "") }
+    var defaultArea by remember { mutableStateOf(settingsPrefs.getString("default_area", "Silwani, Raisen") ?: "Silwani, Raisen") }
+    var supportPhone by remember { mutableStateOf(settingsPrefs.getString("support_phone", "+91 6265798340") ?: "+91 6265798340") }
+    var commissionRate by remember { mutableStateOf(settingsPrefs.getString("commission_rate", "0% (Direct)") ?: "0% (Direct)") }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2534,34 +2507,105 @@ private fun AdminSettingsPage(
         colors = CardDefaults.cardColors(containerColor = AdminWhite),
         border = BorderStroke(1.dp, AdminBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Admin & Application Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = loggedAdminEmail, onValueChange = {}, label = { Text("Admin Email") }, enabled = false, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = appName, onValueChange = { appName = it }, label = { Text("App Name") }, singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = defaultArea, onValueChange = { defaultArea = it }, label = { Text("Default Area") }, singleLine = true, modifier = Modifier.weight(1f))
+            Text("Manage global app branding, helpline, default marketplace location and commission tier.", fontSize = 13.sp, color = AdminSecondaryText)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                OutlinedTextField(
+                    value = loggedAdminEmail,
+                    onValueChange = {},
+                    label = { Text("Super Admin Email") },
+                    enabled = false,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = appName,
+                    onValueChange = { appName = it },
+                    label = { Text("App Name") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
             }
-            AdminDetailRow("Currency", "₹")
-            AdminDetailRow("Default Language", "English")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                OutlinedTextField(
+                    value = defaultArea,
+                    onValueChange = { defaultArea = it },
+                    label = { Text("Default Marketplace Area / City") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = supportPhone,
+                    onValueChange = { supportPhone = it },
+                    label = { Text("Helpline Phone Number") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            OutlinedTextField(
+                value = commissionRate,
+                onValueChange = { commissionRate = it },
+                label = { Text("Marketplace Commission Tier") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Button(
                     onClick = {
                         brandingPrefs.edit().putString("app_name", appName.trim()).apply()
-                        settingsPrefs.edit().putString("default_area", defaultArea.trim()).apply()
-                        Toast.makeText(context, "Settings saved ✓", Toast.LENGTH_SHORT).show()
+                        settingsPrefs.edit()
+                            .putString("default_area", defaultArea.trim())
+                            .putString("support_phone", supportPhone.trim())
+                            .putString("commission_rate", commissionRate.trim())
+                            .apply()
+                        Toast.makeText(context, "Admin Settings Saved Successfully! ✓", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)
+                    colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Save Settings", color = AdminWhite, fontWeight = FontWeight.Bold)
                 }
-                OutlinedButton(onClick = onSwitchToCustomer, border = BorderStroke(1.dp, AdminPrimaryNavy)) {
-                    Text("Go to Customer Mode", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold)
+
+                OutlinedButton(
+                    onClick = onSwitchToCustomer,
+                    border = BorderStroke(1.dp, AdminPrimaryNavy),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Customer Mode", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold)
                 }
-                OutlinedButton(onClick = onSwitchToWorker, border = BorderStroke(1.dp, AdminAccentOrange)) {
-                    Text("Go to Worker Mode", color = AdminAccentOrange, fontWeight = FontWeight.Bold)
+
+                OutlinedButton(
+                    onClick = onSwitchToWorker,
+                    border = BorderStroke(1.dp, AdminAccentOrange),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Worker Mode", color = AdminAccentOrange, fontWeight = FontWeight.Bold)
                 }
-                OutlinedButton(onClick = onRequestLogout, border = BorderStroke(1.dp, AdminDangerRed)) {
-                    Text("Logout Session", color = AdminDangerRed, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                OutlinedButton(
+                    onClick = onRequestLogout,
+                    border = BorderStroke(1.dp, AdminDangerRed),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Logout Admin", color = AdminDangerRed, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2710,9 +2754,6 @@ private fun AdminHelmetLogo(size: Dp = 40.dp) {
     }
 }
 
-// ==================================================
-// FIREBASE REALTIME DATABASE SYNC (NO FAKE FALLBACKS)
-// ==================================================
 private fun syncDisabledAreasPrefs(
     settingsPrefs: android.content.SharedPreferences,
     rules: List<AdminStateAreaRule>
@@ -2752,7 +2793,6 @@ private fun loadAdminDataFromFirebase(
                         val roleRaw = obj.optString("role", "Customer")
                         val roleClean = if (roleRaw.contains("LABOUR", true) || roleRaw.contains("Worker", true)) "Worker" else "Customer"
 
-                        // Read exact values entered by user during registration (NO automatic fake values)
                         val rawName = obj.optString("name", "").trim()
                         val rawPhone = obj.optString("phone", "").trim()
                         val rawEmail = obj.optString("email", k.replace("_at_", "@")).trim()
@@ -3000,7 +3040,7 @@ private fun saveCategoryToFirebase(cat: AdminCategoryRecord) {
                 put("active", cat.active)
                 put("workerCount", cat.workerCount)
             }
-            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
+            OutputStreamWriter(conn.outputStream).use { it.word(payload.toString()) }
             conn.responseCode
             conn.disconnect()
         } catch (_: Exception) {
