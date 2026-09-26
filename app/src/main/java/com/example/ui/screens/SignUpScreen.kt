@@ -93,7 +93,7 @@ fun SignUpScreen(
     var workerDailyRate by remember { mutableStateOf("") }
     var userBio by remember { mutableStateOf("") }
 
-    // Profile Photo + 3 Additional Photos Upload State
+    // Profile Photo + 3 Additional Sample Photos Upload State
     var profilePhotoBase64 by remember { mutableStateOf("") }
     var photo1Base64 by remember { mutableStateOf("") }
     var photo2Base64 by remember { mutableStateOf("") }
@@ -331,10 +331,10 @@ fun SignUpScreen(
                     HorizontalDivider(color = SignUpBorderColor)
 
                     // =====================================================
-                    // PROFILE PHOTO UPLOAD + 3 PHOTOS UPLOAD IN REGISTRATION
+                    // PROFILE PHOTO UPLOAD + 3 SAMPLE PHOTOS ("इमेज डाले")
                     // =====================================================
                     Text(
-                        text = if (isHindi) "प्रोफाइल फोटो और 3 फोटो अपलोड करें" else "Upload Profile Photo & 3 Photos",
+                        text = if (isHindi) "प्रोफाइल फोटो और 3 सैंपल फोटो अपलोड करें" else "Upload Profile Photo & 3 Sample Photos",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = SignUpNavyPrimary
@@ -415,7 +415,7 @@ fun SignUpScreen(
                     }
 
                     Text(
-                        text = if (isHindi) "नीचे के 3 बॉक्स पर टैप करके 3 फोटो अपलोड करें:" else "Tap the 3 boxes below to upload 3 photos:",
+                        text = if (isHindi) "काम की 3 सैंपल फोटो डालने के लिए नीचे टैप करें:" else "Tap below to upload 3 work sample photos:",
                         fontSize = 12.sp,
                         color = SignUpSecondaryText
                     )
@@ -521,7 +521,7 @@ fun SignUpScreen(
                             errorMessage = null
                         },
                         label = { Text(if (isHindi) "राज्य (State) *" else "State (राज्य) *") },
-                        placeholder = { Text("e.g. Madhya Pradesh, Delhi, UP", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        placeholder = { Text(if (isHindi) "अपना राज्य लिखें" else "Enter your state", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Map, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -566,7 +566,7 @@ fun SignUpScreen(
                     )
 
                     // =====================================================
-                    // WORKER SPECIFIC MANDATORY DETAILS
+                    // WORKER SPECIFIC MANDATORY DETAILS ("अपना काम लिखे..")
                     // =====================================================
                     if (isWorkerRole) {
                         HorizontalDivider(color = SignUpBorderColor)
@@ -619,7 +619,7 @@ fun SignUpScreen(
                                 errorMessage = null
                             },
                             label = { Text(if (isHindi) "काम की श्रेणी (Work Category / Skill) *" else "Work Category / Skill (काम की श्रेणी) *") },
-                            placeholder = { Text(if (isHindi) "ऊपर से चुनें या अपना काम लिखें" else "Select above or type your skill", color = SignUpSecondaryText, fontSize = 13.sp) },
+                            placeholder = { Text("अपना काम लिखे..", color = SignUpSecondaryText, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(Icons.Outlined.Construction, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                             },
@@ -640,7 +640,6 @@ fun SignUpScreen(
                                     errorMessage = null
                                 },
                                 label = { Text(if (isHindi) "अनुभव (वर्षों में) *" else "Experience (Yrs) *") },
-                                placeholder = { Text("e.g. 3", color = SignUpSecondaryText, fontSize = 13.sp) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = fieldColors,
@@ -655,7 +654,6 @@ fun SignUpScreen(
                                     errorMessage = null
                                 },
                                 label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") },
-                                placeholder = { Text("e.g. 500", color = SignUpSecondaryText, fontSize = 13.sp) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = fieldColors,
@@ -670,8 +668,8 @@ fun SignUpScreen(
                                 userBio = it
                                 errorMessage = null
                             },
-                            label = { Text(if (isHindi) "अपने काम के बारे में (About / Bio)" else "About Your Work (Bio)") },
-                            placeholder = { Text(if (isHindi) "अपने काम और अनुभव का संक्षिप्त विवरण..." else "Brief details about your work...", color = SignUpSecondaryText, fontSize = 13.sp) },
+                            label = { Text(if (isHindi) "काम का विवरण (Work Description)" else "Work Description / Bio") },
+                            placeholder = { Text("अपना काम लिखे..", color = SignUpSecondaryText, fontSize = 13.sp) },
                             minLines = 2,
                             shape = RoundedCornerShape(12.dp),
                             colors = fieldColors,
@@ -794,7 +792,6 @@ fun SignUpScreen(
                                     val parsedRate = if (isWorkerRole) (cleanRate.toIntOrNull() ?: 0) else 0
                                     val finalSkill = if (isWorkerRole) cleanCategory else "Customer"
 
-                                    // Save all details + Profile Photo + 3 Photos to SharedPreferences
                                     profilePrefs.edit()
                                         .putString("user_name", cleanName)
                                         .putString("user_phone", cleanPhone)
