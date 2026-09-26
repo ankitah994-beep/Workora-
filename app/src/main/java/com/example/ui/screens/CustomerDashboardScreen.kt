@@ -1,20 +1,11 @@
 package com.example.ui.screens
 
-import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.location.Geocoder
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
 import android.net.Uri
-import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -26,244 +17,101 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import com.example.model.JobPost
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.model.CustomerTab
+import com.example.model.Job
+import com.example.model.JobCategory
+import com.example.model.User
 import com.example.model.Worker
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
-private data class PrototypeWorkerItem(
+private val CustNavyPrimary = Color(0xFF083D91)
+private val CustDarkNavyBtn = Color(0xFF0B2345)
+private val CustOrangeAccent = Color(0xFFFF8C00)
+private val CustBgLight = Color(0xFFF8FAFC)
+private val CustWhite = Color(0xFFFFFFFF)
+private val CustMainText = Color(0xFF0B2345)
+private val CustSecondaryText = Color(0xFF687280)
+private val CustBorder = Color(0xFFE5EAF0)
+private val CustSuccessGreen = Color(0xFF16A34A)
+private val CustRateBadgeBg = Color(0xFFFEF9C3)
+private val CustRateBadgeBorder = Color(0xFFFDE047)
+private val CustRateTextOrange = Color(0xFFD97706)
+
+private const val CUST_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+
+private data class FeaturedWorkerProfile(
     val id: String,
     val name: String,
-    val skill: String,
-    val location: String,
-    val dailyWage: String,
-    val phone: String,
-    val rating: String,
+    val category: String,
+    val rating: Double,
     val jobsDone: Int,
-    val avatarKey: String,
-    val originalWorker: Worker? = null
+    val area: String,
+    val stateName: String,
+    val dailyRate: Int,
+    val experience: String,
+    val phone: String,
+    val isVerified: Boolean,
+    val shirtColor: Color,
+    val hatColor: Color,
+    val about: String
 )
-
-private fun extractSafeObjectField(obj: Any, vararg fieldNames: String, fallback: String = ""): String {
-    for (name in fieldNames) {
-        try {
-            val field = obj.javaClass.getDeclaredField(name)
-            field.isAccessible = true
-            val value = field.get(obj)?.toString()?.trim() ?: ""
-            if (value.isNotEmpty() && value != "null") {
-                return value
-            }
-        } catch (_: Exception) {
-        }
-    }
-    return fallback
-}
-
-private fun extractSafeJobPay(job: JobPost): String {
-    val raw = extractSafeObjectField(job, "dailyRate", "dailyWage", "budget", "wage", "pay", "salary", "amount", "rate", fallback = "600")
-    return when {
-        raw.isEmpty() || raw == "0" -> "₹600/दिन"
-        raw.startsWith("₹") -> raw
-        else -> "₹$raw/दिन"
-    }
-}
-
-@SuppressLint("MissingPermission")
-private fun fetchCustomerRealGpsAddress(
-    context: Context,
-    onSuccess: (String) -> Unit,
-    onError: (String) -> Unit
-) {
-    try {
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-        val isNetEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-
-        if (!isGpsEnabled && !isNetEnabled) {
-            onError("कृपया फोन का GPS / Location चालू करें")
-            return
-        }
-
-        val decodeLocation: (Location) -> Unit = { loc ->
-            Thread {
-                try {
-                    val geocoder = Geocoder(context, Locale.getDefault())
-                    @Suppress("DEPRECATION")
-                    val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
-                    val addr = addresses?.firstOrNull()
-                    val formatted = if (addr != null) {
-                        val subLoc = addr.subLocality ?: addr.locality ?: addr.subAdminArea ?: ""
-                        val city = addr.locality ?: addr.subAdminArea ?: ""
-                        val dist = addr.subAdminArea ?: addr.adminArea ?: ""
-                        listOf(subLoc, city, dist)
-                            .map { it.trim() }
-                            .filter { it.isNotEmpty() }
-                            .distinct()
-                            .joinToString(", ")
-                            .ifEmpty { "Silwani, Raisen (MP)" }
-                    } else {
-                        "Lat: ${String.format(Locale.US, "%.4f", loc.latitude)}, Lng: ${String.format(Locale.US, "%.4f", loc.longitude)}"
-                    }
-                    android.os.Handler(Looper.getMainLooper()).post {
-                        onSuccess(formatted)
-                    }
-                } catch (e: Exception) {
-                    android.os.Handler(Looper.getMainLooper()).post {
-                        onSuccess("Silwani, Raisen (MP)")
-                    }
-                }
-            }.start()
-        }
-
-        val lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-
-        if (lastLoc != null) {
-            decodeLocation(lastLoc)
-        } else {
-            val provider = if (isNetEnabled) LocationManager.NETWORK_PROVIDER else LocationManager.GPS_PROVIDER
-            locationManager.requestSingleUpdate(
-                provider,
-                object : LocationListener {
-                    override fun onLocationChanged(location: Location) {
-                        decodeLocation(location)
-                    }
-                    @Deprecated("Deprecated in Java")
-                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-                    override fun onProviderEnabled(provider: String) {}
-                    override fun onProviderDisabled(provider: String) {}
-                },
-                Looper.getMainLooper()
-            )
-        }
-    } catch (e: Exception) {
-        onError("लोकेशन प्राप्त करने में समस्या आई")
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDashboardScreen(
-    currentUser: Any? = null,
+    currentUser: User? = null,
     searchQuery: String = "",
     onSearchQueryChanged: (String) -> Unit = {},
     workers: List<Worker> = emptyList(),
-    jobs: List<JobPost> = emptyList(),
-    selectedCategory: String? = null,
-    onCategorySelected: (String) -> Unit = {},
-    activeTab: Int = 0,
-    onTabSelected: (Int) -> Unit = {},
+    jobs: List<Job> = emptyList(),
+    selectedCategory: JobCategory? = null,
+    onCategorySelected: (JobCategory?) -> Unit = {},
+    activeTab: CustomerTab = CustomerTab.values().first(),
+    onTabSelected: (CustomerTab) -> Unit = {},
     onPostJob: (String, String, String, Int, String, Int, String, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onHireWorker: (Worker) -> Unit = {},
-    onCompleteJob: (Long) -> Unit = {},
+    onCompleteJob: (String) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
     onOpenFilters: () -> Unit = {},
     toastMessage: String? = null,
-    onPostJobClick: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {},
-    onOpenChat: () -> Unit = {},
-    onOpenHistory: () -> Unit = {}
+    onOpenChat: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
-
-    val appName = remember { brandingPrefs.getString("app_name", "Workora") ?: "Workora" }
-    val appTagline = remember { brandingPrefs.getString("app_tagline", "FIND. HIRE. WORK.") ?: "FIND. HIRE. WORK." }
-
-    var currentLocation by remember {
-        mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
-    }
-    var showLocationDialog by remember { mutableStateOf(false) }
-    var tempLocationInput by remember { mutableStateOf(currentLocation) }
-    var isDetectingGps by remember { mutableStateOf(false) }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            isDetectingGps = true
-            fetchCustomerRealGpsAddress(
-                context = context,
-                onSuccess = { detectedAddr ->
-                    isDetectingGps = false
-                    tempLocationInput = detectedAddr
-                    currentLocation = detectedAddr
-                    profilePrefs.edit().putString("user_location", detectedAddr).apply()
-                    Toast.makeText(context, "Live GPS Location: $detectedAddr ✓", Toast.LENGTH_SHORT).show()
-                },
-                onError = { errMsg ->
-                    isDetectingGps = false
-                    Toast.makeText(context, errMsg, Toast.LENGTH_SHORT).show()
-                }
-            )
-        } else {
-            Toast.makeText(context, "GPS के लिए Location Permission आवश्यक है", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    val triggerRealGpsDetection: () -> Unit = {
-        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (hasFine || hasCoarse) {
-            isDetectingGps = true
-            fetchCustomerRealGpsAddress(
-                context = context,
-                onSuccess = { detectedAddr ->
-                    isDetectingGps = false
-                    tempLocationInput = detectedAddr
-                    currentLocation = detectedAddr
-                    profilePrefs.edit().putString("user_location", detectedAddr).apply()
-                    Toast.makeText(context, "Live GPS Location: $detectedAddr ✓", Toast.LENGTH_SHORT).show()
-                },
-                onError = { errMsg ->
-                    isDetectingGps = false
-                    Toast.makeText(context, errMsg, Toast.LENGTH_SHORT).show()
-                }
-            )
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    var showPostJobDialog by remember { mutableStateOf(false) }
-    var jobTitleInput by remember { mutableStateOf("") }
-    var jobCategoryInput by remember { mutableStateOf("Mason") }
-    var jobDescInput by remember { mutableStateOf("") }
-    var jobRateInput by remember { mutableStateOf("600") }
-    var jobWorkersCountInput by remember { mutableStateOf("1") }
-    var jobUrgencyInput by remember { mutableStateOf("Immediate") }
 
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
@@ -271,1423 +119,1140 @@ fun CustomerDashboardScreen(
         }
     }
 
-    var localTab by remember(activeTab) { mutableStateOf(if (activeTab in 0..2) activeTab else 0) }
-    var localSearchQuery by remember(searchQuery) { mutableStateOf(searchQuery) }
-    var activeCategoryFilter by remember(selectedCategory) { mutableStateOf(selectedCategory ?: "All") }
+    var localSearchText by remember(searchQuery) { mutableStateOf(searchQuery) }
+    var selectedSkillFilter by remember { mutableStateOf("All") }
+    var showAllWorkersModal by remember { mutableStateOf(false) }
 
-    val allDisplayWorkers = remember(workers) {
-        val defaultList = listOf(
-            PrototypeWorkerItem(
-                id = "proto_ramesh",
-                name = "Ramesh Kumar",
-                skill = "Mason / राजमिस्त्री",
-                location = "Silwani, Raisen (MP)",
-                dailyWage = "₹700/दिन",
-                phone = "6265798340",
-                rating = "4.9",
-                jobsDone = 48,
-                avatarKey = "ramesh"
+    // Holds the specific worker clicked by the user so HIS profile opens (NOT the user's own profile!)
+    var selectedWorkerForProfile by remember { mutableStateOf<FeaturedWorkerProfile?>(null) }
+    var workerForHireRequest by remember { mutableStateOf<FeaturedWorkerProfile?>(null) }
+    var showPostWorkDialog by remember { mutableStateOf(false) }
+    var showHistoryDialog by remember { mutableStateOf(false) }
+
+    val defaultFeaturedWorkers = remember {
+        listOf(
+            FeaturedWorkerProfile(
+                id = "w_sunil",
+                name = "Sunil Kumar",
+                category = "Mason",
+                rating = 4.9,
+                jobsDone = 25,
+                area = "Sector 4, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 850,
+                experience = "6 years",
+                phone = "+91 9826012345",
+                isVerified = true,
+                shirtColor = Color(0xFF1D4ED8),
+                hatColor = Color(0xFFFACC15),
+                about = "Experienced Mason specializing in bricklaying, plastering, RCC slab work, and house construction with 6 years of verified local experience."
             ),
-            PrototypeWorkerItem(
-                id = "proto_mohan",
-                name = "Mohan Lal",
-                skill = "Plumber / प्लंबर",
-                location = "Silwani, Raisen (MP)",
-                dailyWage = "₹600/दिन",
-                phone = "6265798340",
-                rating = "4.8",
-                jobsDone = 35,
-                avatarKey = "mohan"
+            FeaturedWorkerProfile(
+                id = "w_rajesh",
+                name = "Rajesh Sharma",
+                category = "Plumber",
+                rating = 4.9,
+                jobsDone = 32,
+                area = "Civil Lines, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 900,
+                experience = "7 years",
+                phone = "+91 9755098765",
+                isVerified = true,
+                shirtColor = Color(0xFFEA580C),
+                hatColor = Color(0xFF2563EB),
+                about = "Skilled Plumber for complete bathroom fitting, water tank installation, pipeline leakage repair, and motor fitting."
             ),
-            PrototypeWorkerItem(
-                id = "proto_mahesh",
-                name = "Mahesh Ahirwar",
-                skill = "Electrician / इलेक्ट्रीशियन",
-                location = "Raisen, MP",
-                dailyWage = "₹650/दिन",
-                phone = "6265798340",
-                rating = "4.9",
-                jobsDone = 62,
-                avatarKey = "mahesh"
+            FeaturedWorkerProfile(
+                id = "w_aslam",
+                name = "Mohammad Aslam",
+                category = "Electrician",
+                rating = 4.8,
+                jobsDone = 39,
+                area = "Main Market, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 950,
+                experience = "8 years",
+                phone = "+91 9926543210",
+                isVerified = true,
+                shirtColor = Color(0xFF15803D),
+                hatColor = Color(0xFFF97316),
+                about = "Certified Electrician experienced in house wiring, switchboard installation, inverter connection, ceiling fan and appliance repair."
             ),
-            PrototypeWorkerItem(
-                id = "proto_suresh",
-                name = "Suresh Vishwakarma",
-                skill = "Carpenter & Painter / बढ़ई",
-                location = "Silwani, Raisen (MP)",
-                dailyWage = "₹650/दिन",
-                phone = "6265798340",
-                rating = "4.7",
-                jobsDone = 29,
-                avatarKey = "suresh"
+            FeaturedWorkerProfile(
+                id = "w_ramesh",
+                name = "Ramesh Yadav",
+                category = "Painter",
+                rating = 4.8,
+                jobsDone = 21,
+                area = "Ward 8, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 750,
+                experience = "5 years",
+                phone = "+91 9425011223",
+                isVerified = true,
+                shirtColor = Color(0xFF7C3AED),
+                hatColor = Color(0xFFFACC15),
+                about = "Professional interior and exterior house painter, wall putty, texture painting, and waterproofing specialist."
+            ),
+            FeaturedWorkerProfile(
+                id = "w_mahesh",
+                name = "Mahesh Vishwakarma",
+                category = "Carpenter",
+                rating = 4.7,
+                jobsDone = 19,
+                area = "Bhopal Road, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 850,
+                experience = "5 years",
+                phone = "+91 9893044556",
+                isVerified = true,
+                shirtColor = Color(0xFF083D91),
+                hatColor = Color(0xFFFF8C00),
+                about = "Expert Carpenter for doors, windows, modular kitchen cabinets, bed and furniture making & repair."
+            ),
+            FeaturedWorkerProfile(
+                id = "w_vikas",
+                name = "Vikas Ahirwar",
+                category = "General Labour",
+                rating = 4.8,
+                jobsDone = 28,
+                area = "Main Road, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 600,
+                experience = "4 years",
+                phone = "+91 9109077889",
+                isVerified = true,
+                shirtColor = Color(0xFF16A34A),
+                hatColor = Color(0xFFFACC15),
+                about = "Hardworking General Labour for construction loading/unloading, site cleaning, digging, and material shifting."
+            ),
+            FeaturedWorkerProfile(
+                id = "w_suresh",
+                name = "Suresh Sen",
+                category = "Tile Worker",
+                rating = 4.9,
+                jobsDone = 24,
+                area = "New Colony, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 900,
+                experience = "6 years",
+                phone = "+91 9630055443",
+                isVerified = true,
+                shirtColor = Color(0xFF1D4ED8),
+                hatColor = Color(0xFFFF8C00),
+                about = "Specialist in floor tiles, vitrified tiles, bathroom wall tiles, granite kitchen platform and marble fitting."
+            ),
+            FeaturedWorkerProfile(
+                id = "w_dinesh",
+                name = "Dinesh Kushwaha",
+                category = "Farm Worker",
+                rating = 4.7,
+                jobsDone = 31,
+                area = "Gram Bamhori, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 550,
+                experience = "7 years",
+                phone = "+91 9300122334",
+                isVerified = true,
+                shirtColor = Color(0xFF15803D),
+                hatColor = Color(0xFFFACC15),
+                about = "Experienced agricultural & farm worker for harvesting, irrigation, spraying, and crop care."
+            ),
+            FeaturedWorkerProfile(
+                id = "w_kamlesh",
+                name = "Kamlesh Sahu",
+                category = "Cleaner",
+                rating = 4.8,
+                jobsDone = 18,
+                area = "Station Road, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 500,
+                experience = "3 years",
+                phone = "+91 9713066778",
+                isVerified = true,
+                shirtColor = Color(0xFF0284C7),
+                hatColor = Color(0xFFFACC15),
+                about = "Full house deep cleaning, water tank cleaning, office cleaning, and post-construction cleanup."
+            ),
+            FeaturedWorkerProfile(
+                id = "w_deepak",
+                name = "Deepak प्रजापति",
+                category = "Mason",
+                rating = 4.8,
+                jobsDone = 22,
+                area = "Bus Stand, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 800,
+                experience = "5 years",
+                phone = "+91 9827033445",
+                isVerified = true,
+                shirtColor = Color(0xFFEA580C),
+                hatColor = Color(0xFFFACC15),
+                about = "Skilled Mason for plaster work, boundary wall, elevation design, and house renovation."
             )
         )
-
-        val liveMapped = workers.mapIndexed { index, w ->
-            val avatarKeys = listOf("ramesh", "mohan", "mahesh", "suresh")
-            val rawName = extractSafeObjectField(w, "name", "fullName", "workerName", fallback = "कुशल कारीगर")
-            val rawSkill = extractSafeObjectField(w, "category", "skill", "role", "profession", "trade", fallback = "General Worker")
-            val rawLoc = extractSafeObjectField(w, "location", "city", "area", "address", fallback = "Silwani, Raisen (MP)")
-            val rawWage = extractSafeObjectField(w, "dailyWage", "dailyRate", "wage", "rate", "pay", "price", fallback = "500")
-            val rawPhone = extractSafeObjectField(w, "phone", "mobile", "contactPhone", "phoneNumber", fallback = "6265798340")
-            val rawRating = extractSafeObjectField(w, "rating", fallback = "4.8")
-
-            val formattedWage = when {
-                rawWage.isEmpty() || rawWage == "0" -> "₹500/दिन"
-                rawWage.startsWith("₹") -> rawWage
-                else -> "₹$rawWage/दिन"
-            }
-
-            PrototypeWorkerItem(
-                id = "live_${index}_$rawName",
-                name = rawName,
-                skill = rawSkill,
-                location = rawLoc,
-                dailyWage = formattedWage,
-                phone = rawPhone,
-                rating = rawRating,
-                jobsDone = 25 + (index * 7),
-                avatarKey = avatarKeys[index % avatarKeys.size],
-                originalWorker = w
-            )
-        }
-
-        if (liveMapped.isEmpty()) defaultList else liveMapped + defaultList
     }
 
-    val categories = listOf(
-        "Mason / मिस्त्री",
-        "Plumber / प्लंबर",
-        "Electrician / इलेक्ट्रीशियन",
-        "Painter / पेंटर",
-        "Carpenter / बढ़ई",
-        "Labour / मजदूर"
-    )
+    val allWorkersList = remember { mutableStateListOf<FeaturedWorkerProfile>().apply { addAll(defaultFeaturedWorkers) } }
 
-    val filteredWorkers = remember(allDisplayWorkers, localSearchQuery, activeCategoryFilter) {
-        allDisplayWorkers.filter { worker ->
-            val matchesCategory = if (activeCategoryFilter.isBlank() || activeCategoryFilter == "All") {
-                true
-            } else {
-                val cleanFilter = activeCategoryFilter.substringBefore("/").trim()
-                worker.skill.contains(cleanFilter, ignoreCase = true)
+    // Load real registered workers from Firebase /users and add them to the top of the list
+    LaunchedEffect(Unit) {
+        fetchRealRegisteredWorkersFromFirebase { firebaseWorkers ->
+            val merged = mutableListOf<FeaturedWorkerProfile>()
+            merged.addAll(firebaseWorkers)
+            defaultFeaturedWorkers.forEach { def ->
+                if (merged.none { it.name.equals(def.name, ignoreCase = true) }) {
+                    merged.add(def)
+                }
             }
-            val matchesSearch = if (localSearchQuery.isBlank()) {
-                true
-            } else {
-                worker.name.contains(localSearchQuery, ignoreCase = true) ||
-                    worker.skill.contains(localSearchQuery, ignoreCase = true) ||
-                    worker.location.contains(localSearchQuery, ignoreCase = true)
-            }
-            matchesCategory && matchesSearch
+            allWorkersList.clear()
+            allWorkersList.addAll(merged)
         }
     }
 
-    val handleSettingsNavigation: () -> Unit = {
-        onOpenProfile()
-        onNavigateToProfile()
+    val filteredWorkers = remember(allWorkersList.size, localSearchText, selectedSkillFilter) {
+        allWorkersList.filter { w ->
+            val matchesCategory = selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
+            val matchesQuery = localSearchText.isBlank() ||
+                w.name.contains(localSearchText, ignoreCase = true) ||
+                w.category.contains(localSearchText, ignoreCase = true) ||
+                w.area.contains(localSearchText, ignoreCase = true)
+            matchesCategory && matchesQuery
+        }
     }
 
-    val handleOpenPostJob: () -> Unit = {
-        showPostJobDialog = true
-        onPostJobClick()
+    // Helper function to open Live Chat directly with a specific Worker
+    val openDirectLiveChatWithWorker: (FeaturedWorkerProfile) -> Unit = { worker ->
+        chatPrefs.edit()
+            .putString("chat_partner_id", worker.id)
+            .putString("chat_partner_name", worker.name)
+            .putString("chat_partner_role", worker.category)
+            .putString("chat_partner_phone", worker.phone)
+            .putString("chat_partner_area", worker.area)
+            .apply()
+        onOpenChat()
+    }
+
+    // If a Worker Card was clicked, show THAT Worker's Full Profile Screen (Reference Image #5)
+    if (selectedWorkerForProfile != null) {
+        val w = selectedWorkerForProfile!!
+        WorkerFullProfileViewScreen(
+            worker = w,
+            onBack = { selectedWorkerForProfile = null },
+            onCallClick = {
+                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${w.phone}"))
+                context.startActivity(dialIntent)
+            },
+            onMessageChatClick = {
+                selectedWorkerForProfile = null
+                openDirectLiveChatWithWorker(w)
+            },
+            onHireClick = {
+                val target = w
+                selectedWorkerForProfile = null
+                workerForHireRequest = target
+            }
+        )
+        return
     }
 
     Scaffold(
-        containerColor = Color(0xFFF4F7FB),
+        containerColor = CustBgLight,
         bottomBar = {
+            // Exact Bottom Navigation Bar from Screenshot: Menu | History | Post Skills | Chat | Settings
             Surface(
-                color = Color.White,
-                shadowElevation = 16.dp,
-                shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+                color = CustWhite,
+                shadowElevation = 12.dp,
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(vertical = 8.dp, horizontal = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .padding(vertical = 10.dp, horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    WorkoraBottomNavButton(
+                    CustomerBottomNavItem(
                         icon = Icons.Default.Menu,
                         label = "Menu",
-                        selected = localTab == 0 || localTab == 1,
-                        onClick = {
-                            localTab = 0
-                            onTabSelected(0)
-                        }
+                        isSelected = true,
+                        onClick = { selectedSkillFilter = "All" }
                     )
-
-                    WorkoraBottomNavButton(
-                        icon = Icons.Default.History,
+                    CustomerBottomNavItem(
+                        icon = Icons.Outlined.History,
                         label = "History",
-                        selected = localTab == 2,
-                        onClick = {
-                            localTab = 2
-                            onTabSelected(2)
-                        }
+                        isSelected = false,
+                        onClick = { showHistoryDialog = true }
                     )
-
-                    WorkoraBottomNavButton(
+                    CustomerBottomNavItem(
                         icon = Icons.Default.AddCircle,
                         label = "Post Skills",
-                        selected = false,
-                        onClick = handleOpenPostJob
+                        isSelected = false,
+                        onClick = { showPostWorkDialog = true }
                     )
-
-                    WorkoraBottomNavButton(
-                        icon = Icons.Default.Chat,
+                    CustomerBottomNavItem(
+                        icon = Icons.Outlined.Chat,
                         label = "Chat",
-                        selected = false,
-                        onClick = { onOpenChat() }
+                        isSelected = false,
+                        onClick = onOpenChat
                     )
-
-                    WorkoraBottomNavButton(
-                        icon = Icons.Default.Settings,
+                    CustomerBottomNavItem(
+                        icon = Icons.Outlined.Settings,
                         label = "Settings",
-                        selected = false,
-                        onClick = handleSettingsNavigation
+                        isSelected = false,
+                        onClick = onOpenProfile
                     )
                 }
             }
         }
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            if (localTab == 0) {
-                // ==================== VIEW 0: MENU / HOME SCREEN ====================
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 24.dp)
+            // Top Navy Header + Search Bar + Category Pills
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CustNavyPrimary)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
-                    item {
-                        Surface(
-                            color = Color.White,
-                            shadowElevation = 2.dp
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        WorkoraLogoCanvas(size = 44.dp)
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column {
-                                            Text(
-                                                text = appName,
-                                                fontSize = 21.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = Color(0xFF0D253F)
-                                            )
-                                            Text(
-                                                text = appTagline,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFFF6F00),
-                                                letterSpacing = 0.9.sp
-                                            )
-                                        }
-                                    }
-
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(onClick = onOpenNotifications) {
-                                            Icon(
-                                                imageVector = Icons.Default.Notifications,
-                                                contentDescription = "Notifications",
-                                                tint = Color(0xFF0D253F)
-                                            )
-                                        }
-                                        Surface(
-                                            shape = RoundedCornerShape(50),
-                                            color = Color(0xFFEFF6FF),
-                                            border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
-                                            modifier = Modifier.clickable { onSwitchRole() }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.SwapHoriz,
-                                                    contentDescription = "Switch Role",
-                                                    tint = Color(0xFF1D4ED8),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = "Switch Role",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF1D4ED8)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFFF8FAFC),
-                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            tempLocationInput = currentLocation
-                                            showLocationDialog = true
-                                        }
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.LocationOn,
-                                                contentDescription = "Location",
-                                                tint = Color(0xFFFF6F00),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = currentLocation,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = Color(0xFF1E293B),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        Text(
-                                            text = "Change >",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1565C0)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            shape = RoundedCornerShape(22.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color(0xFF0D253F),
-                                                Color(0xFF1565C0),
-                                                Color(0xFF1E88E5)
-                                            )
-                                        )
-                                    )
-                                    .padding(18.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Surface(
-                                            color = Color(0xFFFF6F00),
-                                            shape = RoundedCornerShape(6.dp)
-                                        ) {
-                                            Text(
-                                                text = "SILWANI • RAISEN • MP",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = Color.White,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "Hire Trusted Local Workers Instantly",
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White,
-                                            lineHeight = 23.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "कुशल मिस्त्री, प्लंबर, इलेक्ट्रीशियन और मजदूर सीधे बुलाएं",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFE3F2FD)
-                                        )
-                                        Spacer(modifier = Modifier.height(14.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Button(
-                                                onClick = {
-                                                    localTab = 1
-                                                    onTabSelected(1)
-                                                },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = Color(0xFFFF6F00),
-                                                    contentColor = Color.White
-                                                ),
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Find Workers",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                            OutlinedButton(
-                                                onClick = handleOpenPostJob,
-                                                border = BorderStroke(1.dp, Color.White),
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Post Skills",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(10.dp))
-
-                                    WorkoraHeroWorkerCanvas(size = 98.dp)
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Popular Categories",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0D253F)
-                                )
-                                Text(
-                                    text = "View All >",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFF6F00),
-                                    modifier = Modifier.clickable {
-                                        activeCategoryFilter = "All"
-                                        onCategorySelected("All")
-                                        localTab = 1
-                                        onTabSelected(1)
-                                    }
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                categories.take(3).forEach { cat ->
-                                    WorkoraCategoryItemCard(
-                                        categoryTitle = cat,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            val shortCat = cat.substringBefore("/").trim()
-                                            activeCategoryFilter = shortCat
-                                            onCategorySelected(shortCat)
-                                            localTab = 1
-                                            onTabSelected(1)
-                                        }
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                categories.drop(3).take(3).forEach { cat ->
-                                    WorkoraCategoryItemCard(
-                                        categoryTitle = cat,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            val shortCat = cat.substringBefore("/").trim()
-                                            activeCategoryFilter = shortCat
-                                            onCategorySelected(shortCat)
-                                            localTab = 1
-                                            onTabSelected(1)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                            border = BorderStroke(1.dp, Color(0xFFA5D6A7))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2E7D32)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.VerifiedUser,
-                                        contentDescription = "Verified",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "100% Verified Local Workers",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF1B5E20)
-                                    )
-                                    Text(
-                                        text = "Background checked • Direct Call & Live Chat • 0% Commission",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF2E7D32)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
                             Text(
-                                text = "Featured Workers (${allDisplayWorkers.size})",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0D253F)
+                                text = "Workora",
+                                color = CustWhite,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold
                             )
-                            TextButton(onClick = {
-                                localTab = 1
-                                onTabSelected(1)
-                            }) {
-                                Text(
-                                    text = "See All >",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1565C0)
-                                )
-                            }
-                        }
-                    }
-
-                    items(allDisplayWorkers.take(4)) { workerItem ->
-                        WorkoraPrototypeWorkerCard(
-                            worker = workerItem,
-                            context = context,
-                            onCardClick = {
-                                handleSettingsNavigation()
-                            },
-                            onHireClick = {
-                                workerItem.originalWorker?.let(onHireWorker)
-                            }
-                        )
-                    }
-
-                    item {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
                             Text(
-                                text = "Recent Job Posts (${jobs.size})",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0D253F)
-                            )
-                            TextButton(onClick = handleOpenPostJob) {
-                                Text(
-                                    text = "Post Skills",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFF6F00)
-                                )
-                            }
-                        }
-                    }
-
-                    if (jobs.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(20.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "अपनी जरूरत का काम पोस्ट करें और कारीगरों से सीधे कॉल पाएं",
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF64748B),
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Button(
-                                        onClick = handleOpenPostJob,
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F)),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Post Skills")
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        items(jobs.take(5)) { job ->
-                            WorkoraRecentJobRowCard(
-                                job = job,
-                                onCompleteClick = {
-                                    val jobIdLong = extractSafeObjectField(job, "id", fallback = "0").toLongOrNull() ?: 0L
-                                    if (jobIdLong != 0L) onCompleteJob(jobIdLong)
-                                }
+                                text = "Find. Hire. Work.",
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 12.sp
                             )
                         }
-                    }
-                }
-            } else if (localTab == 1) {
-                // ==================== VIEW 1: AVAILABLE WORKERS SEARCH SCREEN ====================
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Surface(
-                        color = Color.White,
-                        shadowElevation = 3.dp
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = {
-                                            localTab = 0
-                                            onTabSelected(0)
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowBack,
-                                            contentDescription = "Back",
-                                            tint = Color(0xFF0D253F)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Available Workers (${filteredWorkers.size})",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF0D253F)
-                                    )
-                                }
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = onOpenFilters) {
-                                        Icon(
-                                            imageVector = Icons.Default.FilterList,
-                                            contentDescription = "Filters",
-                                            tint = Color(0xFF0D253F)
-                                        )
-                                    }
-                                    Surface(
-                                        shape = RoundedCornerShape(50),
-                                        color = Color(0xFFFFF8E1),
-                                        border = BorderStroke(1.dp, Color(0xFFFFE082)),
-                                        modifier = Modifier.clickable {
-                                            tempLocationInput = currentLocation
-                                            showLocationDialog = true
-                                        }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.LocationOn,
-                                                contentDescription = null,
-                                                tint = Color(0xFFFF6F00),
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = currentLocation.take(14),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFE65100)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = localSearchQuery,
-                                onValueChange = {
-                                    localSearchQuery = it
-                                    onSearchQueryChanged(it)
-                                },
-                                placeholder = {
-                                    Text(
-                                        text = "Search Ramesh, Mohan, Mason, Plumber...",
-                                        fontSize = 13.sp
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = "Search",
-                                        tint = Color(0xFF1565C0)
-                                    )
-                                },
-                                trailingIcon = {
-                                    if (localSearchQuery.isNotEmpty()) {
-                                        IconButton(onClick = {
-                                            localSearchQuery = ""
-                                            onSearchQueryChanged("")
-                                        }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Clear,
-                                                contentDescription = "Clear"
-                                            )
-                                        }
-                                    }
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF1565C0),
-                                    unfocusedBorderColor = Color(0xFFCBD5E1),
-                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = Color(0xFFF8FAFC)
-                                )
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            val chipOptions = listOf("All", "Mason", "Plumber", "Electrician", "Painter", "Carpenter", "Labour")
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                chipOptions.forEach { chip ->
-                                    val isSelected = activeCategoryFilter.equals(chip, ignoreCase = true)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            activeCategoryFilter = chip
-                                            onCategorySelected(chip)
-                                        },
-                                        label = {
-                                            Text(
-                                                text = chip,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                            )
-                                        },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = Color(0xFF0D253F),
-                                            selectedLabelColor = Color.White
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        if (filteredWorkers.isEmpty()) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(36.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PersonSearch,
-                                        contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(54.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Text(
-                                        text = "कोई कारीगर नहीं मिला",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF475569)
-                                    )
-                                }
-                            }
-                        } else {
-                            items(filteredWorkers) { workerItem ->
-                                WorkoraPrototypeWorkerCard(
-                                    worker = workerItem,
-                                    context = context,
-                                    onCardClick = {
-                                        handleSettingsNavigation()
-                                    },
-                                    onHireClick = {
-                                        workerItem.originalWorker?.let(onHireWorker)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                // ==================== VIEW 2: HISTORY ====================
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Surface(
-                        color = Color.White,
-                        shadowElevation = 2.dp
-                    ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = {
-                                        localTab = 0
-                                        onTabSelected(0)
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = Color(0xFF0D253F)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Work History (${jobs.size})",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0D253F)
+                            IconButton(onClick = onOpenNotifications) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = CustWhite
                                 )
                             }
-
-                            Button(
-                                onClick = handleOpenPostJob,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            Surface(
+                                color = CustOrangeAccent,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.clickable { onSwitchRole() }
                             ) {
                                 Text(
-                                    text = "Post Skills",
-                                    fontSize = 12.sp,
+                                    text = "Worker Mode",
+                                    color = CustWhite,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                             }
                         }
                     }
 
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 12.dp)
-                    ) {
-                        if (jobs.isEmpty()) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(36.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.History,
-                                        contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(52.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Text(
-                                        text = "अभी तक कोई काम हिस्ट्री में नहीं है",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF475569),
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Button(
-                                        onClick = handleOpenPostJob,
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F)),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Post Skills")
-                                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Search Bar
+                    OutlinedTextField(
+                        value = localSearchText,
+                        onValueChange = {
+                            localSearchText = it
+                            onSearchQueryChanged(it)
+                        },
+                        placeholder = {
+                            Text(
+                                text = "Search for workers (e.g. mason, plumber, electrician...)",
+                                fontSize = 13.sp,
+                                color = CustSecondaryText
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Search, contentDescription = null, tint = CustSecondaryText)
+                        },
+                        trailingIcon = {
+                            if (localSearchText.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    localSearchText = ""
+                                    onSearchQueryChanged("")
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = CustSecondaryText)
+                                }
+                            } else {
+                                IconButton(onClick = onOpenFilters) {
+                                    Icon(Icons.Outlined.Tune, contentDescription = "Filter", tint = CustNavyPrimary)
                                 }
                             }
-                        } else {
-                            items(jobs) { job ->
-                                WorkoraRecentJobRowCard(
-                                    job = job,
-                                    onCompleteClick = {
-                                        val jobIdLong = extractSafeObjectField(job, "id", fallback = "0").toLongOrNull() ?: 0L
-                                        if (jobIdLong != 0L) onCompleteJob(jobIdLong)
-                                    }
-                                )
-                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = CustWhite,
+                            unfocusedContainerColor = CustWhite,
+                            focusedBorderColor = CustOrangeAccent,
+                            unfocusedBorderColor = CustWhite,
+                            focusedTextColor = CustMainText,
+                            unfocusedTextColor = CustMainText
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Category Filter Chips Row
+            item {
+                val categories = listOf("All", "Mason", "Plumber", "Electrician", "Painter", "Carpenter", "General Labour", "Tile Worker", "Cleaner")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.forEach { cat ->
+                        val isSelected = selectedSkillFilter.equals(cat, ignoreCase = true)
+                        Surface(
+                            color = if (isSelected) CustNavyPrimary else CustWhite,
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(1.dp, if (isSelected) CustNavyPrimary else CustBorder),
+                            modifier = Modifier.clickable { selectedSkillFilter = cat }
+                        ) {
+                            Text(
+                                text = cat,
+                                color = if (isSelected) CustWhite else CustMainText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
                         }
                     }
                 }
             }
-        }
-    }
 
-    if (showLocationDialog) {
-        val quickLocations = listOf(
-            "Silwani, Raisen (MP)",
-            "Raisen, MP",
-            "Begamganj, Raisen",
-            "Gairatganj, Raisen",
-            "Udaipura, Raisen",
-            "Bareli, Raisen",
-            "Bhopal, MP",
-            "Sagar, MP",
-            "Vidisha, MP"
-        )
-
-        AlertDialog(
-            onDismissRequest = { showLocationDialog = false },
-            containerColor = Color.White,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = Color(0xFFFF6F00)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "अपनी लोकेशन अपडेट करें",
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF0D253F),
-                        fontSize = 18.sp
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+            // Green Verified Trust Banner (Exact Match to Screenshot)
+            item {
+                Surface(
+                    color = Color(0xFFECFDF5),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
                 ) {
-                    Button(
-                        onClick = triggerRealGpsDetection,
-                        enabled = !isDetectingGps,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE8F5E9),
-                            contentColor = Color(0xFF1B5E20)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isDetectingGps) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = Color(0xFF1B5E20)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "GPS से लोकेशन खोजी जा रही है...",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.MyLocation,
-                                contentDescription = "GPS",
-                                tint = Color(0xFF2E7D32),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Use Current GPS Location (मेरी लाइव लोकेशन)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = tempLocationInput,
-                        onValueChange = { tempLocationInput = it },
-                        label = { Text("शहर / गाँव / तहसील (जैसे: Silwani, Raisen)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color(0xFF0F172A),
-                            unfocusedTextColor = Color(0xFF0F172A),
-                            focusedBorderColor = Color(0xFF1565C0),
-                            unfocusedBorderColor = Color(0xFF94A3B8)
-                        )
-                    )
-
-                    Text(
-                        text = "तुरंत चुनें (Popular Locations):",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF475569)
-                    )
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        quickLocations.forEach { loc ->
-                            val isSelected = tempLocationInput.equals(loc, ignoreCase = true)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    tempLocationInput = loc
-                                    currentLocation = loc
-                                    profilePrefs.edit().putString("user_location", loc).apply()
-                                    showLocationDialog = false
-                                },
-                                label = {
-                                    Text(
-                                        text = loc,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF0D253F),
-                                    selectedLabelColor = Color.White
-                                )
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF15803D)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VerifiedUser,
+                                contentDescription = "Verified",
+                                tint = CustWhite,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "Background checked • Direct Call & Live Chat • 0% Commission",
+                            color = Color(0xFF166534),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Featured Workers Header
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Featured Workers (${filteredWorkers.size})",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CustMainText
+                    )
+                    Text(
+                        text = "See All >",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CustNavyPrimary,
+                        modifier = Modifier.clickable {
+                            selectedSkillFilter = "All"
+                            localSearchText = ""
+                            showAllWorkersModal = true
+                        }
+                    )
+                }
+            }
+
+            // Worker Cards List (Clicking card opens THAT Worker's Profile; Call Now + Message Icon)
+            items(filteredWorkers, key = { it.id }) { worker ->
+                FeaturedWorkerCardItem(
+                    worker = worker,
+                    onCardClick = {
+                        // Opens THIS worker's profile details (NOT the user's own profile!)
+                        selectedWorkerForProfile = worker
+                    },
+                    onCallNowClick = {
+                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
+                        context.startActivity(dialIntent)
+                    },
+                    onMessageIconClick = {
+                        // Immediately opens App's Live Chat with this worker!
+                        openDirectLiveChatWithWorker(worker)
+                    }
+                )
+            }
+        }
+    }
+
+    // Hire Request Dialog (When Customer clicks "Hire" inside Worker Profile)
+    if (workerForHireRequest != null) {
+        val targetWorker = workerForHireRequest!!
+        var workDesc by remember { mutableStateOf("") }
+        var workDate by remember {
+            mutableStateOf(SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()))
+        }
+        var workArea by remember {
+            mutableStateOf(profilePrefs.getString("user_location", targetWorker.area) ?: targetWorker.area)
+        }
+
+        Dialog(
+            onDismissRequest = { workerForHireRequest = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CustWhite)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CustNavyPrimary)
+                            .padding(horizontal = 18.dp, vertical = 16.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { workerForHireRequest = null },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = CustWhite)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Hire Request — ${targetWorker.name}",
+                                color = CustWhite,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
+
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Work Description *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        OutlinedTextField(
+                            value = workDesc,
+                            onValueChange = { workDesc = it },
+                            placeholder = { Text("Need to fix home wiring / masonry work...") },
+                            minLines = 3,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text("Date *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        OutlinedTextField(
+                            value = workDate,
+                            onValueChange = { workDate = it },
+                            leadingIcon = { Icon(Icons.Outlined.CalendarToday, contentDescription = null) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text("Area *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
+                        OutlinedTextField(
+                            value = workArea,
+                            onValueChange = { workArea = it },
+                            leadingIcon = { Icon(Icons.Outlined.LocationOn, contentDescription = null) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Button(
+                            onClick = {
+                                val finalDesc = workDesc.trim().ifEmpty { "${targetWorker.category} work request" }
+                                onPostJob(
+                                    "Hire ${targetWorker.name}",
+                                    targetWorker.category,
+                                    finalDesc,
+                                    targetWorker.dailyRate,
+                                    workArea.trim().ifEmpty { targetWorker.area },
+                                    1,
+                                    "NORMAL",
+                                    workDate
+                                )
+                                Toast.makeText(context, "Hire Request Sent to ${targetWorker.name}! ✓", Toast.LENGTH_SHORT).show()
+                                workerForHireRequest = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Text("Send Request", color = CustWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Post Work / Skills Modal
+    if (showPostWorkDialog) {
+        var title by remember { mutableStateOf("") }
+        var category by remember { mutableStateOf("Mason") }
+        var desc by remember { mutableStateOf("") }
+        var rate by remember { mutableStateOf("600") }
+        var area by remember { mutableStateOf(profilePrefs.getString("user_location", "") ?: "") }
+
+        AlertDialog(
+            onDismissRequest = { showPostWorkDialog = false },
+            containerColor = CustWhite,
+            title = { Text("Post New Work Request", fontWeight = FontWeight.Bold, color = CustMainText) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Work Title *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category (e.g. Mason, Plumber) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = rate, onValueChange = { rate = it.filter { c -> c.isDigit() } }, label = { Text("Daily Rate (₹) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = area, onValueChange = { area = it }, label = { Text("Work Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Work Details") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (tempLocationInput.isNotBlank()) {
-                            currentLocation = tempLocationInput.trim()
-                            profilePrefs.edit().putString("user_location", currentLocation).apply()
+                        if (title.isNotBlank() && area.isNotBlank()) {
+                            onPostJob(
+                                title.trim(),
+                                category.trim(),
+                                desc.trim(),
+                                rate.toIntOrNull() ?: 600,
+                                area.trim(),
+                                1,
+                                "NORMAL",
+                                "09:00 AM"
+                            )
+                            showPostWorkDialog = false
+                        } else {
+                            Toast.makeText(context, "Please fill Work Title and Area", Toast.LENGTH_SHORT).show()
                         }
-                        showLocationDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F))
+                    colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent)
                 ) {
-                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Post Work", color = CustWhite, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLocationDialog = false }) {
-                    Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.Bold)
-                }
+                TextButton(onClick = { showPostWorkDialog = false }) { Text("Cancel") }
             }
         )
     }
 
-    if (showPostJobDialog) {
+    if (showHistoryDialog) {
         AlertDialog(
-            onDismissRequest = { showPostJobDialog = false },
-            containerColor = Color.White,
-            title = {
+            onDismissRequest = { showHistoryDialog = false },
+            containerColor = CustWhite,
+            title = { Text("My Bookings & Work History", fontWeight = FontWeight.Bold, color = CustMainText) },
+            text = {
                 Text(
-                    text = "Post Skills",
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0D253F)
+                    text = "Click on any worker card to view their profile, call them directly, start a live chat, or send a hire request.",
+                    color = CustSecondaryText,
+                    fontSize = 14.sp
                 )
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = jobTitleInput,
-                        onValueChange = { jobTitleInput = it },
-                        label = { Text("काम का नाम (जैसे: मकान की जुड़ाई / प्लंबिंग)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = jobCategoryInput,
-                        onValueChange = { jobCategoryInput = it },
-                        label = { Text("कैटेगरी (Mason / Plumber / Electrician / Labour)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = jobRateInput,
-                        onValueChange = { jobRateInput = it },
-                        label = { Text("दिहाड़ी / बजट ₹ (जैसे: 600)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = jobWorkersCountInput,
-                        onValueChange = { jobWorkersCountInput = it },
-                        label = { Text("कितने कारीगर चाहिए? (जैसे: 2)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = jobDescInput,
-                        onValueChange = { jobDescInput = it },
-                        label = { Text("काम का विवरण (Description)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
             confirmButton = {
                 Button(
-                    onClick = {
-                        val finalTitle = jobTitleInput.trim().ifEmpty { "$jobCategoryInput का काम" }
-                        val finalCat = jobCategoryInput.trim().ifEmpty { "General" }
-                        val finalDesc = jobDescInput.trim().ifEmpty { "तुरंत काम के लिए संपर्क करें" }
-                        val finalRate = jobRateInput.filter { it.isDigit() }.toIntOrNull() ?: 600
-                        val finalWorkers = jobWorkersCountInput.filter { it.isDigit() }.toIntOrNull() ?: 1
-
-                        onPostJob(
-                            finalTitle,
-                            finalCat,
-                            finalDesc,
-                            finalRate,
-                            currentLocation,
-                            finalWorkers,
-                            jobUrgencyInput,
-                            ""
-                        )
-                        jobTitleInput = ""
-                        jobDescInput = ""
-                        showPostJobDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00))
+                    onClick = { showHistoryDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = CustNavyPrimary)
                 ) {
-                    Text("Post Skills ✓", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPostJobDialog = false }) {
-                    Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.Bold)
+                    Text("OK", color = CustWhite)
                 }
             }
         )
     }
 }
 
+// ==================================================
+// FEATURED WORKER CARD (WITH CALL NOW + MESSAGE ICON)
+// ==================================================
 @Composable
-private fun WorkoraLogoCanvas(size: Dp = 44.dp) {
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-
-        drawRoundRect(
-            brush = Brush.linearGradient(
-                colors = listOf(Color(0xFF0D253F), Color(0xFF1565C0))
-            ),
-            topLeft = Offset.Zero,
-            size = Size(w, h),
-            cornerRadius = CornerRadius(w * 0.24f, h * 0.24f)
-        )
-
-        drawRoundRect(
-            color = Color(0xFFFF6F00),
-            topLeft = Offset(w * 0.22f, h * 0.16f),
-            size = Size(w * 0.56f, h * 0.1f),
-            cornerRadius = CornerRadius(4f, 4f)
-        )
-
-        val wPath = Path().apply {
-            moveTo(w * 0.22f, h * 0.36f)
-            lineTo(w * 0.35f, h * 0.78f)
-            lineTo(w * 0.5f, h * 0.5f)
-            lineTo(w * 0.65f, h * 0.78f)
-            lineTo(w * 0.78f, h * 0.36f)
-        }
-        drawPath(
-            path = wPath,
-            color = Color.White,
-            style = Stroke(width = w * 0.1f, cap = StrokeCap.Round)
-        )
-    }
-}
-
-@Composable
-private fun WorkoraWorkerAvatarCanvas(
-    avatarKey: String,
-    size: Dp = 56.dp
-) {
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-
-        val bgColor = when (avatarKey) {
-            "ramesh" -> Color(0xFFE3F2FD)
-            "mohan" -> Color(0xFFFFF3E0)
-            "mahesh" -> Color(0xFFE8F5E9)
-            else -> Color(0xFFF3E5F5)
-        }
-        val shirtColor = when (avatarKey) {
-            "ramesh" -> Color(0xFF1565C0)
-            "mohan" -> Color(0xFFE65100)
-            "mahesh" -> Color(0xFF2E7D32)
-            else -> Color(0xFF6A1B9A)
-        }
-        val hatColor = when (avatarKey) {
-            "ramesh" -> Color(0xFFFFC107)
-            "mohan" -> Color(0xFF1976D2)
-            "mahesh" -> Color(0xFFFF8F00)
-            else -> Color(0xFFFFD54F)
-        }
-
-        drawCircle(
-            color = bgColor,
-            radius = w * 0.5f,
-            center = Offset(w * 0.5f, h * 0.5f)
-        )
-
-        drawArc(
-            color = shirtColor,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(w * 0.18f, h * 0.62f),
-            size = Size(w * 0.64f, h * 0.55f)
-        )
-
-        drawCircle(
-            color = Color(0xFFFFCC80),
-            radius = w * 0.2f,
-            center = Offset(w * 0.5f, h * 0.44f)
-        )
-
-        drawArc(
-            color = hatColor,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(w * 0.28f, h * 0.16f),
-            size = Size(w * 0.44f, h * 0.32f)
-        )
-        drawLine(
-            color = hatColor,
-            start = Offset(w * 0.24f, h * 0.32f),
-            end = Offset(w * 0.76f, h * 0.32f),
-            strokeWidth = w * 0.06f,
-            cap = StrokeCap.Round
-        )
-    }
-}
-
-@Composable
-private fun WorkoraPrototypeWorkerCard(
-    worker: PrototypeWorkerItem,
-    context: Context,
-    onCardClick: () -> Unit = {},
-    onHireClick: () -> Unit = {}
+private fun FeaturedWorkerCardItem(
+    worker: FeaturedWorkerProfile,
+    onCardClick: () -> Unit,
+    onCallNowClick: () -> Unit,
+    onMessageIconClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 16.dp)
             .clickable { onCardClick() },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = CustWhite),
+        border = BorderStroke(1.dp, CustBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(18.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                WorkoraWorkerAvatarCanvas(
-                    avatarKey = worker.avatarKey,
-                    size = 56.dp
+                // Worker Hard-Hat Avatar
+                WorkerCustomAvatarCanvas(
+                    shirtColor = worker.shirtColor,
+                    hatColor = worker.hatColor,
+                    size = 64.dp
                 )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
+                // Name, Verified Badge, Category, Rating & Area
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = worker.name,
-                            fontSize = 16.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF0D253F)
+                            color = CustMainText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Verified,
-                            contentDescription = "Verified",
-                            tint = Color(0xFF2E7D32),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        if (worker.isVerified) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Verified,
+                                contentDescription = "Verified",
+                                tint = Color(0xFF15803D),
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = worker.skill,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1565C0)
+                        text = worker.category,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF1D4ED8)
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = "Rating",
-                            tint = Color(0xFFFFA000),
-                            modifier = Modifier.size(14.dp)
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${worker.rating} (${worker.jobsDone} jobs)",
-                            fontSize = 11.sp,
+                            text = if (worker.rating > 0.0) "${worker.rating} (${worker.jobsDone} jobs)" else "New Worker",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF475569)
+                            color = Color(0xFF4B5563)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Icon(
                             imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = Color(0xFF64748B),
-                            modifier = Modifier.size(13.dp)
+                            contentDescription = "Location",
+                            tint = CustSecondaryText,
+                            modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(
-                            text = worker.location,
-                            fontSize = 11.sp,
-                            color = Color(0xFF64748B),
+                            text = worker.area,
+                            fontSize = 13.sp,
+                            color = CustSecondaryText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Yellow Rate Pill Badge (e.g. ₹850/दिन)
                 Surface(
-                    color = Color(0xFFFFF8E1),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFFFFE082))
+                    color = CustRateBadgeBg,
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, CustRateBadgeBorder)
                 ) {
                     Text(
-                        text = worker.dailyWage,
-                        fontSize = 13.sp,
+                        text = "₹${worker.dailyRate}/दिन",
+                        color = CustRateTextOrange,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFFE65100),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = {
-                    onHireClick()
-                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
-                    context.startActivity(intent)
-                },
+            // Bottom Action Row: Call Now Button + Direct Live Chat Message Icon Button
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D253F))
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Call,
-                    contentDescription = "Call",
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+                Button(
+                    onClick = onCallNowClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CustDarkNavyBtn,
+                        contentColor = CustWhite
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = "Call Now",
+                        tint = CustWhite,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Call Now",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CustWhite
+                    )
+                }
+
+                // Message / Live Chat Icon Button (Opens App Live Chat directly!)
+                Surface(
+                    color = CustNavyPrimary,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable { onMessageIconClick() }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Chat,
+                            contentDescription = "Live Chat Message",
+                            tint = CustWhite,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================================================
+// WORKER FULL PROFILE SCREEN (MATCHES REFERENCE IMAGE #5)
+// ==================================================
+@Composable
+private fun WorkerFullProfileViewScreen(
+    worker: FeaturedWorkerProfile,
+    onBack: () -> Unit,
+    onCallClick: () -> Unit,
+    onMessageChatClick: () -> Unit,
+    onHireClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CustBgLight)
+    ) {
+        // Top Navy Header
+        Surface(
+            color = CustNavyPrimary,
+            shadowElevation = 4.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = CustWhite
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "Call Now",
-                    fontSize = 13.sp,
+                    text = "Worker Profile",
+                    color = CustWhite,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Worker Main Info Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CustWhite),
+                border = BorderStroke(1.dp, CustBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        WorkerCustomAvatarCanvas(
+                            shirtColor = worker.shirtColor,
+                            hatColor = worker.hatColor,
+                            size = 76.dp
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = worker.name,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = CustMainText
+                                )
+                                if (worker.isVerified) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Verified,
+                                        contentDescription = "Verified",
+                                        tint = CustSuccessGreen,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = worker.category,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CustNavyPrimary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF59E0B),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (worker.rating > 0.0) "${worker.rating} (${worker.jobsDone} reviews)" else "New Worker",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CustSecondaryText
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = CustBorder)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Experience | Area | Daily Rate Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.WorkOutline, contentDescription = null, tint = CustNavyPrimary, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(worker.experience.ifBlank { "3 years" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = CustMainText)
+                            Text("Experience", fontSize = 12.sp, color = CustSecondaryText)
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = CustNavyPrimary, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(worker.area, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Area", fontSize = 12.sp, color = CustSecondaryText)
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.CurrencyRupee, contentDescription = null, tint = CustOrangeAccent, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("₹${worker.dailyRate}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = CustOrangeAccent)
+                            Text("Daily Rate", fontSize = 12.sp, color = CustSecondaryText)
+                        }
+                    }
+                }
+            }
+
+            // About Section Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CustWhite),
+                border = BorderStroke(1.dp, CustBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "About",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CustMainText
+                    )
+                    Text(
+                        text = worker.about,
+                        fontSize = 14.sp,
+                        color = CustSecondaryText,
+                        lineHeight = 21.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    HorizontalDivider(color = CustBorder)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Phone Number", fontSize = 13.sp, color = CustSecondaryText)
+                        Text(worker.phone, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CustMainText)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("State", fontSize = 13.sp, color = CustSecondaryText)
+                        Text(worker.stateName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CustMainText)
+                    }
+                }
+            }
+
+            // Call Now + Live Chat Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onCallClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = CustDarkNavyBtn),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                ) {
+                    Icon(Icons.Default.Call, contentDescription = null, tint = CustWhite, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Call Now", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                Button(
+                    onClick = onMessageChatClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = CustNavyPrimary),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                ) {
+                    Icon(Icons.Outlined.Chat, contentDescription = null, tint = CustWhite, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Live Chat", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            }
+
+            // Full-Width Orange Hire Button (Matches Reference Image #5)
+            Button(
+                onClick = onHireClick,
+                colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+            ) {
+                Text(
+                    text = "Hire ${worker.name}",
+                    color = CustWhite,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold
                 )
             }
         }
@@ -1695,312 +1260,152 @@ private fun WorkoraPrototypeWorkerCard(
 }
 
 @Composable
-private fun WorkoraBottomNavButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun WorkerCustomAvatarCanvas(
+    shirtColor: Color,
+    hatColor: Color,
+    size: Dp = 64.dp
+) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+
+        // Soft circular background
+        drawCircle(
+            color = Color(0xFFEFF6FF),
+            radius = w * 0.5f,
+            center = Offset(w * 0.5f, h * 0.5f)
+        )
+
+        // Shoulders / Shirt
+        drawArc(
+            color = shirtColor,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = true,
+            topLeft = Offset(w * 0.16f, h * 0.62f),
+            size = Size(w * 0.68f, h * 0.48f)
+        )
+
+        // Face
+        drawCircle(
+            color = Color(0xFFFCD34D),
+            radius = w * 0.21f,
+            center = Offset(w * 0.5f, h * 0.45f)
+        )
+
+        // Hard-Hat Dome
+        drawArc(
+            color = hatColor,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = true,
+            topLeft = Offset(w * 0.24f, h * 0.16f),
+            size = Size(w * 0.52f, h * 0.34f)
+        )
+
+        // Hard-Hat Brim
+        drawLine(
+            color = hatColor,
+            start = Offset(w * 0.20f, h * 0.33f),
+            end = Offset(w * 0.80f, h * 0.33f),
+            strokeWidth = w * 0.065f,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+private fun CustomerBottomNavItem(
+    icon: ImageVector,
     label: String,
-    selected: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val tint = if (selected) Color(0xFFFF6F00) else Color(0xFF64748B)
+    val tint = if (isSelected) CustOrangeAccent else Color(0xFF475569)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(24.dp)
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = label,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-            color = tint,
-            maxLines = 1
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+            color = tint
         )
     }
 }
 
-@Composable
-private fun WorkoraCategoryItemCard(
-    categoryTitle: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+private fun fetchRealRegisteredWorkersFromFirebase(
+    onLoaded: (List<FeaturedWorkerProfile>) -> Unit
 ) {
-    val parts = categoryTitle.split("/")
-    val englishTitle = parts.firstOrNull()?.trim() ?: categoryTitle
-    val hindiTitle = parts.getOrNull(1)?.trim() ?: ""
+    Thread {
+        val list = mutableListOf<FeaturedWorkerProfile>()
+        try {
+            val conn = URL("$CUST_FB_URL/users.json").openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 5000
+            if (conn.responseCode == 200) {
+                val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
+                    val root = JSONObject(resp)
+                    val keys = root.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val obj = root.optJSONObject(k) ?: continue
+                        val roleRaw = obj.optString("role", "")
+                        val status = obj.optString("status", "Active")
+                        if ((roleRaw.equals("Worker", true) || roleRaw.equals("LABOUR", true)) &&
+                            !status.equals("Blocked", true)
+                        ) {
+                            val name = obj.optString("name", "").trim()
+                            val phone = obj.optString("phone", "").trim()
+                            val skill = obj.optString("skill", "").trim()
+                            val area = obj.optString("location", "").trim()
+                            val state = obj.optString("state", "").trim()
+                            val exp = obj.optString("experience", "").trim()
+                            val rate = obj.optInt("dailyRate", 0)
+                            val rating = obj.optDouble("rating", 0.0).let { if (it.isNaN()) 0.0 else it }
+                            val jobsCount = obj.optInt("bookingsCount", 0)
 
-    Card(
-        modifier = modifier
-            .height(106.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFE3F2FD)),
-                contentAlignment = Alignment.Center
-            ) {
-                WorkoraCustomCategoryIcon(categoryName = englishTitle, size = 26.dp)
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = englishTitle,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF0D253F),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (hindiTitle.isNotEmpty()) {
-                Text(
-                    text = hindiTitle,
-                    fontSize = 11.sp,
-                    color = Color(0xFF64748B),
-                    maxLines = 1
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun WorkoraCustomCategoryIcon(
-    categoryName: String,
-    size: Dp = 26.dp
-) {
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-        val primary = Color(0xFF0D253F)
-        val accent = Color(0xFFFF6F00)
-
-        when {
-            categoryName.contains("Mason", ignoreCase = true) -> {
-                drawRoundRect(
-                    color = primary,
-                    topLeft = Offset(w * 0.1f, h * 0.55f),
-                    size = Size(w * 0.38f, h * 0.25f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-                drawRoundRect(
-                    color = primary,
-                    topLeft = Offset(w * 0.52f, h * 0.55f),
-                    size = Size(w * 0.38f, h * 0.25f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(w * 0.28f, h * 0.24f),
-                    size = Size(w * 0.44f, h * 0.25f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-            }
-            categoryName.contains("Plumber", ignoreCase = true) -> {
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.2f, h * 0.5f),
-                    end = Offset(w * 0.8f, h * 0.5f),
-                    strokeWidth = w * 0.16f,
-                    cap = StrokeCap.Round
-                )
-                drawCircle(
-                    color = accent,
-                    radius = w * 0.16f,
-                    center = Offset(w * 0.5f, h * 0.25f)
-                )
-            }
-            categoryName.contains("Electrician", ignoreCase = true) -> {
-                val bolt = Path().apply {
-                    moveTo(w * 0.55f, h * 0.1f)
-                    lineTo(w * 0.25f, h * 0.52f)
-                    lineTo(w * 0.5f, h * 0.52f)
-                    lineTo(w * 0.42f, h * 0.9f)
-                    lineTo(w * 0.75f, h * 0.45f)
-                    lineTo(w * 0.52f, h * 0.45f)
-                    close()
+                            if (name.isNotEmpty() && skill.isNotEmpty() && rate > 0) {
+                                list.add(
+                                    FeaturedWorkerProfile(
+                                        id = k,
+                                        name = name,
+                                        category = skill,
+                                        rating = rating,
+                                        jobsDone = jobsCount,
+                                        area = area.ifEmpty { "Local Area" },
+                                        stateName = state.ifEmpty { "Madhya Pradesh" },
+                                        dailyRate = rate,
+                                        experience = exp.ifEmpty { "1 yr" },
+                                        phone = phone.ifEmpty { "+91 9876543210" },
+                                        isVerified = true,
+                                        shirtColor = Color(0xFF083D91),
+                                        hatColor = Color(0xFFFF8C00),
+                                        about = "Verified $skill from $area ($state) with $exp of experience on Workora."
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
-                drawPath(path = bolt, color = accent)
             }
-            categoryName.contains("Painter", ignoreCase = true) -> {
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(w * 0.2f, h * 0.18f),
-                    size = Size(w * 0.6f, h * 0.26f),
-                    cornerRadius = CornerRadius(6f, 6f)
-                )
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.5f, h * 0.44f),
-                    end = Offset(w * 0.5f, h * 0.85f),
-                    strokeWidth = w * 0.12f,
-                    cap = StrokeCap.Round
-                )
-            }
-            categoryName.contains("Carpenter", ignoreCase = true) -> {
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.3f, h * 0.78f),
-                    end = Offset(w * 0.7f, h * 0.32f),
-                    strokeWidth = w * 0.12f,
-                    cap = StrokeCap.Round
-                )
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(w * 0.48f, h * 0.16f),
-                    size = Size(w * 0.36f, h * 0.2f),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-            }
-            else -> {
-                drawArc(
-                    color = accent,
-                    startAngle = 180f,
-                    sweepAngle = 180f,
-                    useCenter = true,
-                    topLeft = Offset(w * 0.15f, h * 0.25f),
-                    size = Size(w * 0.7f, h * 0.55f)
-                )
-                drawLine(
-                    color = primary,
-                    start = Offset(w * 0.1f, h * 0.55f),
-                    end = Offset(w * 0.9f, h * 0.55f),
-                    strokeWidth = w * 0.1f,
-                    cap = StrokeCap.Round
-                )
-            }
+            conn.disconnect()
+        } catch (_: Exception) {
         }
-    }
-}
-
-@Composable
-private fun WorkoraHeroWorkerCanvas(size: Dp = 98.dp) {
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-
-        drawCircle(
-            color = Color.White.copy(alpha = 0.16f),
-            radius = w * 0.48f,
-            center = Offset(w * 0.5f, h * 0.5f)
-        )
-
-        drawRoundRect(
-            color = Color(0xFFFF6F00),
-            topLeft = Offset(w * 0.22f, h * 0.58f),
-            size = Size(w * 0.56f, h * 0.34f),
-            cornerRadius = CornerRadius(18f, 18f)
-        )
-
-        drawCircle(
-            color = Color(0xFFFFCC80),
-            radius = w * 0.18f,
-            center = Offset(w * 0.5f, h * 0.42f)
-        )
-
-        drawArc(
-            color = Color(0xFFFFD54F),
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(w * 0.28f, h * 0.16f),
-            size = Size(w * 0.44f, h * 0.32f)
-        )
-
-        drawLine(
-            color = Color(0xFFFFA000),
-            start = Offset(w * 0.24f, h * 0.32f),
-            end = Offset(w * 0.76f, h * 0.32f),
-            strokeWidth = w * 0.06f,
-            cap = StrokeCap.Round
-        )
-
-        drawLine(
-            color = Color(0xFFECEFF1),
-            start = Offset(w * 0.78f, h * 0.75f),
-            end = Offset(w * 0.88f, h * 0.38f),
-            strokeWidth = w * 0.07f,
-            cap = StrokeCap.Round
-        )
-        drawCircle(
-            color = Color(0xFFECEFF1),
-            radius = w * 0.08f,
-            center = Offset(w * 0.88f, h * 0.34f),
-            style = Stroke(width = w * 0.04f)
-        )
-    }
-}
-
-@Composable
-private fun WorkoraRecentJobRowCard(
-    job: JobPost,
-    onCompleteClick: () -> Unit = {}
-) {
-    val payDisplay = remember(job) { extractSafeJobPay(job) }
-    val rawTitle = extractSafeObjectField(job, "title", fallback = "काम उपलब्ध है")
-    val rawCategory = extractSafeObjectField(job, "category", fallback = "General")
-    val rawLocation = extractSafeObjectField(job, "location", fallback = "Silwani")
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clickable { onCompleteClick() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = rawTitle,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0D253F)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "$rawCategory • $rawLocation",
-                    fontSize = 12.sp,
-                    color = Color(0xFF64748B)
-                )
-            }
-            Surface(
-                color = Color(0xFFFFF8E1),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, Color(0xFFFFE082))
-            ) {
-                Text(
-                    text = payDisplay,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFFE65100),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                )
-            }
+        Handler(Looper.getMainLooper()).post {
+            onLoaded(list)
         }
-    }
+    }.start()
 }
