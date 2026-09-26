@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -34,82 +33,76 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.model.Job
 import com.example.model.User
-import com.example.model.Worker
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
-private val CustNavyPrimary = Color(0xFF083D91)
-private val CustDarkNavyBtn = Color(0xFF0B2345)
-private val CustOrangeAccent = Color(0xFFFF8C00)
-private val CustBgLight = Color(0xFFF8FAFC)
-private val CustWhite = Color(0xFFFFFFFF)
-private val CustMainText = Color(0xFF0B2345)
-private val CustSecondaryText = Color(0xFF687280)
-private val CustBorder = Color(0xFFE5EAF0)
-private val CustSuccessGreen = Color(0xFF16A34A)
-private val CustRateBadgeBg = Color(0xFFFEF9C3)
-private val CustRateBadgeBorder = Color(0xFFFDE047)
-private val CustRateTextOrange = Color(0xFFD97706)
+private val LabourNavyPrimary = Color(0xFF083D91)
+private val LabourDarkNavyBtn = Color(0xFF0B2345)
+private val LabourOrangeAccent = Color(0xFFFF8C00)
+private val LabourBgLight = Color(0xFFF8FAFC)
+private val LabourWhite = Color(0xFFFFFFFF)
+private val LabourMainText = Color(0xFF0B2345)
+private val LabourSecondaryText = Color(0xFF687280)
+private val LabourBorder = Color(0xFFE5EAF0)
+private val LabourSuccessGreen = Color(0xFF16A34A)
+private val LabourRateBadgeBg = Color(0xFFFEF9C3)
+private val LabourRateBadgeBorder = Color(0xFFFDE047)
+private val LabourRateTextOrange = Color(0xFFD97706)
 
-private const val CUST_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+private const val LABOUR_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-private data class FeaturedWorkerProfile(
+private data class CustomerWorkRequestItem(
     val id: String,
-    val name: String,
+    val title: String,
     val category: String,
-    val rating: Double,
-    val jobsDone: Int,
-    val area: String,
+    val description: String,
+    val customerName: String,
+    val customerPhone: String,
+    val location: String,
     val stateName: String,
     val dailyRate: Int,
-    val experience: String,
-    val phone: String,
-    val isVerified: Boolean,
-    val shirtColor: Color,
-    val hatColor: Color,
-    val about: String
+    val workersNeeded: Int,
+    val date: String,
+    val status: String,
+    val urgency: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <CatT, TabT> CustomerDashboardScreen(
+fun <CatT, TabT> LabourDashboardScreen(
     currentUser: User? = null,
-    searchQuery: String = "",
-    onSearchQueryChanged: (String) -> Unit = {},
-    workers: List<Worker> = emptyList(),
     jobs: List<Job> = emptyList(),
+    applications: List<*> = emptyList<Any?>(),
     selectedCategory: CatT,
     onCategorySelected: (CatT) -> Unit = {},
     activeTab: TabT,
     onTabSelected: (TabT) -> Unit = {},
-    onPostJob: (String, String, String, Int, String, Int, String, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
-    onHireWorker: (Worker) -> Unit = {},
+    isAvailable: Boolean = true,
+    onToggleAvailability: () -> Unit = {},
+    onApplyJob: (Job) -> Unit = {},
+    onAcceptJob: (Job) -> Unit = {},
+    onRejectJob: (Job) -> Unit = {},
     onCompleteJob: (String) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
-    onOpenNotifications: () -> Unit = {},
-    onOpenFilters: () -> Unit = {},
     toastMessage: String? = null,
     onOpenChat: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
+    val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
+    val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
 
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
@@ -117,249 +110,153 @@ fun <CatT, TabT> CustomerDashboardScreen(
         }
     }
 
-    var localSearchText by remember(searchQuery) { mutableStateOf(searchQuery) }
-    var selectedSkillFilter by remember { mutableStateOf("All") }
-    var showAllWorkersModal by remember { mutableStateOf(false) }
+    // Worker's own registered details from SharedPreferences
+    val workerName = profilePrefs.getString("user_name", "")?.ifBlank {
+        authPrefs.getString("last_logged_in_email", "Worker")?.substringBefore("@") ?: "Worker"
+    } ?: "Worker"
+    val workerSkill = profilePrefs.getString("user_skill", "")?.ifBlank { "Skilled Worker" } ?: "Skilled Worker"
+    val workerArea = profilePrefs.getString("user_location", "")?.ifBlank { "Local Area" } ?: "Local Area"
+    val workerExp = profilePrefs.getString("user_experience", "")?.ifBlank { "Experienced" } ?: "Experienced"
+    val workerRate = profilePrefs.getString("user_rate", "")?.ifBlank { "600" } ?: "600"
 
-    // Holds the specific worker clicked by the user so HIS profile opens (NOT the user's own profile!)
-    var selectedWorkerForProfile by remember { mutableStateOf<FeaturedWorkerProfile?>(null) }
-    var workerForHireRequest by remember { mutableStateOf<FeaturedWorkerProfile?>(null) }
-    var showPostWorkDialog by remember { mutableStateOf(false) }
-    var showHistoryDialog by remember { mutableStateOf(false) }
+    var selectedCategoryFilter by remember { mutableStateOf("All") }
 
-    val defaultFeaturedWorkers = remember {
+    // Holds the clicked Customer / Work Request so THAT Customer's profile opens (NOT the Worker's own profile!)
+    var selectedCustomerRequestForProfile by remember { mutableStateOf<CustomerWorkRequestItem?>(null) }
+
+    val defaultCustomerRequests = remember {
         listOf(
-            FeaturedWorkerProfile(
-                id = "w_sunil",
-                name = "Sunil Kumar",
-                category = "Mason",
-                rating = 4.9,
-                jobsDone = 25,
-                area = "Sector 4, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 850,
-                experience = "6 years",
-                phone = "+91 9826012345",
-                isVerified = true,
-                shirtColor = Color(0xFF1D4ED8),
-                hatColor = Color(0xFFFACC15),
-                about = "Experienced Mason specializing in bricklaying, plastering, RCC slab work, and house construction with 6 years of verified local experience."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_rajesh",
-                name = "Rajesh Sharma",
-                category = "Plumber",
-                rating = 4.9,
-                jobsDone = 32,
-                area = "Civil Lines, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 900,
-                experience = "7 years",
-                phone = "+91 9755098765",
-                isVerified = true,
-                shirtColor = Color(0xFFEA580C),
-                hatColor = Color(0xFF2563EB),
-                about = "Skilled Plumber for complete bathroom fitting, water tank installation, pipeline leakage repair, and motor fitting."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_aslam",
-                name = "Mohammad Aslam",
+            CustomerWorkRequestItem(
+                id = "req_1",
+                title = "Fix home wiring & switchboards",
                 category = "Electrician",
-                rating = 4.8,
-                jobsDone = 39,
-                area = "Main Market, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 950,
-                experience = "8 years",
-                phone = "+91 9926543210",
-                isVerified = true,
-                shirtColor = Color(0xFF15803D),
-                hatColor = Color(0xFFF97316),
-                about = "Certified Electrician experienced in house wiring, switchboard installation, inverter connection, ceiling fan and appliance repair."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_ramesh",
-                name = "Ramesh Yadav",
-                category = "Painter",
-                rating = 4.8,
-                jobsDone = 21,
-                area = "Ward 8, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 750,
-                experience = "5 years",
-                phone = "+91 9425011223",
-                isVerified = true,
-                shirtColor = Color(0xFF7C3AED),
-                hatColor = Color(0xFFFACC15),
-                about = "Professional interior and exterior house painter, wall putty, texture painting, and waterproofing specialist."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_mahesh",
-                name = "Mahesh Vishwakarma",
-                category = "Carpenter",
-                rating = 4.7,
-                jobsDone = 19,
-                area = "Bhopal Road, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 850,
-                experience = "5 years",
-                phone = "+91 9893044556",
-                isVerified = true,
-                shirtColor = Color(0xFF083D91),
-                hatColor = Color(0xFFFF8C00),
-                about = "Expert Carpenter for doors, windows, modular kitchen cabinets, bed and furniture making & repair."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_vikas",
-                name = "Vikas Ahirwar",
-                category = "General Labour",
-                rating = 4.8,
-                jobsDone = 28,
-                area = "Main Road, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 600,
-                experience = "4 years",
-                phone = "+91 9109077889",
-                isVerified = true,
-                shirtColor = Color(0xFF16A34A),
-                hatColor = Color(0xFFFACC15),
-                about = "Hardworking General Labour for construction loading/unloading, site cleaning, digging, and material shifting."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_suresh",
-                name = "Suresh Sen",
-                category = "Tile Worker",
-                rating = 4.9,
-                jobsDone = 24,
-                area = "New Colony, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 900,
-                experience = "6 years",
-                phone = "+91 9630055443",
-                isVerified = true,
-                shirtColor = Color(0xFF1D4ED8),
-                hatColor = Color(0xFFFF8C00),
-                about = "Specialist in floor tiles, vitrified tiles, bathroom wall tiles, granite kitchen platform and marble fitting."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_dinesh",
-                name = "Dinesh Kushwaha",
-                category = "Farm Worker",
-                rating = 4.7,
-                jobsDone = 31,
-                area = "Gram Bamhori, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 550,
-                experience = "7 years",
-                phone = "+91 9300122334",
-                isVerified = true,
-                shirtColor = Color(0xFF15803D),
-                hatColor = Color(0xFFFACC15),
-                about = "Experienced agricultural & farm worker for harvesting, irrigation, spraying, and crop care."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_kamlesh",
-                name = "Kamlesh Sahu",
-                category = "Cleaner",
-                rating = 4.8,
-                jobsDone = 18,
-                area = "Station Road, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 500,
-                experience = "3 years",
-                phone = "+91 9713066778",
-                isVerified = true,
-                shirtColor = Color(0xFF0284C7),
-                hatColor = Color(0xFFFACC15),
-                about = "Full house deep cleaning, water tank cleaning, office cleaning, and post-construction cleanup."
-            ),
-            FeaturedWorkerProfile(
-                id = "w_deepak",
-                name = "Deepak प्रजापति",
-                category = "Mason",
-                rating = 4.8,
-                jobsDone = 22,
-                area = "Bus Stand, Silwani",
+                description = "Need an experienced electrician to fix house wiring and install 4 new modular switchboards.",
+                customerName = "Amit Sharma",
+                customerPhone = "+91 9876543210",
+                location = "Main Market, Silwani",
                 stateName = "Madhya Pradesh",
                 dailyRate = 800,
-                experience = "5 years",
-                phone = "+91 9827033445",
-                isVerified = true,
-                shirtColor = Color(0xFFEA580C),
-                hatColor = Color(0xFFFACC15),
-                about = "Skilled Mason for plaster work, boundary wall, elevation design, and house renovation."
+                workersNeeded = 1,
+                date = "Today",
+                status = "PENDING",
+                urgency = "Urgent"
+            ),
+            CustomerWorkRequestItem(
+                id = "req_2",
+                title = "House Plaster & Brick Work",
+                category = "Mason",
+                description = "Need skilled mason for boundary wall construction and outer plastering work for 4 days.",
+                customerName = "Rajesh Patel",
+                customerPhone = "+91 9123456780",
+                location = "Civil Lines, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 850,
+                workersNeeded = 2,
+                date = "Today",
+                status = "PENDING",
+                urgency = "Normal"
+            ),
+            CustomerWorkRequestItem(
+                id = "req_3",
+                title = "Bathroom Pipeline & Tank Fitting",
+                category = "Plumber",
+                description = "Overhead water tank installation and bathroom tap fitting work.",
+                customerName = "Vikash Singh",
+                customerPhone = "+91 9425012345",
+                location = "Bhopal Road, Silwani",
+                stateName = "Madhya Pradesh",
+                dailyRate = 850,
+                workersNeeded = 1,
+                date = "26 Sep 2026",
+                status = "PENDING",
+                urgency = "Normal"
+            ),
+            CustomerWorkRequestItem(
+                id = "req_4",
+                title = "2 BHK Full Interior Wall Painting",
+                category = "Painter",
+                description = "Wall putty and two coats of plastic emulsion paint required for 2 BHK house.",
+                customerName = "Pooja Verma",
+                customerPhone = "+91 7654321098",
+                location = "New Colony, Raisen",
+                stateName = "Madhya Pradesh",
+                dailyRate = 750,
+                workersNeeded = 2,
+                date = "26 Sep 2026",
+                status = "PENDING",
+                urgency = "Normal"
             )
         )
     }
 
-    val allWorkersList = remember { mutableStateListOf<FeaturedWorkerProfile>().apply { addAll(defaultFeaturedWorkers) } }
+    val workRequestsList = remember {
+        mutableStateListOf<CustomerWorkRequestItem>().apply { addAll(defaultCustomerRequests) }
+    }
 
-    // Load real registered workers from Firebase /users and add them to the top of the list
     LaunchedEffect(Unit) {
-        fetchRealRegisteredWorkersFromFirebase { firebaseWorkers ->
-            val merged = mutableListOf<FeaturedWorkerProfile>()
-            merged.addAll(firebaseWorkers)
-            defaultFeaturedWorkers.forEach { def ->
-                if (merged.none { it.name.equals(def.name, ignoreCase = true) }) {
+        fetchLiveCustomerRequestsFromFirebase { cloudRequests ->
+            val merged = mutableListOf<CustomerWorkRequestItem>()
+            merged.addAll(cloudRequests)
+            defaultCustomerRequests.forEach { def ->
+                if (merged.none { it.id == def.id || it.title.equals(def.title, true) }) {
                     merged.add(def)
                 }
             }
-            allWorkersList.clear()
-            allWorkersList.addAll(merged)
+            workRequestsList.clear()
+            workRequestsList.addAll(merged)
         }
     }
 
-    val filteredWorkers = remember(allWorkersList.size, localSearchText, selectedSkillFilter) {
-        allWorkersList.filter { w ->
-            val matchesCategory = selectedSkillFilter == "All" || w.category.equals(selectedSkillFilter, ignoreCase = true)
-            val matchesQuery = localSearchText.isBlank() ||
-                w.name.contains(localSearchText, ignoreCase = true) ||
-                w.category.contains(localSearchText, ignoreCase = true) ||
-                w.area.contains(localSearchText, ignoreCase = true)
-            matchesCategory && matchesQuery
-        }
+    val filteredRequests = remember(workRequestsList.size, selectedCategoryFilter) {
+        if (selectedCategoryFilter == "All") workRequestsList
+        else workRequestsList.filter { it.category.equals(selectedCategoryFilter, ignoreCase = true) }
     }
 
-    // Helper function to open Live Chat directly with a specific Worker
-    val openDirectLiveChatWithWorker: (FeaturedWorkerProfile) -> Unit = { worker ->
+    // Helper to open Live Chat directly with the selected Customer
+    val openDirectLiveChatWithCustomer: (CustomerWorkRequestItem) -> Unit = { req ->
         chatPrefs.edit()
-            .putString("chat_partner_id", worker.id)
-            .putString("chat_partner_name", worker.name)
-            .putString("chat_partner_role", worker.category)
-            .putString("chat_partner_phone", worker.phone)
-            .putString("chat_partner_area", worker.area)
+            .putString("chat_partner_id", req.id)
+            .putString("chat_partner_name", req.customerName)
+            .putString("chat_partner_role", "Customer • ${req.title}")
+            .putString("chat_partner_phone", req.customerPhone)
+            .putString("chat_partner_area", req.location)
             .apply()
         onOpenChat()
     }
 
-    // If a Worker Card was clicked, show THAT Worker's Full Profile Screen
-    if (selectedWorkerForProfile != null) {
-        val w = selectedWorkerForProfile!!
-        WorkerFullProfileViewScreen(
-            worker = w,
-            onBack = { selectedWorkerForProfile = null },
-            onCallClick = {
-                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${w.phone}"))
+    // When Worker clicks on a Customer / Work Request Card, open THAT Customer's Profile & Job View!
+    if (selectedCustomerRequestForProfile != null) {
+        val req = selectedCustomerRequestForProfile!!
+        CustomerAndJobDetailProfileScreen(
+            request = req,
+            onBack = { selectedCustomerRequestForProfile = null },
+            onCallCustomer = {
+                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
                 context.startActivity(dialIntent)
             },
-            onMessageChatClick = {
-                selectedWorkerForProfile = null
-                openDirectLiveChatWithWorker(w)
+            onChatWithCustomer = {
+                selectedCustomerRequestForProfile = null
+                openDirectLiveChatWithCustomer(req)
             },
-            onHireClick = {
-                val target = w
-                selectedWorkerForProfile = null
-                workerForHireRequest = target
+            onAcceptWorkRequest = {
+                val idx = workRequestsList.indexOfFirst { it.id == req.id }
+                if (idx >= 0) {
+                    val updated = req.copy(status = "ACCEPTED")
+                    workRequestsList[idx] = updated
+                    selectedCustomerRequestForProfile = updated
+                    updateJobStatusInFirebase(req.id, "ACCEPTED", workerName)
+                    Toast.makeText(context, "Work Request Accepted! ✓", Toast.LENGTH_SHORT).show()
+                }
             }
         )
         return
     }
 
     Scaffold(
-        containerColor = CustBgLight,
+        containerColor = LabourBgLight,
         bottomBar = {
             Surface(
-                color = CustWhite,
+                color = LabourWhite,
                 shadowElevation = 12.dp,
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
             ) {
@@ -367,37 +264,31 @@ fun <CatT, TabT> CustomerDashboardScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(vertical = 10.dp, horizontal = 12.dp),
+                        .padding(vertical = 10.dp, horizontal = 16.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CustomerBottomNavItem(
-                        icon = Icons.Default.Menu,
-                        label = "Menu",
+                    LabourBottomNavItem(
+                        icon = Icons.Default.Home,
+                        label = "Home",
                         isSelected = true,
-                        onClick = { selectedSkillFilter = "All" }
+                        onClick = { selectedCategoryFilter = "All" }
                     )
-                    CustomerBottomNavItem(
-                        icon = Icons.Outlined.History,
-                        label = "History",
+                    LabourBottomNavItem(
+                        icon = Icons.Outlined.WorkOutline,
+                        label = "My Jobs",
                         isSelected = false,
-                        onClick = { showHistoryDialog = true }
+                        onClick = { selectedCategoryFilter = "All" }
                     )
-                    CustomerBottomNavItem(
-                        icon = Icons.Default.AddCircle,
-                        label = "Post Skills",
-                        isSelected = false,
-                        onClick = { showPostWorkDialog = true }
-                    )
-                    CustomerBottomNavItem(
+                    LabourBottomNavItem(
                         icon = Icons.Outlined.Chat,
                         label = "Chat",
                         isSelected = false,
                         onClick = onOpenChat
                     )
-                    CustomerBottomNavItem(
-                        icon = Icons.Outlined.Settings,
-                        label = "Settings",
+                    LabourBottomNavItem(
+                        icon = Icons.Outlined.Person,
+                        label = "Profile",
                         isSelected = false,
                         onClick = onOpenProfile
                     )
@@ -412,111 +303,133 @@ fun <CatT, TabT> CustomerDashboardScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Top Navy Header + Search Bar
+            // Top Navy Header
             item {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(CustNavyPrimary)
+                        .background(LabourNavyPrimary)
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Column {
+                        Text(
+                            text = "Workora",
+                            color = LabourWhite,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = "Worker Dashboard",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp
+                        )
+                    }
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column {
+                        Surface(
+                            color = LabourOrangeAccent,
+                            shape = RoundedCornerShape(50),
+                            modifier = Modifier.clickable { onSwitchRole() }
+                        ) {
                             Text(
-                                text = "Workora",
-                                color = CustWhite,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Text(
-                                text = "Find. Hire. Work.",
-                                color = Color(0xFFCBD5E1),
-                                fontSize = 12.sp
+                                text = "Customer Mode",
+                                color = LabourWhite,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
+                    }
+                }
+            }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            IconButton(onClick = onOpenNotifications) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Notifications,
-                                    contentDescription = "Notifications",
-                                    tint = CustWhite
+            // Worker Summary + Availability Card
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = LabourWhite),
+                    border = BorderStroke(1.dp, LabourBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CustomerHardHatAvatar(size = 68.dp)
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = workerName,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = LabourMainText
+                                )
+                                Text(
+                                    text = workerSkill,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = LabourNavyPrimary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "📍 $workerArea • Exp: $workerExp",
+                                    fontSize = 12.sp,
+                                    color = LabourSecondaryText
+                                )
+                                Text(
+                                    text = "Daily Rate: ₹$workerRate/day",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = LabourOrangeAccent
                                 )
                             }
-                            Surface(
-                                color = CustOrangeAccent,
-                                shape = RoundedCornerShape(50),
-                                modifier = Modifier.clickable { onSwitchRole() }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Surface(
+                            color = if (isAvailable) Color(0xFFECFDF5) else Color(0xFFFEF2F2),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, if (isAvailable) Color(0xFFA7F3D0) else Color(0xFFFECACA)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Worker Mode",
-                                    color = CustWhite,
-                                    fontSize = 11.sp,
+                                    text = if (isAvailable) "Available for work" else "Currently Busy",
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    color = if (isAvailable) LabourSuccessGreen else Color(0xFFDC2626)
+                                )
+                                Switch(
+                                    checked = isAvailable,
+                                    onCheckedChange = { onToggleAvailability() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = LabourWhite,
+                                        checkedTrackColor = LabourSuccessGreen
+                                    )
                                 )
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = localSearchText,
-                        onValueChange = {
-                            localSearchText = it
-                            onSearchQueryChanged(it)
-                        },
-                        placeholder = {
-                            Text(
-                                text = "Search for workers (e.g. mason, plumber, electrician...)",
-                                fontSize = 13.sp,
-                                color = CustSecondaryText
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.Search, contentDescription = null, tint = CustSecondaryText)
-                        },
-                        trailingIcon = {
-                            if (localSearchText.isNotEmpty()) {
-                                IconButton(onClick = {
-                                    localSearchText = ""
-                                    onSearchQueryChanged("")
-                                }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = CustSecondaryText)
-                                }
-                            } else {
-                                IconButton(onClick = onOpenFilters) {
-                                    Icon(Icons.Outlined.Tune, contentDescription = "Filter", tint = CustNavyPrimary)
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = CustWhite,
-                            unfocusedContainerColor = CustWhite,
-                            focusedBorderColor = CustOrangeAccent,
-                            unfocusedBorderColor = CustWhite,
-                            focusedTextColor = CustMainText,
-                            unfocusedTextColor = CustMainText
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
 
-            // Category Filter Chips Row
+            // Category Filter Chips
             item {
-                val categories = listOf("All", "Mason", "Plumber", "Electrician", "Painter", "Carpenter", "General Labour", "Tile Worker", "Cleaner")
+                val cats = listOf("All", "Mason", "Electrician", "Plumber", "Painter", "Carpenter", "General Labour")
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -524,17 +437,17 @@ fun <CatT, TabT> CustomerDashboardScreen(
                         .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    categories.forEach { cat ->
-                        val isSelected = selectedSkillFilter.equals(cat, ignoreCase = true)
+                    cats.forEach { c ->
+                        val selected = selectedCategoryFilter.equals(c, ignoreCase = true)
                         Surface(
-                            color = if (isSelected) CustNavyPrimary else CustWhite,
+                            color = if (selected) LabourNavyPrimary else LabourWhite,
                             shape = RoundedCornerShape(50),
-                            border = BorderStroke(1.dp, if (isSelected) CustNavyPrimary else CustBorder),
-                            modifier = Modifier.clickable { selectedSkillFilter = cat }
+                            border = BorderStroke(1.dp, if (selected) LabourNavyPrimary else LabourBorder),
+                            modifier = Modifier.clickable { selectedCategoryFilter = c }
                         ) {
                             Text(
-                                text = cat,
-                                color = if (isSelected) CustWhite else CustMainText,
+                                text = c,
+                                color = if (selected) LabourWhite else LabourMainText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -544,293 +457,56 @@ fun <CatT, TabT> CustomerDashboardScreen(
                 }
             }
 
-            // Green Verified Trust Banner
-            item {
-                Surface(
-                    color = Color(0xFFECFDF5),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF15803D)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.VerifiedUser,
-                                contentDescription = "Verified",
-                                tint = CustWhite,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = "Background checked • Direct Call & Live Chat • 0% Commission",
-                            color = Color(0xFF166534),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            lineHeight = 20.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            // Featured Workers Header
+            // Section Title
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Featured Workers (${filteredWorkers.size})",
-                        fontSize = 20.sp,
+                        text = "Customer Work Requests (${filteredRequests.size})",
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = CustMainText
+                        color = LabourMainText
                     )
                     Text(
                         text = "See All >",
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CustNavyPrimary,
-                        modifier = Modifier.clickable {
-                            selectedSkillFilter = "All"
-                            localSearchText = ""
-                            showAllWorkersModal = true
-                        }
+                        color = LabourNavyPrimary,
+                        modifier = Modifier.clickable { selectedCategoryFilter = "All" }
                     )
                 }
             }
 
-            // Worker Cards List
-            items(filteredWorkers, key = { it.id }) { worker ->
-                FeaturedWorkerCardItem(
-                    worker = worker,
+            // Customer Work Request Cards
+            items(filteredRequests, key = { it.id }) { req ->
+                CustomerWorkRequestCard(
+                    request = req,
                     onCardClick = {
-                        selectedWorkerForProfile = worker
+                        selectedCustomerRequestForProfile = req
                     },
-                    onCallNowClick = {
-                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${worker.phone}"))
+                    onCallCustomerClick = {
+                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
                         context.startActivity(dialIntent)
                     },
                     onMessageIconClick = {
-                        openDirectLiveChatWithWorker(worker)
+                        openDirectLiveChatWithCustomer(req)
                     }
                 )
             }
         }
-    }
-
-    // Hire Request Dialog
-    if (workerForHireRequest != null) {
-        val targetWorker = workerForHireRequest!!
-        var workDesc by remember { mutableStateOf("") }
-        var workDate by remember {
-            mutableStateOf(SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()))
-        }
-        var workArea by remember {
-            mutableStateOf(profilePrefs.getString("user_location", targetWorker.area) ?: targetWorker.area)
-        }
-
-        Dialog(
-            onDismissRequest = { workerForHireRequest = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .padding(16.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CustWhite)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(CustNavyPrimary)
-                            .padding(horizontal = 18.dp, vertical = 16.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { workerForHireRequest = null },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = CustWhite)
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Hire Request — ${targetWorker.name}",
-                                color = CustWhite,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Work Description *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
-                        OutlinedTextField(
-                            value = workDesc,
-                            onValueChange = { workDesc = it },
-                            placeholder = { Text("Need to fix home wiring / masonry work...") },
-                            minLines = 3,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Text("Date *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
-                        OutlinedTextField(
-                            value = workDate,
-                            onValueChange = { workDate = it },
-                            leadingIcon = { Icon(Icons.Outlined.CalendarToday, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Text("Area *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText)
-                        OutlinedTextField(
-                            value = workArea,
-                            onValueChange = { workArea = it },
-                            leadingIcon = { Icon(Icons.Outlined.LocationOn, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Button(
-                            onClick = {
-                                val finalDesc = workDesc.trim().ifEmpty { "${targetWorker.category} work request" }
-                                onPostJob(
-                                    "Hire ${targetWorker.name}",
-                                    targetWorker.category,
-                                    finalDesc,
-                                    targetWorker.dailyRate,
-                                    workArea.trim().ifEmpty { targetWorker.area },
-                                    1,
-                                    "NORMAL",
-                                    workDate
-                                )
-                                Toast.makeText(context, "Hire Request Sent to ${targetWorker.name}! ✓", Toast.LENGTH_SHORT).show()
-                                workerForHireRequest = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                        ) {
-                            Text("Send Request", color = CustWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Post Work / Skills Modal
-    if (showPostWorkDialog) {
-        var title by remember { mutableStateOf("") }
-        var category by remember { mutableStateOf("Mason") }
-        var desc by remember { mutableStateOf("") }
-        var rate by remember { mutableStateOf("600") }
-        var area by remember { mutableStateOf(profilePrefs.getString("user_location", "") ?: "") }
-
-        AlertDialog(
-            onDismissRequest = { showPostWorkDialog = false },
-            containerColor = CustWhite,
-            title = { Text("Post New Work Request", fontWeight = FontWeight.Bold, color = CustMainText) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Work Title *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category (e.g. Mason, Plumber) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = rate, onValueChange = { rate = it.filter { c -> c.isDigit() } }, label = { Text("Daily Rate (₹) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = area, onValueChange = { area = it }, label = { Text("Work Area / City *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Work Details") }, minLines = 2, modifier = Modifier.fillMaxWidth())
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (title.isNotBlank() && area.isNotBlank()) {
-                            onPostJob(
-                                title.trim(),
-                                category.trim(),
-                                desc.trim(),
-                                rate.toIntOrNull() ?: 600,
-                                area.trim(),
-                                1,
-                                "NORMAL",
-                                "09:00 AM"
-                            )
-                            showPostWorkDialog = false
-                        } else {
-                            Toast.makeText(context, "Please fill Work Title and Area", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent)
-                ) {
-                    Text("Post Work", color = CustWhite, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPostWorkDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
-    if (showHistoryDialog) {
-        AlertDialog(
-            onDismissRequest = { showHistoryDialog = false },
-            containerColor = CustWhite,
-            title = { Text("My Bookings & Work History", fontWeight = FontWeight.Bold, color = CustMainText) },
-            text = {
-                Text(
-                    text = "Click on any worker card to view their profile, call them directly, start a live chat, or send a hire request.",
-                    color = CustSecondaryText,
-                    fontSize = 14.sp
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showHistoryDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = CustNavyPrimary)
-                ) {
-                    Text("OK", color = CustWhite)
-                }
-            }
-        )
     }
 }
 
 @Composable
-private fun FeaturedWorkerCardItem(
-    worker: FeaturedWorkerProfile,
+private fun CustomerWorkRequestCard(
+    request: CustomerWorkRequestItem,
     onCardClick: () -> Unit,
-    onCallNowClick: () -> Unit,
+    onCallCustomerClick: () -> Unit,
     onMessageIconClick: () -> Unit
 ) {
     Card(
@@ -838,9 +514,9 @@ private fun FeaturedWorkerCardItem(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clickable { onCardClick() },
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = CustWhite),
-        border = BorderStroke(1.dp, CustBorder),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = LabourWhite),
+        border = BorderStroke(1.dp, LabourBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -852,72 +528,53 @@ private fun FeaturedWorkerCardItem(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                WorkerCustomAvatarCanvas(
-                    shirtColor = worker.shirtColor,
-                    hatColor = worker.hatColor,
-                    size = 64.dp
-                )
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFDBEAFE)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = request.customerName.take(1).uppercase(Locale.US),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = LabourNavyPrimary
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(14.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = worker.name,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = CustMainText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (worker.isVerified) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Default.Verified,
-                                contentDescription = "Verified",
-                                tint = Color(0xFF15803D),
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
                     Text(
-                        text = worker.category,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF1D4ED8)
+                        text = request.customerName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = LabourMainText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
+                    Text(
+                        text = "${request.title} (${request.category})",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = LabourNavyPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Rating",
-                            tint = Color(0xFFF59E0B),
-                            modifier = Modifier.size(16.dp)
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = LabourSecondaryText,
+                            modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (worker.rating > 0.0) "${worker.rating} (${worker.jobsDone} jobs)" else "New Worker",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4B5563)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = "Location",
-                            tint = CustSecondaryText,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = worker.area,
-                            fontSize = 13.sp,
-                            color = CustSecondaryText,
+                            text = "${request.location} • ${request.date}",
+                            fontSize = 12.sp,
+                            color = LabourSecondaryText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -927,33 +584,33 @@ private fun FeaturedWorkerCardItem(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Surface(
-                    color = CustRateBadgeBg,
+                    color = LabourRateBadgeBg,
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, CustRateBadgeBorder)
+                    border = BorderStroke(1.dp, LabourRateBadgeBorder)
                 ) {
                     Text(
-                        text = "₹${worker.dailyRate}/दिन",
-                        color = CustRateTextOrange,
-                        fontSize = 15.sp,
+                        text = "₹${request.dailyRate}/दिन",
+                        color = LabourRateTextOrange,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Bottom Action Row: Call Now Button + Direct Live Chat Message Icon Button
+            // Call Now + Direct Message (Live Chat) Icon Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = onCallNowClick,
+                    onClick = onCallCustomerClick,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = CustDarkNavyBtn,
-                        contentColor = CustWhite
+                        containerColor = LabourDarkNavyBtn,
+                        contentColor = LabourWhite
                     ),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
@@ -963,7 +620,7 @@ private fun FeaturedWorkerCardItem(
                     Icon(
                         imageVector = Icons.Default.Call,
                         contentDescription = "Call Now",
-                        tint = CustWhite,
+                        tint = LabourWhite,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -971,12 +628,12 @@ private fun FeaturedWorkerCardItem(
                         text = "Call Now",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CustWhite
+                        color = LabourWhite
                     )
                 }
 
                 Surface(
-                    color = CustNavyPrimary,
+                    color = LabourNavyPrimary,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .size(48.dp)
@@ -985,8 +642,8 @@ private fun FeaturedWorkerCardItem(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Outlined.Chat,
-                            contentDescription = "Live Chat Message",
-                            tint = CustWhite,
+                            contentDescription = "Live Chat with Customer",
+                            tint = LabourWhite,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -997,20 +654,20 @@ private fun FeaturedWorkerCardItem(
 }
 
 @Composable
-private fun WorkerFullProfileViewScreen(
-    worker: FeaturedWorkerProfile,
+private fun CustomerAndJobDetailProfileScreen(
+    request: CustomerWorkRequestItem,
     onBack: () -> Unit,
-    onCallClick: () -> Unit,
-    onMessageChatClick: () -> Unit,
-    onHireClick: () -> Unit
+    onCallCustomer: () -> Unit,
+    onChatWithCustomer: () -> Unit,
+    onAcceptWorkRequest: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CustBgLight)
+            .background(LabourBgLight)
     ) {
         Surface(
-            color = CustNavyPrimary,
+            color = LabourNavyPrimary,
             shadowElevation = 4.dp
         ) {
             Row(
@@ -1024,16 +681,12 @@ private fun WorkerFullProfileViewScreen(
                     onClick = onBack,
                     modifier = Modifier.size(36.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = CustWhite
-                    )
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = LabourWhite)
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "Worker Profile",
-                    color = CustWhite,
+                    text = "Customer & Work Profile",
+                    color = LabourWhite,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1051,139 +704,55 @@ private fun WorkerFullProfileViewScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CustWhite),
-                border = BorderStroke(1.dp, CustBorder),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors = CardDefaults.cardColors(containerColor = LabourWhite),
+                border = BorderStroke(1.dp, LabourBorder)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                ) {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        WorkerCustomAvatarCanvas(
-                            shirtColor = worker.shirtColor,
-                            hatColor = worker.hatColor,
-                            size = 76.dp
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFDBEAFE)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = request.customerName.take(1).uppercase(Locale.US),
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = LabourNavyPrimary
+                            )
+                        }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = worker.name,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = CustMainText
-                                )
-                                if (worker.isVerified) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Verified,
-                                        contentDescription = "Verified",
-                                        tint = CustSuccessGreen,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = worker.category,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = CustNavyPrimary
+                                text = request.customerName,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = LabourMainText
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = Color(0xFFF59E0B),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (worker.rating > 0.0) "${worker.rating} (${worker.jobsDone} reviews)" else "New Worker",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CustSecondaryText
-                                )
-                            }
+                            Text(
+                                text = "Verified Customer",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = LabourSuccessGreen
+                            )
+                            Text(
+                                text = "📍 ${request.location}",
+                                fontSize = 13.sp,
+                                color = LabourSecondaryText
+                            )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-                    HorizontalDivider(color = CustBorder)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = LabourBorder)
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Outlined.WorkOutline, contentDescription = null, tint = CustNavyPrimary, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(worker.experience.ifBlank { "3 years" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = CustMainText)
-                            Text("Experience", fontSize = 12.sp, color = CustSecondaryText)
-                        }
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = CustNavyPrimary, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(worker.area, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Area", fontSize = 12.sp, color = CustSecondaryText)
-                        }
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Outlined.CurrencyRupee, contentDescription = null, tint = CustOrangeAccent, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("₹${worker.dailyRate}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = CustOrangeAccent)
-                            Text("Daily Rate", fontSize = 12.sp, color = CustSecondaryText)
-                        }
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CustWhite),
-                border = BorderStroke(1.dp, CustBorder)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "About",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = CustMainText
-                    )
-                    Text(
-                        text = worker.about,
-                        fontSize = 14.sp,
-                        color = CustSecondaryText,
-                        lineHeight = 21.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    HorizontalDivider(color = CustBorder)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Phone Number", fontSize = 13.sp, color = CustSecondaryText)
-                        Text(worker.phone, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CustMainText)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("State", fontSize = 13.sp, color = CustSecondaryText)
-                        Text(worker.stateName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CustMainText)
-                    }
+                    Text("Work Title: ${request.title}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = LabourMainText)
+                    Text("Category Needed: ${request.category}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = LabourNavyPrimary)
+                    Text("Offered Rate: ₹${request.dailyRate}/दिन • Workers Needed: ${request.workersNeeded}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = LabourOrangeAccent)
+                    Text("Customer Phone: ${request.customerPhone}", fontSize = 14.sp, color = LabourMainText)
+                    Text("Work Description:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = LabourMainText)
+                    Text(request.description, fontSize = 14.sp, color = LabourSecondaryText)
                 }
             }
 
@@ -1192,44 +761,46 @@ private fun WorkerFullProfileViewScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = onCallClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = CustDarkNavyBtn),
+                    onClick = onCallCustomer,
+                    colors = ButtonDefaults.buttonColors(containerColor = LabourDarkNavyBtn),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp)
                 ) {
-                    Icon(Icons.Default.Call, contentDescription = null, tint = CustWhite, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Call, contentDescription = null, tint = LabourWhite, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Call Now", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Call Now", color = LabourWhite, fontWeight = FontWeight.Bold)
                 }
 
                 Button(
-                    onClick = onMessageChatClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = CustNavyPrimary),
+                    onClick = onChatWithCustomer,
+                    colors = ButtonDefaults.buttonColors(containerColor = LabourNavyPrimary),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp)
                 ) {
-                    Icon(Icons.Outlined.Chat, contentDescription = null, tint = CustWhite, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Chat, contentDescription = null, tint = LabourWhite, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Live Chat", color = CustWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Live Chat", color = LabourWhite, fontWeight = FontWeight.Bold)
                 }
             }
 
             Button(
-                onClick = onHireClick,
-                colors = ButtonDefaults.buttonColors(containerColor = CustOrangeAccent),
+                onClick = onAcceptWorkRequest,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (request.status == "ACCEPTED") LabourSuccessGreen else LabourOrangeAccent
+                ),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp)
             ) {
                 Text(
-                    text = "Hire ${worker.name}",
-                    color = CustWhite,
-                    fontSize = 17.sp,
+                    text = if (request.status == "ACCEPTED") "Work Request Accepted ✓" else "Accept Work Request",
+                    color = LabourWhite,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
@@ -1238,47 +809,30 @@ private fun WorkerFullProfileViewScreen(
 }
 
 @Composable
-private fun WorkerCustomAvatarCanvas(
-    shirtColor: Color,
-    hatColor: Color,
-    size: Dp = 64.dp
-) {
+private fun CustomerHardHatAvatar(size: Dp = 68.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
-
-        drawCircle(
-            color = Color(0xFFEFF6FF),
-            radius = w * 0.5f,
-            center = Offset(w * 0.5f, h * 0.5f)
-        )
-
+        drawCircle(color = Color(0xFFE2E8F0), radius = w * 0.5f, center = Offset(w * 0.5f, h * 0.5f))
         drawArc(
-            color = shirtColor,
+            color = LabourSuccessGreen,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = true,
             topLeft = Offset(w * 0.16f, h * 0.62f),
             size = Size(w * 0.68f, h * 0.48f)
         )
-
-        drawCircle(
-            color = Color(0xFFFCD34D),
-            radius = w * 0.21f,
-            center = Offset(w * 0.5f, h * 0.45f)
-        )
-
+        drawCircle(color = Color(0xFFFCD34D), radius = w * 0.21f, center = Offset(w * 0.5f, h * 0.45f))
         drawArc(
-            color = hatColor,
+            color = LabourOrangeAccent,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = true,
             topLeft = Offset(w * 0.24f, h * 0.16f),
             size = Size(w * 0.52f, h * 0.34f)
         )
-
         drawLine(
-            color = hatColor,
+            color = LabourOrangeAccent,
             start = Offset(w * 0.20f, h * 0.33f),
             end = Offset(w * 0.80f, h * 0.33f),
             strokeWidth = w * 0.065f,
@@ -1288,43 +842,38 @@ private fun WorkerCustomAvatarCanvas(
 }
 
 @Composable
-private fun CustomerBottomNavItem(
+private fun LabourBottomNavItem(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val tint = if (isSelected) CustOrangeAccent else Color(0xFF475569)
+    val tint = if (isSelected) LabourOrangeAccent else Color(0xFF475569)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.height(3.dp))
+        Icon(imageVector = icon, contentDescription = label, tint = tint, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
             color = tint
         )
     }
 }
 
-private fun fetchRealRegisteredWorkersFromFirebase(
-    onLoaded: (List<FeaturedWorkerProfile>) -> Unit
+private fun fetchLiveCustomerRequestsFromFirebase(
+    onLoaded: (List<CustomerWorkRequestItem>) -> Unit
 ) {
     Thread {
-        val list = mutableListOf<FeaturedWorkerProfile>()
+        val list = mutableListOf<CustomerWorkRequestItem>()
         try {
-            val conn = URL("$CUST_FB_URL/users.json").openConnection() as HttpURLConnection
+            val conn = URL("$LABOUR_FB_URL/jobs.json").openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.connectTimeout = 5000
             if (conn.responseCode == 200) {
@@ -1335,42 +884,23 @@ private fun fetchRealRegisteredWorkersFromFirebase(
                     while (keys.hasNext()) {
                         val k = keys.next()
                         val obj = root.optJSONObject(k) ?: continue
-                        val roleRaw = obj.optString("role", "")
-                        val status = obj.optString("status", "Active")
-                        if ((roleRaw.equals("Worker", true) || roleRaw.equals("LABOUR", true)) &&
-                            !status.equals("Blocked", true)
-                        ) {
-                            val name = obj.optString("name", "").trim()
-                            val phone = obj.optString("phone", "").trim()
-                            val skill = obj.optString("skill", "").trim()
-                            val area = obj.optString("location", "").trim()
-                            val state = obj.optString("state", "").trim()
-                            val exp = obj.optString("experience", "").trim()
-                            val rate = obj.optInt("dailyRate", 0)
-                            val rating = obj.optDouble("rating", 0.0).let { if (it.isNaN()) 0.0 else it }
-                            val jobsCount = obj.optInt("bookingsCount", 0)
-
-                            if (name.isNotEmpty() && skill.isNotEmpty() && rate > 0) {
-                                list.add(
-                                    FeaturedWorkerProfile(
-                                        id = k,
-                                        name = name,
-                                        category = skill,
-                                        rating = rating,
-                                        jobsDone = jobsCount,
-                                        area = area.ifEmpty { "Local Area" },
-                                        stateName = state.ifEmpty { "Madhya Pradesh" },
-                                        dailyRate = rate,
-                                        experience = exp.ifEmpty { "1 yr" },
-                                        phone = phone.ifEmpty { "+91 9876543210" },
-                                        isVerified = true,
-                                        shirtColor = Color(0xFF083D91),
-                                        hatColor = Color(0xFFFF8C00),
-                                        about = "Verified $skill from $area ($state) with $exp of experience on Workora."
-                                    )
-                                )
-                            }
-                        }
+                        list.add(
+                            CustomerWorkRequestItem(
+                                id = obj.optString("id", k),
+                                title = obj.optString("title", "Work Request"),
+                                category = obj.optString("category", "General Labour"),
+                                description = obj.optString("description", "Local work request"),
+                                customerName = obj.optString("customerName", "Customer"),
+                                customerPhone = obj.optString("customerPhone", "+91 9876543210"),
+                                location = obj.optString("location", "Silwani"),
+                                stateName = obj.optString("state", "Madhya Pradesh"),
+                                dailyRate = obj.optInt("dailyRate", 600),
+                                workersNeeded = obj.optInt("workersNeeded", 1),
+                                date = obj.optString("date", "Today"),
+                                status = obj.optString("status", "PENDING").uppercase(Locale.US),
+                                urgency = obj.optString("urgency", "Normal")
+                            )
+                        )
                     }
                 }
             }
@@ -1379,6 +909,26 @@ private fun fetchRealRegisteredWorkersFromFirebase(
         }
         Handler(Looper.getMainLooper()).post {
             onLoaded(list)
+        }
+    }.start()
+}
+
+private fun updateJobStatusInFirebase(jobId: String, status: String, workerName: String) {
+    Thread {
+        try {
+            val url = URL("$LABOUR_FB_URL/jobs/$jobId.json")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "PATCH"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            val payload = JSONObject().apply {
+                put("status", status)
+                put("workerName", workerName)
+            }
+            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
+            conn.responseCode
+            conn.disconnect()
+        } catch (_: Exception) {
         }
     }.start()
 }
