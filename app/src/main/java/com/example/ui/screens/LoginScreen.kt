@@ -121,7 +121,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // Login | Register Tab Bar (Exact Reference Image Layout)
+            // Login | Register Tab Bar
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -187,7 +187,6 @@ fun LoginScreen(
                         .padding(horizontal = 18.dp, vertical = 22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Email or Phone Field
                     OutlinedTextField(
                         value = emailOrPhoneInput,
                         onValueChange = {
@@ -225,7 +224,6 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Password Field
                     OutlinedTextField(
                         value = passwordInput,
                         onValueChange = {
@@ -285,7 +283,6 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Orange Login Button
                     Button(
                         onClick = {
                             val cleanIdentifier = emailOrPhoneInput.trim()
@@ -300,12 +297,12 @@ fun LoginScreen(
                                 }
                                 else -> {
                                     isAuthenticating = true
-                                    FirebaseManager.verifyOrRegisterUserOnCloud(
+                                    authenticateWorkoraUserOnCloud(
                                         identifier = cleanIdentifier,
                                         password = cleanPass,
                                         authPrefs = authPrefs,
                                         profilePrefs = profilePrefs
-                                    ) { success, msg ->
+                                    ) { success: Boolean, msg: String ->
                                         isAuthenticating = false
                                         if (success) {
                                             Toast.makeText(context, "Welcome back to Workora! ✓", Toast.LENGTH_SHORT).show()
@@ -350,7 +347,6 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Don't have an account? Register
                     Row(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
@@ -382,7 +378,6 @@ private fun LoginScreenHelmetLogo(size: Dp = 84.dp) {
         val w = this.size.width
         val h = this.size.height
 
-        // Helmet Dome
         drawArc(
             color = LoginOrangeAccent,
             startAngle = 180f,
@@ -392,7 +387,6 @@ private fun LoginScreenHelmetLogo(size: Dp = 84.dp) {
             size = Size(w * 0.80f, h * 0.82f)
         )
 
-        // Top Center Ridge
         drawRoundRect(
             color = LoginOrangeAccent,
             topLeft = Offset(w * 0.43f, h * 0.11f),
@@ -400,7 +394,6 @@ private fun LoginScreenHelmetLogo(size: Dp = 84.dp) {
             cornerRadius = CornerRadius(w * 0.04f, w * 0.04f)
         )
 
-        // Two Vertical Slots on Dome
         drawRoundRect(
             color = LoginBgLight,
             topLeft = Offset(w * 0.37f, h * 0.22f),
@@ -414,7 +407,6 @@ private fun LoginScreenHelmetLogo(size: Dp = 84.dp) {
             cornerRadius = CornerRadius(4f, 4f)
         )
 
-        // Helmet Bottom Brim
         drawRoundRect(
             color = LoginOrangeAccent,
             topLeft = Offset(w * 0.03f, h * 0.56f),
@@ -430,7 +422,6 @@ private fun LoginBottomWaveCanvas(modifier: Modifier = Modifier) {
         val w = size.width
         val h = size.height
 
-        // 1. Orange Accent Wave Rising on the Right
         val orangeWavePath = Path().apply {
             moveTo(w * 0.34f, h * 0.66f)
             cubicTo(
@@ -447,7 +438,6 @@ private fun LoginBottomWaveCanvas(modifier: Modifier = Modifier) {
             color = LoginOrangeAccent
         )
 
-        // 2. Navy Foreground Wave Sweeping from Left to Right
         val navyWavePath = Path().apply {
             moveTo(0f, h * 0.36f)
             cubicTo(
@@ -466,22 +456,94 @@ private fun LoginBottomWaveCanvas(modifier: Modifier = Modifier) {
     }
 }
 
-// ==================================================
-// FIREBASE CLOUD AUTH & JOB SYNC HELPER
-// ==================================================
+private fun formatSafeFirebaseUserKey(identifier: String): String {
+    return identifier.trim().lowercase(Locale.US)
+        .replace(".", "_")
+        .replace("@", "_at_")
+        .replace("+", "")
+        .replace(" ", "")
+}
+
+private fun authenticateWorkoraUserOnCloud(
+    identifier: String,
+    password: String,
+    authPrefs: android.content.SharedPreferences,
+    profilePrefs: android.content.SharedPreferences,
+    onResult: (Boolean, String) -> Unit
+) {
+    Thread {
+        val dbUrl = "https://workora-d8b51-default-rtdb.firebaseio.com"
+        try {
+            val key = formatSafeFirebaseUserKey(identifier)
+            val conn = URL("$dbUrl/users/$key.json").openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 5000
+            if (conn.responseCode == 200) {
+                val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                conn.disconnect()
+
+                if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
+                    val obj = JSONObject(resp)
+                    val cloudPass = obj.optString("password", "")
+                    val status = obj.optString("status", "Active")
+                    if (status.equals("Blocked", ignoreCase = true)) {
+                        Handler(Looper.getMainLooper()).post {
+                            onResult(false, "Your account has been blocked by Admin.")
+                        }
+                        return@Thread
+                    }
+                    if (cloudPass.isNotBlank() && cloudPass != password) {
+                        Handler(Looper.getMainLooper()).post {
+                            onResult(false, "Incorrect password. Please try again.")
+                        }
+                        return@Thread
+                    }
+                    val name = obj.optString("name", "")
+                    val phone = obj.optString("phone", "")
+                    val loc = obj.optString("location", "")
+                    if (name.isNotBlank()) profilePrefs.edit().putString("user_name", name).apply()
+                    if (phone.isNotBlank()) profilePrefs.edit().putString("user_phone", phone).apply()
+                    if (loc.isNotBlank()) profilePrefs.edit().putString("user_location", loc).apply()
+                } else {
+                    val putConn = URL("$dbUrl/users/$key.json").openConnection() as HttpURLConnection
+                    putConn.requestMethod = "PATCH"
+                    putConn.setRequestProperty("Content-Type", "application/json")
+                    putConn.doOutput = true
+                    val payload = JSONObject().apply {
+                        put("email", identifier)
+                        put("password", password)
+                        put("status", "Active")
+                        put("availability", "Available")
+                        put("joined", SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()))
+                    }
+                    OutputStreamWriter(putConn.outputStream).use { it.write(payload.toString()) }
+                    putConn.responseCode
+                    putConn.disconnect()
+                }
+            } else {
+                conn.disconnect()
+            }
+        } catch (_: Exception) {
+        }
+
+        authPrefs.edit()
+            .putBoolean("is_logged_in", true)
+            .putString("last_logged_in_email", identifier)
+            .putString("saved_password_$identifier", password)
+            .apply()
+
+        Handler(Looper.getMainLooper()).post {
+            onResult(true, "Success")
+        }
+    }.start()
+}
+
+// Single clean FirebaseManager declaration for MainActivity calls
 object FirebaseManager {
     private const val DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-    private val SUPER_ADMIN_EMAILS = setOf(
-        "ankitah994@gmail.com"
-    )
-
     fun safeKey(identifier: String): String {
-        return identifier.trim().lowercase(Locale.US)
-            .replace(".", "_")
-            .replace("@", "_at_")
-            .replace("+", "")
-            .replace(" ", "")
+        return formatSafeFirebaseUserKey(identifier)
     }
 
     fun checkIfEmailIsAdminOnCloud(
@@ -489,7 +551,7 @@ object FirebaseManager {
         onResult: (Boolean, String) -> Unit
     ) {
         val clean = email.trim().lowercase(Locale.US)
-        if (SUPER_ADMIN_EMAILS.contains(clean) || clean.contains("6265798340")) {
+        if (clean == "ankitah994@gmail.com" || clean.contains("6265798340")) {
             onResult(true, "SUPER_ADMIN")
             return
         }
@@ -498,7 +560,7 @@ object FirebaseManager {
             var isAdmin = false
             var tier = "USER"
             try {
-                val key = safeKey(clean)
+                val key = formatSafeFirebaseUserKey(clean)
                 val conn = URL("$DB_URL/admins/$key.json").openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
                 conn.connectTimeout = 4000
@@ -515,80 +577,6 @@ object FirebaseManager {
             }
             Handler(Looper.getMainLooper()).post {
                 onResult(isAdmin, tier)
-            }
-        }.start()
-    }
-
-    fun verifyOrRegisterUserOnCloud(
-        identifier: String,
-        password: String,
-        authPrefs: android.content.SharedPreferences,
-        profilePrefs: android.content.SharedPreferences,
-        onResult: (Boolean, String) -> Unit
-    ) {
-        Thread {
-            try {
-                val key = safeKey(identifier)
-                val conn = URL("$DB_URL/users/$key.json").openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 5000
-                if (conn.responseCode == 200) {
-                    val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    conn.disconnect()
-
-                    if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
-                        val obj = JSONObject(resp)
-                        val cloudPass = obj.optString("password", "")
-                        val status = obj.optString("status", "Active")
-                        if (status.equals("Blocked", ignoreCase = true)) {
-                            Handler(Looper.getMainLooper()).post {
-                                onResult(false, "Your account has been blocked by Admin.")
-                            }
-                            return@Thread
-                        }
-                        if (cloudPass.isNotBlank() && cloudPass != password) {
-                            Handler(Looper.getMainLooper()).post {
-                                onResult(false, "Incorrect password. Please try again.")
-                            }
-                            return@Thread
-                        }
-                        val name = obj.optString("name", "")
-                        val phone = obj.optString("phone", "")
-                        val loc = obj.optString("location", "")
-                        if (name.isNotBlank()) profilePrefs.edit().putString("user_name", name).apply()
-                        if (phone.isNotBlank()) profilePrefs.edit().putString("user_phone", phone).apply()
-                        if (loc.isNotBlank()) profilePrefs.edit().putString("user_location", loc).apply()
-                    } else {
-                        // First-time login on this identifier: save record to Firebase
-                        val putConn = URL("$DB_URL/users/$key.json").openConnection() as HttpURLConnection
-                        putConn.requestMethod = "PATCH"
-                        putConn.setRequestProperty("Content-Type", "application/json")
-                        putConn.doOutput = true
-                        val payload = JSONObject().apply {
-                            put("email", identifier)
-                            put("password", password)
-                            put("status", "Active")
-                            put("availability", "Available")
-                            put("joined", SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()))
-                        }
-                        OutputStreamWriter(putConn.outputStream).use { it.write(payload.toString()) }
-                        putConn.responseCode
-                        putConn.disconnect()
-                    }
-                } else {
-                    conn.disconnect()
-                }
-            } catch (_: Exception) {
-            }
-
-            authPrefs.edit()
-                .putBoolean("is_logged_in", true)
-                .putString("last_logged_in_email", identifier)
-                .putString("saved_password_$identifier", password)
-                .apply()
-
-            Handler(Looper.getMainLooper()).post {
-                onResult(true, "Success")
             }
         }.start()
     }
