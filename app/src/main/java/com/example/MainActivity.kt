@@ -54,7 +54,6 @@ import com.example.ui.screens.SearchFilterScreen
 import com.example.ui.screens.SignUpScreen
 import com.example.ui.theme.WorkoraTheme
 import com.example.viewmodel.WorkoraViewModel
-import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -68,14 +67,14 @@ private const val MAIN_FIREBASE_URL = "https://workora-d8b51-default-rtdb.fireba
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.parseColor("#0B2345")))
+        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.parseColor("#083D91")))
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WorkoraTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0B2345)
+                    color = Color(0xFF083D91)
                 ) {
                     WorkoraApp()
                 }
@@ -106,8 +105,13 @@ fun WorkoraApp(
     val customerTab by viewModel.customerTab.collectAsStateWithLifecycle()
     val labourTab by viewModel.labourTab.collectAsStateWithLifecycle()
 
-    var showGreenWelcomeScreen by rememberSaveable {
+    var showWelcomeScreen by rememberSaveable {
         mutableStateOf(!hasShownWelcomeOnceInSession)
+    }
+
+    // Stores the role chosen on "What do you want to do?" before Login
+    var pendingRoleChoice by rememberSaveable {
+        mutableStateOf(authPrefs.getString("saved_user_role", "") ?: "")
     }
 
     var isDirectAdminPanelOpen by rememberSaveable {
@@ -142,36 +146,36 @@ fun WorkoraApp(
         }
     }
 
-    val proceedAfterWelcome: () -> Unit = {
-        if (showGreenWelcomeScreen) {
-            hasShownWelcomeOnceInSession = true
-            showGreenWelcomeScreen = false
-            val isLogged = authPrefs.getBoolean("is_logged_in", false)
-            val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
-            val savedRole = authPrefs.getString("saved_user_role", null)
+    // Triggered when user clicks "Continue" on Welcome Screen
+    val proceedAfterWelcomeContinue: () -> Unit = {
+        hasShownWelcomeOnceInSession = true
+        showWelcomeScreen = false
+        val isLogged = authPrefs.getBoolean("is_logged_in", false)
+        val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
+        val savedRole = authPrefs.getString("saved_user_role", null)
 
-            if (!isLogged || savedEmail.isBlank()) {
-                isDirectAdminPanelOpen = false
-                viewModel.navigateTo(ScreenState.LOGIN)
-            } else if (savedRole == "ADMIN") {
-                isDirectAdminPanelOpen = true
-            } else if (savedRole == "CUSTOMER") {
-                isDirectAdminPanelOpen = false
-                viewModel.selectRole(UserRole.CUSTOMER)
-                viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
-            } else if (savedRole == "LABOUR") {
-                isDirectAdminPanelOpen = false
-                viewModel.selectRole(UserRole.LABOUR)
-                viewModel.navigateTo(ScreenState.LABOUR_HOME)
-            } else {
-                isDirectAdminPanelOpen = false
-                viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
-            }
+        if (!isLogged || savedEmail.isBlank()) {
+            // Step 1 -> Step 2: Go to "What do you want to do?" (AccountSelectScreen) first!
+            isDirectAdminPanelOpen = false
+            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+        } else if (savedRole == "ADMIN") {
+            isDirectAdminPanelOpen = true
+        } else if (savedRole == "CUSTOMER") {
+            isDirectAdminPanelOpen = false
+            viewModel.selectRole(UserRole.CUSTOMER)
+            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+        } else if (savedRole == "LABOUR") {
+            isDirectAdminPanelOpen = false
+            viewModel.selectRole(UserRole.LABOUR)
+            viewModel.navigateTo(ScreenState.LABOUR_HOME)
+        } else {
+            isDirectAdminPanelOpen = false
+            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
         }
     }
 
     // Strict Orientation Control: Welcome & Normal App = PORTRAIT, Admin Panel = LANDSCAPE
-    val shouldBeLandscape = !showGreenWelcomeScreen &&
+    val shouldBeLandscape = !showWelcomeScreen &&
         (isDirectAdminPanelOpen || screenState == ScreenState.ADMIN_DASHBOARD)
 
     LaunchedEffect(shouldBeLandscape) {
@@ -185,17 +189,9 @@ fun WorkoraApp(
         }
     }
 
-    // Fast 1-second auto transition from Welcome Screen
-    LaunchedEffect(showGreenWelcomeScreen) {
-        if (showGreenWelcomeScreen) {
-            delay(1000L)
-            proceedAfterWelcome()
-        }
-    }
-
     val handleAdminRoleSwitch: (String) -> Unit = { targetRole ->
         hasShownWelcomeOnceInSession = true
-        showGreenWelcomeScreen = false
+        showWelcomeScreen = false
         isDirectAdminPanelOpen = false
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         checkUserAreaServiceStatus()
@@ -212,10 +208,11 @@ fun WorkoraApp(
         }
     }
 
-    if (showGreenWelcomeScreen) {
+    // 1. Welcome Screen (Stays until user clicks "Continue")
+    if (showWelcomeScreen) {
         LanguageSelectionScreen(
             onLanguageSelected = {
-                proceedAfterWelcome()
+                proceedAfterWelcomeContinue()
             }
         )
         return
@@ -227,15 +224,16 @@ fun WorkoraApp(
             adminTier = activeAdminTier,
             onLogoutAdmin = {
                 hasShownWelcomeOnceInSession = true
-                showGreenWelcomeScreen = false
+                showWelcomeScreen = false
                 isDirectAdminPanelOpen = false
+                pendingRoleChoice = ""
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 authPrefs.edit()
                     .putBoolean("is_logged_in", false)
                     .remove("last_logged_in_email")
                     .remove("saved_user_role")
                     .apply()
-                viewModel.navigateTo(ScreenState.LOGIN)
+                viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
             },
             onSwitchRoleFromAdmin = handleAdminRoleSwitch
         )
@@ -319,7 +317,33 @@ fun WorkoraApp(
             label = "screen_transition"
         ) { currentScreen ->
             when (currentScreen) {
-                ScreenState.LANGUAGE, ScreenState.LOGIN -> {
+                // 2. "What do you want to do?" Screen -> Then goes to Login if not logged in
+                ScreenState.ACCOUNT_SELECTION, ScreenState.LANGUAGE -> {
+                    AccountSelectScreen(
+                        onSelectRole = { role ->
+                            viewModel.selectRole(role)
+                            pendingRoleChoice = role.name
+                            authPrefs.edit().putString("saved_user_role", role.name).apply()
+
+                            val isLogged = authPrefs.getBoolean("is_logged_in", false)
+                            val savedEmail = authPrefs.getString("last_logged_in_email", "") ?: ""
+
+                            if (!isLogged || savedEmail.isBlank()) {
+                                // Step 2 -> Step 3: Go to Login / Sign In Screen after choosing role
+                                viewModel.navigateTo(ScreenState.LOGIN)
+                            } else {
+                                if (role == UserRole.CUSTOMER) {
+                                    viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+                                } else {
+                                    viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                                }
+                            }
+                        },
+                        toastMessage = toastMessage
+                    )
+                }
+                // 3. Login Screen -> Goes to the chosen role's dashboard (or Admin Panel if Admin)
+                ScreenState.LOGIN -> {
                     LoginScreen(
                         onLogin = { emailInput, _ ->
                             val cleanEmail = emailInput.trim().lowercase()
@@ -337,9 +361,25 @@ fun WorkoraApp(
                                     activeAdminTier = adminTier
                                     isDirectAdminPanelOpen = true
                                 } else {
-                                    authPrefs.edit().remove("saved_user_role").apply()
                                     isDirectAdminPanelOpen = false
-                                    viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                                    val chosenRole = pendingRoleChoice.ifBlank {
+                                        authPrefs.getString("saved_user_role", "") ?: ""
+                                    }
+                                    when (chosenRole) {
+                                        "CUSTOMER" -> {
+                                            authPrefs.edit().putString("saved_user_role", "CUSTOMER").apply()
+                                            viewModel.selectRole(UserRole.CUSTOMER)
+                                            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+                                        }
+                                        "LABOUR" -> {
+                                            authPrefs.edit().putString("saved_user_role", "LABOUR").apply()
+                                            viewModel.selectRole(UserRole.LABOUR)
+                                            viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                                        }
+                                        else -> {
+                                            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                                        }
+                                    }
                                 }
                             }
                         },
@@ -364,27 +404,29 @@ fun WorkoraApp(
                                     activeAdminTier = adminTier
                                     isDirectAdminPanelOpen = true
                                 } else {
-                                    authPrefs.edit().remove("saved_user_role").apply()
                                     isDirectAdminPanelOpen = false
-                                    viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                                    val chosenRole = pendingRoleChoice.ifBlank {
+                                        authPrefs.getString("saved_user_role", "") ?: ""
+                                    }
+                                    when (chosenRole) {
+                                        "CUSTOMER" -> {
+                                            authPrefs.edit().putString("saved_user_role", "CUSTOMER").apply()
+                                            viewModel.selectRole(UserRole.CUSTOMER)
+                                            viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
+                                        }
+                                        "LABOUR" -> {
+                                            authPrefs.edit().putString("saved_user_role", "LABOUR").apply()
+                                            viewModel.selectRole(UserRole.LABOUR)
+                                            viewModel.navigateTo(ScreenState.LABOUR_HOME)
+                                        }
+                                        else -> {
+                                            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
+                                        }
+                                    }
                                 }
                             }
                         },
                         onNavigateToLogin = { viewModel.navigateTo(ScreenState.LOGIN) }
-                    )
-                }
-                ScreenState.ACCOUNT_SELECTION -> {
-                    AccountSelectScreen(
-                        onSelectRole = { role ->
-                            viewModel.selectRole(role)
-                            authPrefs.edit().putString("saved_user_role", role.name).apply()
-                            if (role == UserRole.CUSTOMER) {
-                                viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
-                            } else {
-                                viewModel.navigateTo(ScreenState.LABOUR_HOME)
-                            }
-                        },
-                        toastMessage = toastMessage
                     )
                 }
                 ScreenState.ADMIN_DASHBOARD -> {
@@ -393,15 +435,16 @@ fun WorkoraApp(
                         adminTier = activeAdminTier,
                         onLogoutAdmin = {
                             hasShownWelcomeOnceInSession = true
-                            showGreenWelcomeScreen = false
+                            showWelcomeScreen = false
                             isDirectAdminPanelOpen = false
+                            pendingRoleChoice = ""
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                             authPrefs.edit()
                                 .putBoolean("is_logged_in", false)
                                 .remove("last_logged_in_email")
                                 .remove("saved_user_role")
                                 .apply()
-                            viewModel.navigateTo(ScreenState.LOGIN)
+                            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
                         },
                         onSwitchRoleFromAdmin = handleAdminRoleSwitch
                     )
@@ -492,18 +535,19 @@ fun WorkoraApp(
                             viewModel.switchRole()
                         },
                         onLogout = {
+                            pendingRoleChoice = ""
                             authPrefs.edit()
                                 .putBoolean("is_logged_in", false)
                                 .remove("last_logged_in_email")
                                 .remove("saved_user_role")
                                 .apply()
                             isDirectAdminPanelOpen = false
-                            viewModel.navigateTo(ScreenState.LOGIN)
+                            viewModel.navigateTo(ScreenState.ACCOUNT_SELECTION)
                         },
                         onOpenChat = { viewModel.navigateTo(ScreenState.CHAT) },
                         onOpenAdmin = {
                             hasShownWelcomeOnceInSession = true
-                            showGreenWelcomeScreen = false
+                            showWelcomeScreen = false
                             authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
                             isDirectAdminPanelOpen = true
                         },
@@ -666,7 +710,6 @@ private fun checkIfAreaIsDisabledByAdmin(
 ) {
     val cleanUserLoc = userLocation.trim().lowercase(Locale.US)
 
-    // 1. Instant check against local cached disabled tokens
     val cachedDisabled = settingsPrefs.getString("disabled_state_areas", "") ?: ""
     if (cachedDisabled.isNotBlank()) {
         val tokens = cachedDisabled.split("|").map { it.trim() }.filter { it.isNotEmpty() }
@@ -680,7 +723,6 @@ private fun checkIfAreaIsDisabledByAdmin(
         }
     }
 
-    // 2. Live verification from Firebase /area_controls
     Thread {
         var matchedDisabledState: String? = null
         val disabledTokensForCache = mutableListOf<String>()
