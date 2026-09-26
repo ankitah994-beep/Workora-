@@ -1,25 +1,32 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -60,24 +67,61 @@ fun SignUpScreen(
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
 
-    // Role pre-selected from "What do you want to do?" page, user can also switch here
+    LaunchedEffect(Unit) {
+        AppLanguageManager.init(context)
+    }
+    val selectedLanguage = AppLanguageManager.currentLanguage
+    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
+
     var selectedRole by remember {
         val initial = authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER"
         mutableStateOf(if (initial.equals("LABOUR", true) || initial.equals("Worker", true)) "LABOUR" else "CUSTOMER")
     }
     val isWorkerRole = selectedRole == "LABOUR"
 
-    // ALL registration fields start completely empty (NO automatic dummy data)
+    // All Registration Fields Start Empty (No Automatic Dummy Data)
     var fullName by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var emailAddress by remember { mutableStateOf("") }
     var stateName by remember { mutableStateOf("") }
     var areaLocation by remember { mutableStateOf("") }
+    var fullAddress by remember { mutableStateOf("") }
 
-    // Worker-specific mandatory fields (empty by default)
+    // Worker / Skill Fields
     var workerCategory by remember { mutableStateOf("") }
     var workerExperienceYears by remember { mutableStateOf("") }
     var workerDailyRate by remember { mutableStateOf("") }
+    var userBio by remember { mutableStateOf("") }
+
+    // Profile Photo + 3 Additional Photos Upload State
+    var profilePhotoBase64 by remember { mutableStateOf("") }
+    var photo1Base64 by remember { mutableStateOf("") }
+    var photo2Base64 by remember { mutableStateOf("") }
+    var photo3Base64 by remember { mutableStateOf("") }
+
+    // 0 = Profile Photo, 1 = Photo 1, 2 = Photo 2, 3 = Photo 3
+    var activeUploadSlot by remember { mutableStateOf(0) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val encoded = encodeImageUriToBase64(context, uri)
+            if (!encoded.isNullOrBlank()) {
+                when (activeUploadSlot) {
+                    0 -> profilePhotoBase64 = encoded
+                    1 -> photo1Base64 = encoded
+                    2 -> photo2Base64 = encoded
+                    3 -> photo3Base64 = encoded
+                }
+                Toast.makeText(
+                    context,
+                    if (isHindi) "फोटो अपलोड हो गई ✓" else "Photo uploaded ✓",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -117,12 +161,12 @@ fun SignUpScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp),
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            SignUpScreenHelmetLogo(size = 72.dp)
+            SignUpScreenHelmetLogo(size = 68.dp)
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -135,14 +179,14 @@ fun SignUpScreen(
             )
 
             Text(
-                text = "Find. Hire. Work.",
+                text = if (isHindi) "खोजें। काम दें। काम पाएं।" else "Find. Hire. Work.",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = SignUpMainText,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Login | Register Tab Bar
             Row(
@@ -156,7 +200,7 @@ fun SignUpScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Login",
+                        text = if (isHindi) "लॉगिन (Login)" else "Login",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = SignUpSecondaryText,
@@ -175,7 +219,7 @@ fun SignUpScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Register",
+                        text = if (isHindi) "रजिस्टर (Register)" else "Register",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = SignUpMainText,
@@ -207,13 +251,12 @@ fun SignUpScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Select Account Type *",
+                        text = if (isHindi) "अकाउंट का प्रकार चुनें *" else "Select Account Type *",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = SignUpMainText
                     )
 
-                    // Role Selector (Customer vs Worker)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -243,7 +286,7 @@ fun SignUpScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Customer (Hire)",
+                                    text = if (isHindi) "ग्राहक (Customer)" else "Customer (Hire)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (!isWorkerRole) SignUpWhite else SignUpMainText
@@ -276,7 +319,7 @@ fun SignUpScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Worker (Work)",
+                                    text = if (isHindi) "कारीगर (Worker)" else "Worker (Work)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isWorkerRole) SignUpWhite else SignUpMainText
@@ -285,15 +328,147 @@ fun SignUpScreen(
                         }
                     }
 
-                    // 1. Full Name
+                    HorizontalDivider(color = SignUpBorderColor)
+
+                    // =====================================================
+                    // PROFILE PHOTO UPLOAD + 3 PHOTOS UPLOAD IN REGISTRATION
+                    // =====================================================
+                    Text(
+                        text = if (isHindi) "प्रोफाइल फोटो और 3 फोटो अपलोड करें" else "Upload Profile Photo & 3 Photos",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SignUpNavyPrimary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.BottomEnd,
+                            modifier = Modifier.clickable {
+                                activeUploadSlot = 0
+                                imagePickerLauncher.launch("image/*")
+                            }
+                        ) {
+                            UserProfilePhotoView(
+                                base64Photo = profilePhotoBase64,
+                                size = 72.dp
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(SignUpOrangeAccent)
+                                    .border(2.dp, SignUpWhite, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Upload Profile Photo",
+                                    tint = SignUpWhite,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isHindi) "आपकी प्रोफाइल फोटो" else "Your Profile Photo",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SignUpMainText
+                            )
+                            Text(
+                                text = if (isHindi) "गैलरी से अपनी साफ फोटो चुनें" else "Select a clear photo from your gallery",
+                                fontSize = 11.sp,
+                                color = SignUpSecondaryText
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    activeUploadSlot = 0
+                                    imagePickerLauncher.launch("image/*")
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, SignUpNavyPrimary),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AddAPhoto,
+                                    contentDescription = null,
+                                    tint = SignUpNavyPrimary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isHindi) "प्रोफाइल फोटो चुनें" else "Choose Profile Photo",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SignUpNavyPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = if (isHindi) "नीचे के 3 बॉक्स पर टैप करके 3 फोटो अपलोड करें:" else "Tap the 3 boxes below to upload 3 photos:",
+                        fontSize = 12.sp,
+                        color = SignUpSecondaryText
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ThreePhotoUploadBox(
+                            label = if (isHindi) "फोटो 1" else "Photo 1",
+                            base64Data = photo1Base64,
+                            onPickClick = {
+                                activeUploadSlot = 1
+                                imagePickerLauncher.launch("image/*")
+                            },
+                            onRemoveClick = { photo1Base64 = "" },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ThreePhotoUploadBox(
+                            label = if (isHindi) "फोटो 2" else "Photo 2",
+                            base64Data = photo2Base64,
+                            onPickClick = {
+                                activeUploadSlot = 2
+                                imagePickerLauncher.launch("image/*")
+                            },
+                            onRemoveClick = { photo2Base64 = "" },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ThreePhotoUploadBox(
+                            label = if (isHindi) "फोटो 3" else "Photo 3",
+                            base64Data = photo3Base64,
+                            onPickClick = {
+                                activeUploadSlot = 3
+                                imagePickerLauncher.launch("image/*")
+                            },
+                            onRemoveClick = { photo3Base64 = "" },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    HorizontalDivider(color = SignUpBorderColor)
+
+                    // =====================================================
+                    // PERSONAL & LOCATION DETAILS
+                    // =====================================================
                     OutlinedTextField(
                         value = fullName,
                         onValueChange = {
                             fullName = it
                             errorMessage = null
                         },
-                        label = { Text("Full Name *") },
-                        placeholder = { Text("Enter your full name", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        label = { Text(if (isHindi) "पूरा नाम (Full Name) *" else "Full Name *") },
+                        placeholder = { Text(if (isHindi) "अपना पूरा नाम लिखें" else "Enter your full name", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Person, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -303,15 +478,14 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 2. Phone Number (10 digits)
                     OutlinedTextField(
                         value = phoneNumber,
                         onValueChange = { input ->
                             phoneNumber = input.filter { it.isDigit() || it == '+' }.take(13)
                             errorMessage = null
                         },
-                        label = { Text("Phone Number *") },
-                        placeholder = { Text("Enter 10-digit mobile number", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        label = { Text(if (isHindi) "मोबाइल नंबर (Phone Number) *" else "Phone Number *") },
+                        placeholder = { Text(if (isHindi) "10 अंकों का मोबाइल नंबर" else "Enter 10-digit mobile number", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Phone, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -322,15 +496,14 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 3. Email Address
                     OutlinedTextField(
                         value = emailAddress,
                         onValueChange = {
                             emailAddress = it
                             errorMessage = null
                         },
-                        label = { Text("Email Address *") },
-                        placeholder = { Text("Enter your email address", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        label = { Text(if (isHindi) "ईमेल पता (Email Address) *" else "Email Address *") },
+                        placeholder = { Text(if (isHindi) "अपना ईमेल पता लिखें" else "Enter your email address", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Email, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -341,14 +514,13 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 4. State Name
                     OutlinedTextField(
                         value = stateName,
                         onValueChange = {
                             stateName = it
                             errorMessage = null
                         },
-                        label = { Text("State (राज्य) *") },
+                        label = { Text(if (isHindi) "राज्य (State) *" else "State (राज्य) *") },
                         placeholder = { Text("e.g. Madhya Pradesh, Delhi, UP", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Map, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
@@ -359,15 +531,14 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 5. City / Area / Village
                     OutlinedTextField(
                         value = areaLocation,
                         onValueChange = {
                             areaLocation = it
                             errorMessage = null
                         },
-                        label = { Text("City / Area / Village (शहर / गाँव) *") },
-                        placeholder = { Text("Enter your city, tehsil or area", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        label = { Text(if (isHindi) "शहर / गाँव / एरिया (City / Area) *" else "City / Area / Village (शहर / गाँव) *") },
+                        placeholder = { Text(if (isHindi) "अपने शहर, तहसील या गाँव का नाम" else "Enter your city, tehsil or area", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -377,19 +548,38 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 6. WORKER SPECIFIC MANDATORY DETAILS (Category, Experience, Daily Rate)
+                    OutlinedTextField(
+                        value = fullAddress,
+                        onValueChange = {
+                            fullAddress = it
+                            errorMessage = null
+                        },
+                        label = { Text(if (isHindi) "पूरा पता / लैंडमार्क (Full Address)" else "Full Address / Landmark") },
+                        placeholder = { Text(if (isHindi) "वार्ड, कॉलोनी या नजदीकी स्थान" else "Ward, colony or nearby landmark", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Home, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // =====================================================
+                    // WORKER SPECIFIC MANDATORY DETAILS
+                    // =====================================================
                     if (isWorkerRole) {
                         HorizontalDivider(color = SignUpBorderColor)
 
                         Text(
-                            text = "Worker Work Details (काम की जानकारी) *",
+                            text = if (isHindi) "कारीगर के काम की जानकारी *" else "Worker Work Details (काम की जानकारी) *",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = SignUpNavyPrimary
                         )
 
                         Text(
-                            text = "Tap to select your Category / Skill or type below:",
+                            text = if (isHindi) "अपनी काम की श्रेणी चुनें या नीचे लिखें:" else "Tap to select your Category / Skill or type below:",
                             fontSize = 11.sp,
                             color = SignUpSecondaryText
                         )
@@ -428,8 +618,8 @@ fun SignUpScreen(
                                 workerCategory = it
                                 errorMessage = null
                             },
-                            label = { Text("Work Category / Skill (काम की श्रेणी) *") },
-                            placeholder = { Text("Select above or type your skill", color = SignUpSecondaryText, fontSize = 13.sp) },
+                            label = { Text(if (isHindi) "काम की श्रेणी (Work Category / Skill) *" else "Work Category / Skill (काम की श्रेणी) *") },
+                            placeholder = { Text(if (isHindi) "ऊपर से चुनें या अपना काम लिखें" else "Select above or type your skill", color = SignUpSecondaryText, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(Icons.Outlined.Construction, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                             },
@@ -449,7 +639,7 @@ fun SignUpScreen(
                                     workerExperienceYears = input.filter { it.isDigit() }.take(2)
                                     errorMessage = null
                                 },
-                                label = { Text("Experience (Yrs) *") },
+                                label = { Text(if (isHindi) "अनुभव (वर्षों में) *" else "Experience (Yrs) *") },
                                 placeholder = { Text("e.g. 3", color = SignUpSecondaryText, fontSize = 13.sp) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
@@ -464,7 +654,7 @@ fun SignUpScreen(
                                     workerDailyRate = input.filter { it.isDigit() }.take(5)
                                     errorMessage = null
                                 },
-                                label = { Text("Daily Rate (₹) *") },
+                                label = { Text(if (isHindi) "प्रतिदिन रेट (₹) *" else "Daily Rate (₹) *") },
                                 placeholder = { Text("e.g. 500", color = SignUpSecondaryText, fontSize = 13.sp) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
@@ -473,17 +663,31 @@ fun SignUpScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
+
+                        OutlinedTextField(
+                            value = userBio,
+                            onValueChange = {
+                                userBio = it
+                                errorMessage = null
+                            },
+                            label = { Text(if (isHindi) "अपने काम के बारे में (About / Bio)" else "About Your Work (Bio)") },
+                            placeholder = { Text(if (isHindi) "अपने काम और अनुभव का संक्षिप्त विवरण..." else "Brief details about your work...", color = SignUpSecondaryText, fontSize = 13.sp) },
+                            minLines = 2,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = fieldColors,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
-                    // 7. Password & Confirm Password
+                    // Password & Confirm Password
                     OutlinedTextField(
                         value = password,
                         onValueChange = {
                             password = it
                             errorMessage = null
                         },
-                        label = { Text("Create Password *") },
-                        placeholder = { Text("Minimum 6 characters", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        label = { Text(if (isHindi) "पासवर्ड बनाएं (Create Password) *" else "Create Password *") },
+                        placeholder = { Text(if (isHindi) "कम से कम 6 अक्षर" else "Minimum 6 characters", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Lock, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -511,8 +715,8 @@ fun SignUpScreen(
                             confirmPassword = it
                             errorMessage = null
                         },
-                        label = { Text("Confirm Password *") },
-                        placeholder = { Text("Re-enter your password", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        label = { Text(if (isHindi) "पासवर्ड कन्फर्म करें (Confirm Password) *" else "Confirm Password *") },
+                        placeholder = { Text(if (isHindi) "पासवर्ड दोबारा लिखें" else "Re-enter your password", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(Icons.Outlined.Lock, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
@@ -537,7 +741,6 @@ fun SignUpScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Strict Validation before Registration
                     Button(
                         onClick = {
                             val cleanName = fullName.trim()
@@ -546,9 +749,11 @@ fun SignUpScreen(
                             val cleanEmail = emailAddress.trim().lowercase(Locale.US)
                             val cleanState = stateName.trim()
                             val cleanArea = areaLocation.trim()
+                            val cleanAddress = fullAddress.trim()
                             val cleanCategory = workerCategory.trim()
                             val cleanExp = workerExperienceYears.trim()
                             val cleanRate = workerDailyRate.trim()
+                            val cleanBio = userBio.trim()
                             val cleanPass = password.trim()
                             val cleanConfirm = confirmPassword.trim()
 
@@ -589,15 +794,21 @@ fun SignUpScreen(
                                     val parsedRate = if (isWorkerRole) (cleanRate.toIntOrNull() ?: 0) else 0
                                     val finalSkill = if (isWorkerRole) cleanCategory else "Customer"
 
-                                    // Save exact user-provided values to SharedPreferences (no dummy data)
+                                    // Save all details + Profile Photo + 3 Photos to SharedPreferences
                                     profilePrefs.edit()
                                         .putString("user_name", cleanName)
                                         .putString("user_phone", cleanPhone)
                                         .putString("user_state", cleanState)
                                         .putString("user_location", cleanArea)
+                                        .putString("user_address", cleanAddress)
                                         .putString("user_skill", finalSkill)
                                         .putString("user_experience", formattedExp)
                                         .putString("user_rate", if (parsedRate > 0) parsedRate.toString() else "")
+                                        .putString("user_bio", cleanBio)
+                                        .putString("user_profile_photo", profilePhotoBase64)
+                                        .putString("user_photo_1", photo1Base64)
+                                        .putString("user_photo_2", photo2Base64)
+                                        .putString("user_photo_3", photo3Base64)
                                         .apply()
 
                                     authPrefs.edit()
@@ -607,20 +818,30 @@ fun SignUpScreen(
                                         .putString("saved_password_$cleanEmail", cleanPass)
                                         .apply()
 
-                                    registerNewUserToFirebase(
+                                    registerNewUserWithPhotosToFirebase(
                                         name = cleanName,
                                         phone = cleanPhone,
                                         email = cleanEmail,
                                         state = cleanState,
                                         area = cleanArea,
+                                        address = cleanAddress,
                                         role = selectedRole,
                                         skill = finalSkill,
                                         experience = formattedExp,
                                         dailyRate = parsedRate,
+                                        bio = cleanBio,
+                                        profilePhoto = profilePhotoBase64,
+                                        photo1 = photo1Base64,
+                                        photo2 = photo2Base64,
+                                        photo3 = photo3Base64,
                                         password = cleanPass
                                     ) {
                                         isRegistering = false
-                                        Toast.makeText(context, "Registration Successful! ✓", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            if (isHindi) "रजिस्ट्रेशन सफलतापूर्वक पूरा हुआ! ✓" else "Registration Successful! ✓",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                         onSignUp(cleanName, cleanEmail, cleanPhone, cleanPass)
                                     }
                                 }
@@ -643,9 +864,17 @@ fun SignUpScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Saving Your Details...", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isHindi) "आपकी जानकारी सेव हो रही है..." else "Saving Your Details...",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         } else {
-                            Text("Complete Registration", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isHindi) "रजिस्ट्रेशन पूरा करें (Complete Registration)" else "Complete Registration",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 
@@ -655,12 +884,12 @@ fun SignUpScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Already have an account? ",
+                            text = if (isHindi) "पहले से अकाउंट है? " else "Already have an account? ",
                             fontSize = 13.sp,
                             color = SignUpSecondaryText
                         )
                         Text(
-                            text = "Login",
+                            text = if (isHindi) "लॉगिन करें" else "Login",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = SignUpOrangeAccent,
@@ -767,16 +996,22 @@ private fun formatSignUpSafeKey(identifier: String): String {
         .replace(" ", "")
 }
 
-private fun registerNewUserToFirebase(
+private fun registerNewUserWithPhotosToFirebase(
     name: String,
     phone: String,
     email: String,
     state: String,
     area: String,
+    address: String,
     role: String,
     skill: String,
     experience: String,
     dailyRate: Int,
+    bio: String,
+    profilePhoto: String,
+    photo1: String,
+    photo2: String,
+    photo3: String,
     password: String,
     onDone: () -> Unit
 ) {
@@ -794,10 +1029,16 @@ private fun registerNewUserToFirebase(
                 put("email", email)
                 put("state", state)
                 put("location", area)
+                put("address", address)
                 put("role", if (role.equals("LABOUR", true)) "Worker" else "Customer")
                 put("skill", skill)
                 put("experience", experience)
                 put("dailyRate", dailyRate)
+                put("bio", bio)
+                put("profilePhoto", profilePhoto)
+                put("photo1", photo1)
+                put("photo2", photo2)
+                put("photo3", photo3)
                 put("rating", 0.0)
                 put("bookingsCount", 0)
                 put("password", password)
