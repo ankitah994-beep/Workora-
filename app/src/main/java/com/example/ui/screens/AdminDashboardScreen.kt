@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -46,7 +45,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Strict Global Color System
 private val AdminPrimaryNavy = Color(0xFF083D91)
 private val AdminAccentOrange = Color(0xFFFF8C00)
 private val AdminBgLight = Color(0xFFF8FAFC)
@@ -161,9 +159,6 @@ fun AdminDashboardScreen(
         return
     }
 
-    // Perfect fit desktop viewport scale (0.55f ensures entire desktop screen fits nicely on mobile view)
-    var zoomScale by remember { mutableStateOf(0.55f) }
-
     var currentRoute by remember { mutableStateOf(AdminRoute.DASHBOARD) }
     var globalSearchQuery by remember { mutableStateOf("") }
     var isLoadingData by remember { mutableStateOf(true) }
@@ -206,147 +201,86 @@ fun AdminDashboardScreen(
         refreshAdminDatabase()
     }
 
+    // Fully Responsive Layout: Fixed Sidebar + Main Content without awkward scaling
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AdminBgLight)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Top control bar for zoom
-            Surface(
-                color = Color(0xFF0F172A),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.DesktopMac, contentDescription = null, tint = AdminAccentOrange, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Workora Desktop Admin Viewport",
-                            color = AdminWhite,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = { zoomScale = (zoomScale - 0.05f).coerceIn(0.4f, 1.0f) },
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text("- Zoom Out", color = AdminWhite, fontSize = 10.sp)
-                        }
-                        OutlinedButton(
-                            onClick = { zoomScale = 0.55f },
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text("Fit", color = AdminWhite, fontSize = 10.sp)
-                        }
-                        OutlinedButton(
-                            onClick = { zoomScale = (zoomScale + 0.05f).coerceIn(0.4f, 1.0f) },
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text("+ Zoom In", color = AdminWhite, fontSize = 10.sp)
-                        }
-                    }
-                }
-            }
+        Row(modifier = Modifier.fillMaxSize()) {
+            AdminSidebarContent(
+                currentRoute = currentRoute,
+                onSelectRoute = { currentRoute = it },
+                onLogoutClick = { showLogoutConfirmDialog = true },
+                modifier = Modifier
+                    .width(240.dp)
+                    .fillMaxHeight()
+            )
 
-            Box(
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxHeight()
             ) {
-                Row(
+                AdminTopBar(
+                    pageTitle = currentRoute.title,
+                    searchQuery = globalSearchQuery,
+                    onSearchChange = { globalSearchQuery = it },
+                    adminName = "Ankit Ahirwar",
+                    onRefreshClick = refreshAdminDatabase
+                )
+
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalScroll(rememberScrollState())
+                        .weight(1f)
+                        .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width((1280 * zoomScale).dp)
-                            .fillMaxHeight()
-                    ) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            AdminSidebarContent(
-                                currentRoute = currentRoute,
-                                onSelectRoute = { currentRoute = it },
-                                onLogoutClick = { showLogoutConfirmDialog = true },
-                                modifier = Modifier
-                                    .width(250.dp)
-                                    .fillMaxHeight()
-                            )
-
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            ) {
-                                AdminTopBar(
-                                    pageTitle = currentRoute.title,
-                                    searchQuery = globalSearchQuery,
-                                    onSearchChange = { globalSearchQuery = it },
-                                    adminName = "Ankit Ahirwar",
-                                    onRefreshClick = refreshAdminDatabase
-                                )
-
-                                AdminRouteBody(
-                                    currentRoute = currentRoute,
-                                    isLoading = isLoadingData,
-                                    errorMessage = errorBannerMessage,
-                                    globalSearchQuery = globalSearchQuery,
-                                    usersList = usersList,
-                                    bookingsList = bookingsList,
-                                    categoriesList = categoriesList,
-                                    loggedAdminEmail = loggedAdminEmail,
-                                    brandingPrefs = brandingPrefs,
-                                    settingsPrefs = settingsPrefs,
-                                    authPrefs = authPrefs,
-                                    context = context,
-                                    onNavigateRoute = { currentRoute = it },
-                                    onViewUser = { selectedUserForDetail = it },
-                                    onEditUser = { selectedUserForEdit = it },
-                                    onConfirmBlockUser = { userPendingBlockToggle = it },
-                                    onUpdateWorkerStatus = { worker, newStatus, newAvailability ->
-                                        val idx = usersList.indexOfFirst { it.key == worker.key }
-                                        if (idx >= 0) {
-                                            val updated = worker.copy(status = newStatus, availability = newAvailability)
-                                            usersList[idx] = updated
-                                            updateFirebaseUserStatus(worker.key, newStatus, newAvailability)
-                                            Toast.makeText(context, "${worker.name} status updated", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    onViewBooking = { selectedBookingDetail = it },
-                                    onOpenAddCategory = { showAddCategoryModal = true },
-                                    onEditCategory = { categoryForEdit = it },
-                                    onToggleCategoryActive = { cat ->
-                                        val idx = categoriesList.indexOfFirst { it.id == cat.id }
-                                        if (idx >= 0) {
-                                            val updated = cat.copy(active = !cat.active)
-                                            categoriesList[idx] = updated
-                                            saveCategoryToFirebase(updated)
-                                        }
-                                    },
-                                    onRequestLogout = { showLogoutConfirmDialog = true }
-                                )
+                    AdminRouteBody(
+                        currentRoute = currentRoute,
+                        isLoading = isLoadingData,
+                        errorMessage = errorBannerMessage,
+                        globalSearchQuery = globalSearchQuery,
+                        usersList = usersList,
+                        bookingsList = bookingsList,
+                        categoriesList = categoriesList,
+                        loggedAdminEmail = loggedAdminEmail,
+                        brandingPrefs = brandingPrefs,
+                        settingsPrefs = settingsPrefs,
+                        authPrefs = authPrefs,
+                        context = context,
+                        onNavigateRoute = { currentRoute = it },
+                        onViewUser = { selectedUserForDetail = it },
+                        onEditUser = { selectedUserForEdit = it },
+                        onConfirmBlockUser = { userPendingBlockToggle = it },
+                        onUpdateWorkerStatus = { worker, newStatus, newAvailability ->
+                            val idx = usersList.indexOfFirst { it.key == worker.key }
+                            if (idx >= 0) {
+                                val updated = worker.copy(status = newStatus, availability = newAvailability)
+                                usersList[idx] = updated
+                                updateFirebaseUserStatus(worker.key, newStatus, newAvailability)
+                                Toast.makeText(context, "${worker.name} status updated", Toast.LENGTH_SHORT).show()
                             }
-                        }
-                    }
+                        },
+                        onViewBooking = { selectedBookingDetail = it },
+                        onOpenAddCategory = { showAddCategoryModal = true },
+                        onEditCategory = { categoryForEdit = it },
+                        onToggleCategoryActive = { cat ->
+                            val idx = categoriesList.indexOfFirst { it.id == cat.id }
+                            if (idx >= 0) {
+                                val updated = cat.copy(active = !cat.active)
+                                categoriesList[idx] = updated
+                                saveCategoryToFirebase(updated)
+                            }
+                        },
+                        onRequestLogout = { showLogoutConfirmDialog = true }
+                    )
                 }
             }
         }
     }
 
-    // Modals & Dialogs
+    // Dialogs & Modals
     if (selectedUserForDetail != null) {
         val u = selectedUserForDetail!!
         AlertDialog(
@@ -697,37 +631,37 @@ private fun AdminSidebarContent(
         modifier = modifier
             .background(AdminPrimaryNavy)
             .statusBarsPadding()
-            .padding(vertical = 20.dp, horizontal = 14.dp),
+            .padding(vertical = 20.dp, horizontal = 12.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-                AdminHelmetLogo(size = 38.dp)
-                Spacer(modifier = Modifier.width(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
+                AdminHelmetLogo(size = 32.dp)
+                Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text("Workora", color = AdminWhite, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Find. Hire. Work.", color = Color(0xFFCBD5E1), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    Text("Workora", color = AdminWhite, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Find. Hire. Work.", color = Color(0xFFCBD5E1), fontSize = 9.sp, fontWeight = FontWeight.Medium)
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text("ADMIN PANEL", color = AdminAccentOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, modifier = Modifier.padding(horizontal = 8.dp))
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("ADMIN PANEL", color = AdminAccentOrange, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 4.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             AdminRoute.values().forEach { route ->
                 val isSelected = currentRoute == route
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 3.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(if (isSelected) AdminAccentOrange else Color.Transparent)
                         .clickable { onSelectRoute(route) }
-                        .padding(horizontal = 12.dp, vertical = 11.dp),
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(route.icon, contentDescription = route.title, tint = AdminWhite, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(route.title, color = if (isSelected) AdminWhite else Color(0xFFD1D5DB), fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                    Icon(route.icon, contentDescription = route.title, tint = AdminWhite, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(route.title, color = if (isSelected) AdminWhite else Color(0xFFD1D5DB), fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
                 }
             }
         }
@@ -735,14 +669,14 @@ private fun AdminSidebarContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .clickable { onLogoutClick() }
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.Logout, contentDescription = "Logout", tint = Color(0xFFFCA5A5), modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Logout", color = Color(0xFFFCA5A5), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Outlined.Logout, contentDescription = "Logout", tint = Color(0xFFFCA5A5), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("Logout", color = Color(0xFFFCA5A5), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -757,25 +691,25 @@ private fun AdminTopBar(
 ) {
     Surface(color = AdminWhite, modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Text(pageTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Spacer(modifier = Modifier.width(24.dp))
+                Text(pageTitle, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Spacer(modifier = Modifier.width(16.dp))
                 Surface(
                     color = AdminBgLight,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, AdminBorder),
-                    modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth()
+                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth()
                 ) {
-                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = AdminSecondaryText, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = AdminSecondaryText, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             if (searchQuery.isEmpty()) {
-                                Text("Search users, workers, bookings...", color = AdminSecondaryText, fontSize = 13.sp)
+                                Text("Search...", color = AdminSecondaryText, fontSize = 12.sp)
                             }
                             androidx.compose.foundation.text.BasicTextField(value = searchQuery, onValueChange = onSearchChange, singleLine = true, modifier = Modifier.fillMaxWidth())
                         }
@@ -783,17 +717,17 @@ private fun AdminTopBar(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                IconButton(onClick = onRefreshClick) { Icon(Icons.Outlined.Refresh, contentDescription = "Refresh", tint = AdminMainText) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(onClick = onRefreshClick) { Icon(Icons.Outlined.Refresh, contentDescription = "Refresh", tint = AdminMainText, modifier = Modifier.size(18.dp)) }
                 Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(AdminPrimaryNavy),
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(AdminPrimaryNavy),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = AdminWhite, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Person, contentDescription = null, tint = AdminWhite, modifier = Modifier.size(16.dp))
                 }
                 Column {
-                    Text(adminName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                    Text("Super Admin", fontSize = 10.sp, color = AdminSecondaryText)
+                    Text(adminName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("Super Admin", fontSize = 9.sp, color = AdminSecondaryText)
                 }
             }
         }
@@ -827,15 +761,15 @@ private fun AdminRouteBody(
     onRequestLogout: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         if (isLoading) {
             LinearProgressIndicator(color = AdminAccentOrange, trackColor = AdminBorder, modifier = Modifier.fillMaxWidth())
         }
         if (!errorMessage.isNullOrBlank()) {
-            Surface(color = AdminWarningBg, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(errorMessage, color = AdminWarningOrange, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(12.dp))
+            Surface(color = AdminWarningBg, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(errorMessage, color = AdminWarningOrange, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(10.dp))
             }
         }
 
@@ -871,31 +805,31 @@ private fun AdminDashboardOverviewPage(
     val busyWorkers = usersList.count { it.role == "Worker" && it.availability == "Busy" }.coerceAtLeast(10)
     val blockedWorkers = usersList.count { it.role == "Worker" && it.status == "Blocked" }.coerceAtLeast(4)
 
-    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Text("Dashboard", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Overview of your Workora marketplace", fontSize = 14.sp, color = AdminSecondaryText)
+                Text("Dashboard", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Overview of your Workora marketplace", fontSize = 13.sp, color = AdminSecondaryText)
             }
-            Surface(color = AdminWhite, shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, AdminBorder)) {
-                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = AdminPrimaryNavy, modifier = Modifier.size(16.dp))
+            Surface(color = AdminWhite, shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, AdminBorder)) {
+                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = AdminPrimaryNavy, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
+                    Text(SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
                 }
             }
         }
 
-        // 4 Large Stat Cards
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.Group, Color(0xFFDBEAFE), AdminPrimaryNavy, "Total Users", "$totalUsers", "Live from DB", { onNavigateRoute(AdminRoute.USERS) }) }
-            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.Construction, AdminSuccessBg, AdminSuccessGreen, "Total Workers", "$totalWorkers", "Active Workers", { onNavigateRoute(AdminRoute.WORKERS) }) }
-            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.Person, Color(0xFFFFEDD5), AdminAccentOrange, "Total Customers", "$totalCustomers", "Registered", { onNavigateRoute(AdminRoute.CUSTOMERS) }) }
-            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.EventAvailable, Color(0xFFDBEAFE), AdminPrimaryNavy, "Total Bookings", "$totalBookings", "Marketplace Jobs", { onNavigateRoute(AdminRoute.BOOKINGS) }) }
+        // 4 Stat Cards
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.Group, Color(0xFFDBEAFE), AdminPrimaryNavy, "Total Users", "$totalUsers", "Live DB", { onNavigateRoute(AdminRoute.USERS) }) }
+            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.Construction, AdminSuccessBg, AdminSuccessGreen, "Workers", "$totalWorkers", "Active", { onNavigateRoute(AdminRoute.WORKERS) }) }
+            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.Person, Color(0xFFFFEDD5), AdminAccentOrange, "Customers", "$totalCustomers", "Registered", { onNavigateRoute(AdminRoute.CUSTOMERS) }) }
+            Box(modifier = Modifier.weight(1f)) { AdminStatCard(Icons.Outlined.EventAvailable, Color(0xFFDBEAFE), AdminPrimaryNavy, "Bookings", "$totalBookings", "Marketplace", { onNavigateRoute(AdminRoute.BOOKINGS) }) }
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(modifier = Modifier.weight(1.6f)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(modifier = Modifier.weight(1.5f)) {
                 AdminRecentBookingsCard(bookingsList.take(5), { onNavigateRoute(AdminRoute.BOOKINGS) }, onViewBooking)
             }
             Box(modifier = Modifier.weight(1f)) {
@@ -907,18 +841,18 @@ private fun AdminDashboardOverviewPage(
 
 @Composable
 private fun AdminRecentBookingsCard(bookings: List<AdminBookingRecord>, onViewAll: () -> Unit, onViewBooking: (AdminBookingRecord) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Recent Bookings", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("View All", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminPrimaryNavy, modifier = Modifier.clickable { onViewAll() })
+                Text("Recent Bookings", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("View All", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminPrimaryNavy, modifier = Modifier.clickable { onViewAll() })
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             bookings.forEach { bk ->
-                Row(modifier = Modifier.fillMaxWidth().clickable { onViewBooking(bk) }.padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().clickable { onViewBooking(bk) }.padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Text(bk.customerName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
-                        Text("${bk.category} • ${bk.area}", fontSize = 11.sp, color = AdminSecondaryText)
+                        Text(bk.customerName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
+                        Text("${bk.category} • ${bk.area}", fontSize = 10.sp, color = AdminSecondaryText)
                     }
                     AdminStatusBadge(bk.status)
                 }
@@ -930,16 +864,16 @@ private fun AdminRecentBookingsCard(bookings: List<AdminBookingRecord>, onViewAl
 
 @Composable
 private fun AdminWorkerAvailabilityCard(availableCount: Int, busyCount: Int, blockedCount: Int, totalCount: Int, onNavigateRoute: (AdminRoute) -> Unit, onOpenAddCategory: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Worker Availability", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-            AvailabilityProgressRow("Available Workers", availableCount, availableCount.toFloat() / totalCount.toFloat(), AdminSuccessGreen)
-            AvailabilityProgressRow("Busy Workers", busyCount, busyCount.toFloat() / totalCount.toFloat(), AdminAccentOrange)
-            AvailabilityProgressRow("Blocked Workers", blockedCount, blockedCount.toFloat() / totalCount.toFloat(), AdminDangerRed)
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Worker Availability", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            AvailabilityProgressRow("Available", availableCount, availableCount.toFloat() / totalCount.toFloat(), AdminSuccessGreen)
+            AvailabilityProgressRow("Busy", busyCount, busyCount.toFloat() / totalCount.toFloat(), AdminAccentOrange)
+            AvailabilityProgressRow("Blocked", blockedCount, blockedCount.toFloat() / totalCount.toFloat(), AdminDangerRed)
             HorizontalDivider(color = AdminBorder)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = { onNavigateRoute(AdminRoute.WORKERS) }, modifier = Modifier.weight(1f)) { Text("Workers", fontSize = 12.sp) }
-                OutlinedButton(onClick = onOpenAddCategory, modifier = Modifier.weight(1f)) { Text("+ Category", fontSize = 12.sp, color = AdminAccentOrange) }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onNavigateRoute(AdminRoute.WORKERS) }, modifier = Modifier.weight(1f)) { Text("Workers", fontSize = 11.sp) }
+                OutlinedButton(onClick = onOpenAddCategory, modifier = Modifier.weight(1f)) { Text("+ Category", fontSize = 11.sp, color = AdminAccentOrange) }
             }
         }
     }
@@ -947,31 +881,31 @@ private fun AdminWorkerAvailabilityCard(availableCount: Int, busyCount: Int, blo
 
 @Composable
 private fun AvailabilityProgressRow(label: String, count: Int, progress: Float, barColor: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText)
-            Text(count.toString(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = barColor)
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AdminMainText)
+            Text(count.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = barColor)
         }
-        LinearProgressIndicator(progress = { progress.coerceIn(0.05f, 1f) }, color = barColor, trackColor = AdminNeutralGrayBg, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)))
+        LinearProgressIndicator(progress = { progress.coerceIn(0.05f, 1f) }, color = barColor, trackColor = AdminNeutralGrayBg, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)))
     }
 }
 
 @Composable
 private fun AdminUsersPage(usersList: List<AdminUserRecord>, globalSearchQuery: String, onViewUser: (AdminUserRecord) -> Unit, onEditUser: (AdminUserRecord) -> Unit, onConfirmBlockUser: (AdminUserRecord) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Users Management", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Users Management", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             usersList.forEach { u ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Text(u.name, fontWeight = FontWeight.Bold, color = AdminMainText)
-                        Text("${u.phone} • ${u.role} • ${u.area}", fontSize = 12.sp, color = AdminSecondaryText)
+                        Text(u.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                        Text("${u.phone} • ${u.role} • ${u.area}", fontSize = 11.sp, color = AdminSecondaryText)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         AdminStatusBadge(u.status)
-                        Text("View", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onViewUser(u) })
-                        Text("Edit", color = AdminAccentOrange, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onEditUser(u) })
-                        Text(if (u.status == "Blocked") "Unblock" else "Block", color = if (u.status == "Blocked") AdminSuccessGreen else AdminDangerRed, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onConfirmBlockUser(u) })
+                        Text("View", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onViewUser(u) })
+                        Text("Edit", color = AdminAccentOrange, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onEditUser(u) })
+                        Text(if (u.status == "Blocked") "Unblock" else "Block", color = if (u.status == "Blocked") AdminSuccessGreen else AdminDangerRed, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onConfirmBlockUser(u) })
                     }
                 }
                 HorizontalDivider(color = AdminBorder)
@@ -988,18 +922,18 @@ private fun AdminCustomersPage(customers: List<AdminUserRecord>, globalSearchQue
 @Composable
 private fun AdminWorkersPage(workers: List<AdminUserRecord>, globalSearchQuery: String, onViewUser: (AdminUserRecord) -> Unit, onUpdateWorkerStatus: (AdminUserRecord, String, String) -> Unit, onConfirmBlockUser: (AdminUserRecord) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Workers Directory", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Workers Directory", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             workers.forEach { w ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Text(w.name, fontWeight = FontWeight.Bold, color = AdminMainText)
-                        Text("${w.category} • ${w.area} • ₹${w.dailyRate}/day", fontSize = 12.sp, color = AdminSecondaryText)
+                        Text(w.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                        Text("${w.category} • ${w.area} • ₹${w.dailyRate}/day", fontSize = 11.sp, color = AdminSecondaryText)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         AdminStatusBadge(w.availability)
-                        Text("View", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onViewUser(w) })
-                        Text(if (w.status == "Blocked") "Unblock" else "Block", color = if (w.status == "Blocked") AdminSuccessGreen else AdminDangerRed, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onConfirmBlockUser(w) })
+                        Text("View", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onViewUser(w) })
+                        Text(if (w.status == "Blocked") "Unblock" else "Block", color = if (w.status == "Blocked") AdminSuccessGreen else AdminDangerRed, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onConfirmBlockUser(w) })
                     }
                 }
                 HorizontalDivider(color = AdminBorder)
@@ -1011,13 +945,13 @@ private fun AdminWorkersPage(workers: List<AdminUserRecord>, globalSearchQuery: 
 @Composable
 private fun AdminBookingsPage(bookings: List<AdminBookingRecord>, globalSearchQuery: String, onViewBooking: (AdminBookingRecord) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Bookings Management", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Bookings Management", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             bookings.forEach { bk ->
-                Row(modifier = Modifier.fillMaxWidth().clickable { onViewBooking(bk) }.padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().clickable { onViewBooking(bk) }.padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Text("Booking #${bk.id}: ${bk.customerName} & ${bk.workerName}", fontWeight = FontWeight.Bold, color = AdminMainText)
-                        Text("${bk.category} • ${bk.area} • ₹${bk.rate}", fontSize = 12.sp, color = AdminSecondaryText)
+                        Text("Booking #${bk.id}: ${bk.customerName} & ${bk.workerName}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                        Text("${bk.category} • ${bk.area} • ₹${bk.rate}", fontSize = 11.sp, color = AdminSecondaryText)
                     }
                     AdminStatusBadge(bk.status)
                 }
@@ -1030,17 +964,17 @@ private fun AdminBookingsPage(bookings: List<AdminBookingRecord>, globalSearchQu
 @Composable
 private fun AdminCategoriesPage(categories: List<AdminCategoryRecord>, onAddCategoryClick: () -> Unit, onEditCategory: (AdminCategoryRecord) -> Unit, onToggleCategoryActive: (AdminCategoryRecord) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Categories", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Button(onClick = onAddCategoryClick, colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)) { Text("Add Category", color = AdminWhite) }
+                Text("Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Button(onClick = onAddCategoryClick, colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("Add Category", color = AdminWhite, fontSize = 12.sp) }
             }
             categories.forEach { cat ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(cat.name, fontWeight = FontWeight.Bold, color = AdminMainText)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Edit", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onEditCategory(cat) })
-                        Text(if (cat.active) "Deactivate" else "Activate", color = if (cat.active) AdminDangerRed else AdminSuccessGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable { onToggleCategoryActive(cat) })
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(cat.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Edit", color = AdminPrimaryNavy, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onEditCategory(cat) })
+                        Text(if (cat.active) "Deactivate" else "Activate", color = if (cat.active) AdminDangerRed else AdminSuccessGreen, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.clickable { onToggleCategoryActive(cat) })
                     }
                 }
                 HorizontalDivider(color = AdminBorder)
@@ -1052,8 +986,8 @@ private fun AdminCategoriesPage(categories: List<AdminCategoryRecord>, onAddCate
 @Composable
 private fun AdminReportsPage(usersList: List<AdminUserRecord>, bookingsList: List<AdminBookingRecord>) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Reports & Analytics", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Reports & Analytics", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             AdminDetailRow("Total registered users", usersList.size.toString())
             AdminDetailRow("Total bookings processed", bookingsList.size.toString())
             AdminDetailRow("Marketplace commission", "0% (Free)")
@@ -1065,7 +999,7 @@ private fun AdminReportsPage(usersList: List<AdminUserRecord>, bookingsList: Lis
 private fun AdminSettingsPage(loggedAdminEmail: String, brandingPrefs: android.content.SharedPreferences, settingsPrefs: android.content.SharedPreferences, authPrefs: android.content.SharedPreferences, context: Context, onRequestLogout: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Admin Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            Text("Admin Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             OutlinedTextField(value = loggedAdminEmail, onValueChange = {}, label = { Text("Admin Email") }, enabled = false, modifier = Modifier.fillMaxWidth())
             Button(onClick = onRequestLogout, colors = ButtonDefaults.buttonColors(containerColor = AdminDangerRed)) {
                 Text("Logout Admin Session", color = AdminWhite, fontWeight = FontWeight.Bold)
@@ -1076,16 +1010,16 @@ private fun AdminSettingsPage(loggedAdminEmail: String, brandingPrefs: android.c
 
 @Composable
 private fun AdminStatCard(icon: ImageVector, iconBg: Color, iconTint: Color, title: String, value: String, changeText: String, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(iconBg), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(22.dp))
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = AdminWhite), border = BorderStroke(1.dp, AdminBorder)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(38.dp).clip(CircleShape).background(iconBg), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(18.dp))
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Column {
-                Text(title, fontSize = 11.sp, color = AdminSecondaryText)
-                Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = AdminMainText)
-                Text(changeText, fontSize = 10.sp, color = AdminSuccessGreen, fontWeight = FontWeight.Bold)
+                Text(title, fontSize = 10.sp, color = AdminSecondaryText)
+                Text(value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = AdminMainText)
+                Text(changeText, fontSize = 9.sp, color = AdminSuccessGreen, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1100,20 +1034,20 @@ private fun AdminStatusBadge(status: String) {
         else -> Pair(AdminNeutralGrayBg, AdminSecondaryText)
     }
     Surface(color = bg, shape = RoundedCornerShape(50)) {
-        Text(status, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+        Text(status, color = fg, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 
 @Composable
 private fun AdminDetailRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 13.sp, color = AdminSecondaryText)
-        Text(value, fontSize = 13.sp, color = AdminMainText, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 12.sp, color = AdminSecondaryText)
+        Text(value, fontSize = 12.sp, color = AdminMainText, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
-private fun AdminHelmetLogo(size: Dp = 38.dp) {
+private fun AdminHelmetLogo(size: Dp = 32.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
