@@ -1,10 +1,12 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +14,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +77,21 @@ fun ChatScreen(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
+
+    // Ensure window resizes smoothly when keyboard opens
+    DisposableEffect(Unit) {
+        val window = activity?.window
+        val previousSoftInputMode = window?.attributes?.softInputMode
+        @Suppress("DEPRECATION")
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        onDispose {
+            if (previousSoftInputMode != null) {
+                window.setSoftInputMode(previousSoftInputMode)
+            }
+        }
+    }
+
     val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
 
@@ -164,6 +183,9 @@ fun ChatScreen(
 
     var messageInput by remember { mutableStateOf("") }
     val messagesList = remember { mutableStateListOf<LiveChatMessage>() }
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
 
     LaunchedEffect(activePartner?.id, isHindi) {
         val partner = activePartner ?: return@LaunchedEffect
@@ -186,6 +208,13 @@ fun ChatScreen(
                 messagesList.clear()
                 messagesList.addAll(cloudMsgs)
             }
+        }
+    }
+
+    // Automatically scroll chat messages up whenever a new message arrives OR keyboard opens
+    LaunchedEffect(messagesList.size, imeBottomPx) {
+        if (messagesList.isNotEmpty()) {
+            listState.animateScrollToItem(messagesList.lastIndex)
         }
     }
 
@@ -214,42 +243,44 @@ fun ChatScreen(
     }
 
     if (activePartner == null) {
-        Scaffold(
-            containerColor = ChatBgLight,
-            topBar = {
-                Surface(color = ChatNavyPrimary, shadowElevation = 4.dp) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ChatWhite)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = if (isHindi) "Workora लाइव चैट" else "Workora Live Chat",
-                                color = ChatWhite,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (isHindi) "सीधी बात • 0% कमीशन मैसेजिंग" else "Direct 0% Commission Messaging",
-                                color = Color(0xFFCBD5E1),
-                                fontSize = 12.sp
-                            )
-                        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ChatBgLight)
+        ) {
+            Surface(color = ChatNavyPrimary, shadowElevation = 4.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ChatWhite)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = if (isHindi) "Workora लाइव चैट" else "Workora Live Chat",
+                            color = ChatWhite,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isHindi) "सीधी बात • 0% कमीशन मैसेजिंग" else "Direct 0% Commission Messaging",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
-        ) { innerPadding ->
+
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -326,113 +357,169 @@ fun ChatScreen(
     }
 
     val partner = activePartner!!
-    Scaffold(
-        containerColor = ChatBgLight,
-        topBar = {
-            Surface(color = ChatNavyPrimary, shadowElevation = 4.dp) {
+
+    // Full-screen Column with imePadding() so the bottom input bar & messages always rise above keyboard
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ChatBgLight)
+            .imePadding()
+    ) {
+        // 1. Top Header Bar
+        Surface(color = ChatNavyPrimary, shadowElevation = 4.dp) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                    IconButton(
+                        onClick = {
+                            chatPrefs.edit().remove("chat_partner_name").apply()
+                            onBack()
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
-                        IconButton(
-                            onClick = {
-                                chatPrefs.edit().remove("chat_partner_name").apply()
-                                onBack()
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ChatWhite)
-                        }
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ChatWhite)
+                    }
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(ChatOrangeAccent),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = partner.name.take(1).uppercase(Locale.US),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = ChatWhite
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(ChatOrangeAccent),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = partner.name.take(1).uppercase(Locale.US),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = ChatWhite
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = partner.name,
+                            color = ChatWhite,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF4ADE80))
                             )
-                        }
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = partner.name,
-                                color = ChatWhite,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = "${partner.roleOrSkill} • ${if (isHindi) "ऑनलाइन" else "Online"}",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 12.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF4ADE80))
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "${partner.roleOrSkill} • ${if (isHindi) "ऑनलाइन" else "Online"}",
-                                    color = Color(0xFFE2E8F0),
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
                         }
                     }
+                }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        IconButton(
-                            onClick = {
-                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${partner.phone}"))
-                                context.startActivity(dialIntent)
-                            }
-                        ) {
-                            Icon(Icons.Default.Call, contentDescription = "Call", tint = ChatWhite)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${partner.phone}"))
+                            context.startActivity(dialIntent)
                         }
+                    ) {
+                        Icon(Icons.Default.Call, contentDescription = "Call", tint = ChatWhite)
+                    }
 
-                        TextButton(
-                            onClick = { activePartner = null }
+                    TextButton(
+                        onClick = { activePartner = null }
+                    ) {
+                        Text(
+                            text = if (isHindi) "सभी चैट्स" else "All Chats",
+                            color = ChatOrangeAccent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Auto-Scrolling Messages List (Weight 1f pushes input bar directly above keyboard)
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp),
+            contentPadding = PaddingValues(vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(messagesList, key = { it.id }) { msg ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (msg.isSentByMe) Arrangement.End else Arrangement.Start
+                ) {
+                    Surface(
+                        color = if (msg.isSentByMe) ChatNavyPrimary else ChatWhite,
+                        shape = RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = if (msg.isSentByMe) 16.dp else 4.dp,
+                            bottomEnd = if (msg.isSentByMe) 4.dp else 16.dp
+                        ),
+                        border = if (msg.isSentByMe) null else BorderStroke(1.dp, ChatBorder),
+                        shadowElevation = 1.dp,
+                        modifier = Modifier.widthIn(max = 290.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
-                                text = if (isHindi) "सभी चैट्स" else "All Chats",
-                                color = ChatOrangeAccent,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                                text = msg.text,
+                                fontSize = 14.sp,
+                                color = if (msg.isSentByMe) ChatWhite else ChatMainText
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = msg.time,
+                                fontSize = 10.sp,
+                                color = if (msg.isSentByMe) Color(0xFFCBD5E1) else ChatSecondaryText,
+                                modifier = Modifier.align(Alignment.End)
                             )
                         }
                     }
                 }
             }
-        },
-        bottomBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(ChatWhite)
-                    .navigationBarsPadding()
-            ) {
+        }
+
+        // 3. Bottom Quick Replies + Message Input Box (Always stays visible above keyboard)
+        Surface(
+            color = ChatWhite,
+            shadowElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 val quickReplies = if (isHindi) {
                     listOf(
                         "नमस्ते, क्या आप आज काम के लिए उपलब्ध हैं?",
@@ -479,7 +566,7 @@ fun ChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
@@ -519,52 +606,6 @@ fun ChatScreen(
                             contentDescription = "Send Message",
                             modifier = Modifier.size(20.dp)
                         )
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 14.dp),
-            contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(messagesList, key = { it.id }) { msg ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (msg.isSentByMe) Arrangement.End else Arrangement.Start
-                ) {
-                    Surface(
-                        color = if (msg.isSentByMe) ChatNavyPrimary else ChatWhite,
-                        shape = RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = if (msg.isSentByMe) 16.dp else 4.dp,
-                            bottomEnd = if (msg.isSentByMe) 4.dp else 16.dp
-                        ),
-                        border = if (msg.isSentByMe) null else BorderStroke(1.dp, ChatBorder),
-                        shadowElevation = 1.dp,
-                        modifier = Modifier.widthIn(max = 290.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                text = msg.text,
-                                fontSize = 14.sp,
-                                color = if (msg.isSentByMe) ChatWhite else ChatMainText
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = msg.time,
-                                fontSize = 10.sp,
-                                color = if (msg.isSentByMe) Color(0xFFCBD5E1) else ChatSecondaryText,
-                                modifier = Modifier.align(Alignment.End)
-                            )
-                        }
                     }
                 }
             }
