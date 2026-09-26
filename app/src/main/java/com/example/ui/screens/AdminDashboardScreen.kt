@@ -161,8 +161,8 @@ fun AdminDashboardScreen(
         return
     }
 
-    // Zoom scale state for desktop-like zoom in/out capability
-    var zoomScale by remember { mutableStateOf(1.0f) }
+    // Perfect fit desktop viewport scale (0.55f ensures entire desktop screen fits nicely on mobile view)
+    var zoomScale by remember { mutableStateOf(0.55f) }
 
     var currentRoute by remember { mutableStateOf(AdminRoute.DASHBOARD) }
     var globalSearchQuery by remember { mutableStateOf("") }
@@ -206,14 +206,13 @@ fun AdminDashboardScreen(
         refreshAdminDatabase()
     }
 
-    // Desktop Viewport wrapper with Zoom In / Zoom Out controls
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AdminBgLight)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Zoom Control Bar at very top
+            // Top control bar for zoom
             Surface(
                 color = Color(0xFF0F172A),
                 modifier = Modifier.fillMaxWidth()
@@ -229,7 +228,7 @@ fun AdminDashboardScreen(
                         Icon(Icons.Outlined.DesktopMac, contentDescription = null, tint = AdminAccentOrange, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Workora Desktop Admin Viewport (Scale: ${(zoomScale * 100).toInt()}%)",
+                            text = "Workora Desktop Admin Viewport",
                             color = AdminWhite,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -237,31 +236,30 @@ fun AdminDashboardScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
-                            onClick = { zoomScale = (zoomScale - 0.1f).coerceIn(0.7f, 1.4f) },
+                            onClick = { zoomScale = (zoomScale - 0.05f).coerceIn(0.4f, 1.0f) },
                             shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("- Zoom Out", color = AdminWhite, fontSize = 11.sp)
+                            Text("- Zoom Out", color = AdminWhite, fontSize = 10.sp)
                         }
                         OutlinedButton(
-                            onClick = { zoomScale = 1.0f },
+                            onClick = { zoomScale = 0.55f },
                             shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("Reset", color = AdminWhite, fontSize = 11.sp)
+                            Text("Fit", color = AdminWhite, fontSize = 10.sp)
                         }
                         OutlinedButton(
-                            onClick = { zoomScale = (zoomScale + 0.1f).coerceIn(0.7f, 1.4f) },
+                            onClick = { zoomScale = (zoomScale + 0.05f).coerceIn(0.4f, 1.0f) },
                             shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("+ Zoom In", color = AdminWhite, fontSize = 11.sp)
+                            Text("+ Zoom In", color = AdminWhite, fontSize = 10.sp)
                         }
                     }
                 }
             }
 
-            // Main Desktop Layout (Fixed Left Sidebar + Main Content)
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1103,26 +1101,6 @@ private fun AdminStatusBadge(status: String) {
     }
     Surface(color = bg, shape = RoundedCornerShape(50)) {
         Text(status, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-    }
-}
-
-@Composable
-private fun AdminCircleInitialAvatar(name: String) {
-    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFEFF6FF)), contentAlignment = Alignment.Center) {
-        Text(name.take(1).uppercase(Locale.US), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminPrimaryNavy)
-    }
-}
-
-@Composable
-private fun AdminFilterChipGroup(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = AdminSecondaryText)
-        options.forEach { opt ->
-            val isSel = selected.equals(opt, ignoreCase = true)
-            Surface(color = if (isSel) AdminPrimaryNavy else AdminNeutralGrayBg, shape = RoundedCornerShape(6.dp), modifier = Modifier.clickable { onSelect(opt) }) {
-                Text(opt, color = if (isSel) AdminWhite else AdminMainText, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-            }
-        }
     }
 }
 
