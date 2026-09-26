@@ -159,6 +159,15 @@ private fun inferStateFromArea(areaText: String, explicitState: String = ""): St
     }
 }
 
+private fun matchesAdminSmartSearch(textBlob: String, rawQuery: String): Boolean {
+    val q = rawQuery.trim().lowercase(Locale.US)
+    if (q.isEmpty()) return true
+    val lowerBlob = textBlob.lowercase(Locale.US)
+    if (lowerBlob.contains(q)) return true
+    val words = q.split("\\s+".toRegex()).filter { it.isNotBlank() }
+    return words.isNotEmpty() && words.all { lowerBlob.contains(it) }
+}
+
 @Composable
 fun AdminDashboardScreen(
     adminEmail: String = "ankitah994@gmail.com",
@@ -472,7 +481,6 @@ fun AdminDashboardScreen(
                                     loggedAdminEmail = loggedAdminEmail,
                                     brandingPrefs = brandingPrefs,
                                     settingsPrefs = settingsPrefs,
-                                    authPrefs = authPrefs,
                                     context = context,
                                     onSwitchToCustomer = { switchAdminToRole("CUSTOMER") },
                                     onSwitchToWorker = { switchAdminToRole("LABOUR") },
@@ -1100,11 +1108,12 @@ private fun AdminStateAreaControlPage(
     onDeleteStateRule: (AdminStateAreaRule) -> Unit,
     onFilterUsersByState: (String) -> Unit
 ) {
-    val filteredRules = remember(stateRules, globalSearchQuery) {
-        if (globalSearchQuery.isBlank()) stateRules
-        else stateRules.filter {
-            it.stateName.contains(globalSearchQuery, true) ||
-                it.areaKeywords.contains(globalSearchQuery, true)
+    // Live reactive filtering without stale remember cache
+    val filteredRules = if (globalSearchQuery.isBlank()) {
+        stateRules
+    } else {
+        stateRules.filter {
+            matchesAdminSmartSearch("${it.stateName} ${it.areaKeywords}", globalSearchQuery)
         }
     }
 
@@ -1636,27 +1645,26 @@ private fun AdminDashboardOverviewPage(
     val totalCustomersDisplay = String.format(Locale.US, "%,d", usersList.count { it.role == "Customer" })
     val totalBookingsDisplay = String.format(Locale.US, "%,d", bookingsList.size)
 
-    val filteredRecentBookings = remember(bookingsList, globalSearchQuery) {
-        val q = globalSearchQuery.trim()
-        if (q.isEmpty()) bookingsList.take(5)
-        else bookingsList.filter {
-            it.customerName.contains(q, true) ||
-                it.workerName.contains(q, true) ||
-                it.category.contains(q, true) ||
-                it.area.contains(q, true) ||
-                it.status.contains(q, true)
+    // Real-time reactive search without stale remember cache
+    val filteredRecentBookings = if (globalSearchQuery.isBlank()) {
+        bookingsList.take(5)
+    } else {
+        bookingsList.filter {
+            matchesAdminSmartSearch(
+                "${it.id} ${it.customerName} ${it.workerName} ${it.category} ${it.area} ${it.status}",
+                globalSearchQuery
+            )
         }
     }
 
-    val filteredRecentUsers = remember(usersList, globalSearchQuery) {
-        val q = globalSearchQuery.trim()
-        if (q.isEmpty()) usersList.take(5)
-        else usersList.filter {
-            it.name.contains(q, true) ||
-                it.phone.contains(q, true) ||
-                it.role.contains(q, true) ||
-                it.area.contains(q, true) ||
-                it.stateName.contains(q, true)
+    val filteredRecentUsers = if (globalSearchQuery.isBlank()) {
+        usersList.take(5)
+    } else {
+        usersList.filter {
+            matchesAdminSmartSearch(
+                "${it.name} ${it.phone} ${it.email} ${it.role} ${it.category} ${it.area} ${it.stateName} ${it.status}",
+                globalSearchQuery
+            )
         }
     }
 
@@ -2113,22 +2121,15 @@ private fun AdminUsersPage(
     onConfirmBlockUser: (AdminUserRecord) -> Unit
 ) {
     var selectedStateChip by remember { mutableStateOf("All States") }
-    val stateOptions = remember(usersList) {
-        listOf("All States") + usersList.map { it.stateName }.filter { it.isNotBlank() }.distinct()
-    }
+    val stateOptions = listOf("All States") + usersList.map { it.stateName }.filter { it.isNotBlank() }.distinct()
 
-    val filtered = remember(usersList, globalSearchQuery, selectedStateChip) {
-        usersList.filter { u ->
-            val matchState = selectedStateChip == "All States" || u.stateName.equals(selectedStateChip, true)
-            val matchSearch = globalSearchQuery.isBlank() ||
-                u.name.contains(globalSearchQuery, true) ||
-                u.phone.contains(globalSearchQuery, true) ||
-                u.email.contains(globalSearchQuery, true) ||
-                u.area.contains(globalSearchQuery, true) ||
-                u.stateName.contains(globalSearchQuery, true) ||
-                u.role.contains(globalSearchQuery, true)
-            matchState && matchSearch
-        }
+    val filtered = usersList.filter { u ->
+        val matchState = selectedStateChip == "All States" || u.stateName.equals(selectedStateChip, true)
+        val matchSearch = matchesAdminSmartSearch(
+            "${u.name} ${u.phone} ${u.email} ${u.area} ${u.stateName} ${u.role} ${u.category}",
+            globalSearchQuery
+        )
+        matchState && matchSearch
     }
 
     Card(
@@ -2243,14 +2244,14 @@ private fun AdminWorkersPage(
     onUpdateWorkerStatus: (AdminUserRecord, String, String) -> Unit,
     onConfirmBlockUser: (AdminUserRecord) -> Unit
 ) {
-    val filtered = remember(workers, globalSearchQuery) {
-        if (globalSearchQuery.isBlank()) workers
-        else workers.filter {
-            it.name.contains(globalSearchQuery, true) ||
-                it.category.contains(globalSearchQuery, true) ||
-                it.area.contains(globalSearchQuery, true) ||
-                it.stateName.contains(globalSearchQuery, true) ||
-                it.phone.contains(globalSearchQuery, true)
+    val filtered = if (globalSearchQuery.isBlank()) {
+        workers
+    } else {
+        workers.filter {
+            matchesAdminSmartSearch(
+                "${it.name} ${it.category} ${it.area} ${it.stateName} ${it.phone} ${it.dailyRate}",
+                globalSearchQuery
+            )
         }
     }
 
@@ -2352,14 +2353,14 @@ private fun AdminBookingsPage(
     globalSearchQuery: String,
     onViewBooking: (AdminBookingRecord) -> Unit
 ) {
-    val filtered = remember(bookings, globalSearchQuery) {
-        if (globalSearchQuery.isBlank()) bookings
-        else bookings.filter {
-            it.customerName.contains(globalSearchQuery, true) ||
-                it.workerName.contains(globalSearchQuery, true) ||
-                it.category.contains(globalSearchQuery, true) ||
-                it.area.contains(globalSearchQuery, true) ||
-                it.id.contains(globalSearchQuery, true)
+    val filtered = if (globalSearchQuery.isBlank()) {
+        bookings
+    } else {
+        bookings.filter {
+            matchesAdminSmartSearch(
+                "${it.id} ${it.customerName} ${it.workerName} ${it.category} ${it.area} ${it.status}",
+                globalSearchQuery
+            )
         }
     }
 
@@ -2408,9 +2409,10 @@ private fun AdminCategoriesPage(
     onEditCategory: (AdminCategoryRecord) -> Unit,
     onToggleCategoryActive: (AdminCategoryRecord) -> Unit
 ) {
-    val filtered = remember(categories, globalSearchQuery) {
-        if (globalSearchQuery.isBlank()) categories
-        else categories.filter { it.name.contains(globalSearchQuery, true) }
+    val filtered = if (globalSearchQuery.isBlank()) {
+        categories
+    } else {
+        categories.filter { matchesAdminSmartSearch(it.name, globalSearchQuery) }
     }
 
     Card(
@@ -2482,15 +2484,11 @@ private fun AdminReportsPage(
     }
 }
 
-// =========================================================================
-// REAL WORKING ADMIN SETTINGS PAGE
-// =========================================================================
 @Composable
 private fun AdminSettingsPage(
     loggedAdminEmail: String,
     brandingPrefs: android.content.SharedPreferences,
     settingsPrefs: android.content.SharedPreferences,
-    authPrefs: android.content.SharedPreferences,
     context: Context,
     onSwitchToCustomer: () -> Unit,
     onSwitchToWorker: () -> Unit,
@@ -3040,7 +3038,7 @@ private fun saveCategoryToFirebase(cat: AdminCategoryRecord) {
                 put("active", cat.active)
                 put("workerCount", cat.workerCount)
             }
-            OutputStreamWriter(conn.outputStream).use { it.word(payload.toString()) }
+            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
             conn.responseCode
             conn.disconnect()
         } catch (_: Exception) {
