@@ -39,11 +39,8 @@ import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 private val LoginNavyPrimary = Color(0xFF083D91)
@@ -96,7 +93,6 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(46.dp))
 
-            // Top Workora Orange Hard-Hat Logo
             LoginScreenHelmetLogo(size = 84.dp)
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -290,7 +286,7 @@ fun LoginScreen(
 
                             when {
                                 cleanIdentifier.isEmpty() -> {
-                                    errorMessage = "Please enter your Email or Phone number"
+                                    errorMessage = "Please enter your registered Email or Phone number"
                                 }
                                 cleanPass.length < 6 -> {
                                     errorMessage = "Password must be at least 6 characters"
@@ -471,10 +467,24 @@ private fun authenticateWorkoraUserOnCloud(
     profilePrefs: android.content.SharedPreferences,
     onResult: (Boolean, String) -> Unit
 ) {
+    val cleanId = identifier.trim().lowercase(Locale.US)
+
+    // Super Admin instant login support
+    if (cleanId == "ankitah994@gmail.com" || cleanId.contains("6265798340")) {
+        authPrefs.edit()
+            .putBoolean("is_logged_in", true)
+            .putString("last_logged_in_email", cleanId)
+            .putString("saved_user_role", "ADMIN")
+            .putString("saved_password_$cleanId", password)
+            .apply()
+        onResult(true, "Admin Login Success")
+        return
+    }
+
     Thread {
         val dbUrl = "https://workora-d8b51-default-rtdb.firebaseio.com"
         try {
-            val key = formatSafeFirebaseUserKey(identifier)
+            val key = formatSafeFirebaseUserKey(cleanId)
             val conn = URL("$dbUrl/users/$key.json").openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.connectTimeout = 5000
@@ -498,27 +508,45 @@ private fun authenticateWorkoraUserOnCloud(
                         }
                         return@Thread
                     }
+
+                    // Load ONLY exact registered details from Firebase (no dummy defaults)
                     val name = obj.optString("name", "")
                     val phone = obj.optString("phone", "")
+                    val state = obj.optString("state", "")
                     val loc = obj.optString("location", "")
-                    if (name.isNotBlank()) profilePrefs.edit().putString("user_name", name).apply()
-                    if (phone.isNotBlank()) profilePrefs.edit().putString("user_phone", phone).apply()
-                    if (loc.isNotBlank()) profilePrefs.edit().putString("user_location", loc).apply()
-                } else {
-                    val putConn = URL("$dbUrl/users/$key.json").openConnection() as HttpURLConnection
-                    putConn.requestMethod = "PATCH"
-                    putConn.setRequestProperty("Content-Type", "application/json")
-                    putConn.doOutput = true
-                    val payload = JSONObject().apply {
-                        put("email", identifier)
-                        put("password", password)
-                        put("status", "Active")
-                        put("availability", "Available")
-                        put("joined", SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()))
+                    val skill = obj.optString("skill", "")
+                    val exp = obj.optString("experience", "")
+                    val rate = obj.optInt("dailyRate", 0)
+                    val roleRaw = obj.optString("role", "")
+
+                    profilePrefs.edit()
+                        .putString("user_name", name)
+                        .putString("user_phone", phone)
+                        .putString("user_state", state)
+                        .putString("user_location", loc)
+                        .putString("user_skill", skill)
+                        .putString("user_experience", exp)
+                        .putString("user_rate", if (rate > 0) rate.toString() else "")
+                        .apply()
+
+                    val mappedRole = if (roleRaw.equals("Worker", true) || roleRaw.equals("LABOUR", true)) "LABOUR" else "CUSTOMER"
+                    authPrefs.edit()
+                        .putBoolean("is_logged_in", true)
+                        .putString("last_logged_in_email", cleanId)
+                        .putString("saved_user_role", mappedRole)
+                        .putString("saved_password_$cleanId", password)
+                        .apply()
+
+                    Handler(Looper.getMainLooper()).post {
+                        onResult(true, "Success")
                     }
-                    OutputStreamWriter(putConn.outputStream).use { it.write(payload.toString()) }
-                    putConn.responseCode
-                    putConn.disconnect()
+                    return@Thread
+                } else {
+                    // User has NOT registered yet — require full registration first!
+                    Handler(Looper.getMainLooper()).post {
+                        onResult(false, "Account not found! Please click 'Register' to fill your complete details first.")
+                    }
+                    return@Thread
                 }
             } else {
                 conn.disconnect()
@@ -526,14 +554,8 @@ private fun authenticateWorkoraUserOnCloud(
         } catch (_: Exception) {
         }
 
-        authPrefs.edit()
-            .putBoolean("is_logged_in", true)
-            .putString("last_logged_in_email", identifier)
-            .putString("saved_password_$identifier", password)
-            .apply()
-
         Handler(Looper.getMainLooper()).post {
-            onResult(true, "Success")
+            onResult(false, "Unable to verify account. Please check your internet or Register first.")
         }
     }.start()
 }
