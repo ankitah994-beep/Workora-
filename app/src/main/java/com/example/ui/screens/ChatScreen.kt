@@ -3,58 +3,23 @@ package com.example.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,17 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.WorkoraBgLight
-import com.example.ui.theme.WorkoraBorder
-import com.example.ui.theme.WorkoraNavy
-import com.example.ui.theme.WorkoraOrange
-import com.example.ui.theme.WorkoraTextDark
-import com.example.ui.theme.WorkoraTextMuted
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -85,20 +39,28 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val CHAT_DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+private val ChatNavyPrimary = Color(0xFF083D91)
+private val ChatOrangeAccent = Color(0xFFFF8C00)
+private val ChatBgLight = Color(0xFFF8FAFC)
+private val ChatWhite = Color(0xFFFFFFFF)
+private val ChatMainText = Color(0xFF0B2345)
+private val ChatSecondaryText = Color(0xFF687280)
+private val ChatBorder = Color(0xFFE5EAF0)
+private val ChatSuccessGreen = Color(0xFF16A34A)
 
-data class ChatContactPerson(
+private const val CHAT_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
+
+private data class ChatContactItem(
     val id: String,
     val name: String,
-    val roleOrTrade: String,
+    val roleOrSkill: String,
     val phone: String,
+    val area: String,
     val lastMessage: String,
-    val lastTime: String,
-    val isOnline: Boolean = true,
-    val unreadCount: Int = 0
+    val time: String
 )
 
-data class DirectChatMessage(
+private data class LiveChatMessage(
     val id: String,
     val senderName: String,
     val text: String,
@@ -106,638 +68,211 @@ data class DirectChatMessage(
     val isSentByMe: Boolean
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
-    val chatStorePrefs = remember { context.getSharedPreferences("workora_whatsapp_chats", Context.MODE_PRIVATE) }
 
-    val appLang = remember { settingsPrefs.getString("app_language", "Hinglish") ?: "Hinglish" }
-    val myUserName = remember { profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar" }
-
-    fun tr(hi: String, hinglish: String, en: String): String {
-        return when (appLang) {
-            "Hindi" -> hi
-            "English" -> en
-            else -> hinglish
-        }
+    val myUserName = remember {
+        profilePrefs.getString("user_name", "")?.ifBlank { "Me" } ?: "Me"
     }
 
-    var selectedContact by remember { mutableStateOf<ChatContactPerson?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-    var showNewChatDialog by remember { mutableStateOf(false) }
+    // Read partner selected via the Message icon on Customer/Worker cards
+    val initialPartnerId = remember { chatPrefs.getString("chat_partner_id", "") ?: "" }
+    val initialPartnerName = remember { chatPrefs.getString("chat_partner_name", "") ?: "" }
+    val initialPartnerRole = remember { chatPrefs.getString("chat_partner_role", "Verified Member") ?: "Verified Member" }
+    val initialPartnerPhone = remember { chatPrefs.getString("chat_partner_phone", "+91 9826012345") ?: "+91 9826012345" }
+    val initialPartnerArea = remember { chatPrefs.getString("chat_partner_area", "Local Area") ?: "Local Area" }
 
-    var newPersonName by remember { mutableStateOf("") }
-    var newPersonRole by remember { mutableStateOf("Mistri / Worker") }
-    var newPersonPhone by remember { mutableStateOf("+91 ") }
-
-    val contactsList = remember { mutableStateListOf<ChatContactPerson>() }
-    val activeMessages = remember { mutableStateListOf<DirectChatMessage>() }
-    var messageInput by remember { mutableStateOf("") }
-
-    fun loadMessagesForContact(contact: ChatContactPerson) {
-        activeMessages.clear()
-        val savedJson = chatStorePrefs.getString("msgs_${contact.id}", null)
-        if (!savedJson.isNullOrBlank()) {
-            try {
-                val arr = JSONArray(savedJson)
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    activeMessages.add(
-                        DirectChatMessage(
-                            id = o.optString("id"),
-                            senderName = o.optString("senderName"),
-                            text = o.optString("text"),
-                            time = o.optString("time"),
-                            isSentByMe = o.optBoolean("isSentByMe", false)
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        } else {
-            // Default realistic initial conversation for that contact
-            activeMessages.add(
-                DirectChatMessage(
-                    id = "init_1",
-                    senderName = contact.name,
-                    text = tr(
-                        "नमस्ते! मैं ${contact.name} (${contact.roleOrTrade}) आज काम के लिए उपलब्ध हूँ।",
-                        "Namaste! Main ${contact.name} (${contact.roleOrTrade}) aaj kaam ke liye available hoon.",
-                        "Hello! I am ${contact.name} (${contact.roleOrTrade}), available for work today."
-                    ),
-                    time = "09:00 AM",
-                    isSentByMe = false
+    var activePartner by remember {
+        mutableStateOf(
+            if (initialPartnerName.isNotBlank()) {
+                ChatContactItem(
+                    id = initialPartnerId.ifBlank { "chat_${initialPartnerName.lowercase(Locale.US).replace(" ", "_")}" },
+                    name = initialPartnerName,
+                    roleOrSkill = initialPartnerRole,
+                    phone = initialPartnerPhone,
+                    area = initialPartnerArea,
+                    lastMessage = "Tap to start live chat",
+                    time = "Online"
                 )
-            )
-        }
-    }
-
-    fun saveMessagesForContact(contact: ChatContactPerson) {
-        val arr = JSONArray()
-        activeMessages.forEach { msg ->
-            val o = JSONObject().apply {
-                put("id", msg.id)
-                put("senderName", msg.senderName)
-                put("text", msg.text)
-                put("time", msg.time)
-                put("isSentByMe", msg.isSentByMe)
+            } else {
+                null
             }
-            arr.put(o)
-        }
-        val lastMsg = activeMessages.lastOrNull()?.text ?: contact.lastMessage
-        val lastTime = activeMessages.lastOrNull()?.time ?: contact.lastTime
-        chatStorePrefs.edit()
-            .putString("msgs_${contact.id}", arr.toString())
-            .putString("last_msg_${contact.id}", lastMsg)
-            .putString("last_time_${contact.id}", lastTime)
-            .apply()
+        )
+    }
 
-        val idx = contactsList.indexOfFirst { it.id == contact.id }
-        if (idx >= 0) {
-            contactsList[idx] = contactsList[idx].copy(lastMessage = lastMsg, lastTime = lastTime)
+    val contactsList = remember {
+        mutableStateListOf(
+            ChatContactItem("w_sunil", "Sunil Kumar", "Mason", "+91 9826012345", "Sector 4, Silwani", "नमस्ते, काम कब से शुरू करना है?", "10:30 AM"),
+            ChatContactItem("w_rajesh", "Rajesh Sharma", "Plumber", "+91 9755098765", "Civil Lines, Raisen", "पाइप फिटिंग का काम हो जाएगा।", "Yesterday"),
+            ChatContactItem("w_aslam", "Mohammad Aslam", "Electrician", "+91 9926543210", "Main Market, Silwani", "मैं आज उपलब्ध हूँ।", "Yesterday"),
+            ChatContactItem("req_1", "Amit Sharma", "Customer", "+91 9876543210", "Main Market, Silwani", "घर की वायरिंग ठीक करवानी है।", "Today")
+        )
+    }
+
+    // Ensure the clicked partner is also in the conversation list
+    LaunchedEffect(activePartner) {
+        val p = activePartner
+        if (p != null && contactsList.none { it.name.equals(p.name, ignoreCase = true) }) {
+            contactsList.add(0, p)
         }
     }
 
-    fun loadWhatsAppStyleContacts() {
-        val initialContacts = mutableListOf(
-            ChatContactPerson(
-                id = "admin_support",
-                name = "Workora Official Support 🛡️",
-                roleOrTrade = "24x7 Help & Live Broadcast Room",
-                phone = "+91 6265798340",
-                lastMessage = chatStorePrefs.getString("last_msg_admin_support", "Namaste! Kisi bhi sahayata ke liye message karein.") ?: "Namaste! Kisi bhi sahayata ke liye message karein.",
-                lastTime = chatStorePrefs.getString("last_time_admin_support", "Online") ?: "Online",
-                isOnline = true
-            ),
-            ChatContactPerson(
-                id = "worker_sunil",
-                name = "Sunil Kumar",
-                roleOrTrade = "Mason (राजमिस्त्री) • Silwani",
-                phone = "+91 9876543210",
-                lastMessage = chatStorePrefs.getString("last_msg_worker_sunil", "Yes, I am available for wall plastering work.") ?: "Yes, I am available for wall plastering work.",
-                lastTime = chatStorePrefs.getString("last_time_worker_sunil", "09:05 AM") ?: "09:05 AM",
-                isOnline = true
-            ),
-            ChatContactPerson(
-                id = "worker_ramesh",
-                name = "Ramesh Vishwakarma",
-                roleOrTrade = "Electrician (इलेक्ट्रीशियन) • Silwani",
-                phone = "+91 9123456780",
-                lastMessage = chatStorePrefs.getString("last_msg_worker_ramesh", "Bijli fitting aur motor ka kaam ho jayega.") ?: "Bijli fitting aur motor ka kaam ho jayega.",
-                lastTime = chatStorePrefs.getString("last_time_worker_ramesh", "10:15 AM") ?: "10:15 AM",
-                isOnline = true
-            ),
-            ChatContactPerson(
-                id = "worker_mukesh",
-                name = "Mukesh Ahirwar",
-                roleOrTrade = "Painter & Putty Specialist • Raisen",
-                phone = "+91 9988776655",
-                lastMessage = chatStorePrefs.getString("last_msg_worker_mukesh", "Makan painting ke liye aaj aa sakta hoon.") ?: "Makan painting ke liye aaj aa sakta hoon.",
-                lastTime = chatStorePrefs.getString("last_time_worker_mukesh", "Yesterday") ?: "Yesterday",
-                isOnline = true
-            ),
-            ChatContactPerson(
-                id = "worker_suresh",
-                name = "Suresh Kushwaha",
-                roleOrTrade = "Plumber & Pipe Fitting • Silwani",
-                phone = "+91 9755443322",
-                lastMessage = chatStorePrefs.getString("last_msg_worker_suresh", "Nal aur tanki fitting ke liye sampark karein.") ?: "Nal aur tanki fitting ke liye sampark karein.",
-                lastTime = chatStorePrefs.getString("last_time_worker_suresh", "Yesterday") ?: "Yesterday",
-                isOnline = false
+    var messageInput by remember { mutableStateOf("") }
+    val messagesList = remember { mutableStateListOf<LiveChatMessage>() }
+
+    // Load messages for the currently open chat partner from Firebase
+    LaunchedEffect(activePartner?.id) {
+        val partner = activePartner ?: return@LaunchedEffect
+        messagesList.clear()
+        messagesList.add(
+            LiveChatMessage(
+                id = "welcome_1",
+                senderName = partner.name,
+                text = "नमस्ते! मैं ${partner.name} (${partner.roleOrSkill})। बताइए क्या काम है?",
+                time = "Live",
+                isSentByMe = false
             )
         )
-
-        // Load custom contacts added via "+ New Chat"
-        val savedCustomJson = chatStorePrefs.getString("custom_contacts_list", null)
-        if (!savedCustomJson.isNullOrBlank()) {
-            try {
-                val arr = JSONArray(savedCustomJson)
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val cid = o.optString("id")
-                    initialContacts.add(
-                        0,
-                        ChatContactPerson(
-                            id = cid,
-                            name = o.optString("name"),
-                            roleOrTrade = o.optString("role"),
-                            phone = o.optString("phone"),
-                            lastMessage = chatStorePrefs.getString("last_msg_$cid", "Tap to start chatting...") ?: "Tap to start chatting...",
-                            lastTime = chatStorePrefs.getString("last_time_$cid", "New") ?: "New",
-                            isOnline = true
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        contactsList.clear()
-        contactsList.addAll(initialContacts)
-
-        // Also fetch registered Firebase Users & Workers so you can chat with every real user!
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val uConn = (URL("$CHAT_DB_URL/users.json").openConnection() as HttpURLConnection)
-                val cloudPeople = mutableListOf<ChatContactPerson>()
-                if (uConn.responseCode in 200..299) {
-                    val text = BufferedReader(InputStreamReader(uConn.inputStream)).use { it.readText() }
-                    if (text.isNotBlank() && text != "null") {
-                        val root = JSONObject(text)
-                        val keys = root.keys()
-                        while (keys.hasNext()) {
-                            val k = keys.next()
-                            val obj = root.optJSONObject(k) ?: continue
-                            val name = obj.optString("fullName", "")
-                            val phone = obj.optString("phone", "+91 6265798340")
-                            val role = obj.optString("role", "USER")
-                            val loc = obj.optString("location", "Silwani")
-                            if (name.isNotBlank() && !initialContacts.any { it.name.equals(name, true) }) {
-                                val cid = "cloud_$k"
-                                cloudPeople.add(
-                                    ChatContactPerson(
-                                        id = cid,
-                                        name = name,
-                                        roleOrTrade = "$role • $loc",
-                                        phone = phone,
-                                        lastMessage = chatStorePrefs.getString("last_msg_$cid", "Tap to message $name") ?: "Tap to message $name",
-                                        lastTime = chatStorePrefs.getString("last_time_$cid", "Online") ?: "Online",
-                                        isOnline = true
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-                uConn.disconnect()
-
-                if (cloudPeople.isNotEmpty()) {
-                    withContext(Dispatchers.Main) {
-                        cloudPeople.forEach { person ->
-                            if (contactsList.none { it.id == person.id }) {
-                                contactsList.add(person)
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+        loadMessagesFromFirebase(partner.id, myUserName) { cloudMsgs ->
+            if (cloudMsgs.isNotEmpty()) {
+                messagesList.clear()
+                messagesList.addAll(cloudMsgs)
             }
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadWhatsAppStyleContacts()
+    val sendLiveMessage: (String) -> Unit = { rawText ->
+        val clean = rawText.trim()
+        val partner = activePartner
+        if (clean.isNotEmpty() && partner != null) {
+            val nowTime = SimpleDateFormat("hh:mm a", Locale.US).format(Date())
+            val newMsg = LiveChatMessage(
+                id = "msg_${System.currentTimeMillis()}",
+                senderName = myUserName,
+                text = clean,
+                time = nowTime,
+                isSentByMe = true
+            )
+            messagesList.add(newMsg)
+            messageInput = ""
+
+            // Save to Firebase Realtime Database
+            pushMessageToFirebase(
+                roomId = partner.id,
+                senderName = myUserName,
+                text = clean,
+                time = nowTime
+            )
+        }
     }
 
-    // ==================== SCREEN 1: INDIVIDUAL WHATSAPP CONVERSATION VIEW ====================
-    if (selectedContact != null) {
-        val currentPerson = selectedContact!!
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFEFEAE2)) // WhatsApp subtle warm chat background
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            // Top Conversation Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(WorkoraNavy)
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    IconButton(
-                        onClick = { selectedContact = null },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back to Chats", tint = Color.White)
-                    }
-                    Box(
+    // If no specific partner is open, show the All Chats list
+    if (activePartner == null) {
+        Scaffold(
+            containerColor = ChatBgLight,
+            topBar = {
+                Surface(color = ChatNavyPrimary, shadowElevation = 4.dp) {
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(WorkoraOrange),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = currentPerson.name.take(1).uppercase(),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ChatWhite)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
                             Text(
-                                text = currentPerson.name,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "Workora Live Chat",
+                                color = ChatWhite,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Color(0xFF22C55E),
-                                modifier = Modifier.size(15.dp)
+                            Text(
+                                text = "Direct 0% Commission Messaging",
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 12.sp
                             )
                         }
-                        Text(
-                            text = "${currentPerson.roleOrTrade} • Online",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.85f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // Direct Phone Call Button in Chat Header
-                IconButton(
-                    onClick = {
-                        try {
-                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${currentPerson.phone}"))
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Phone: ${currentPerson.phone}", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                ) {
-                    Icon(Icons.Default.Phone, contentDescription = "Call", tint = WorkoraOrange)
-                }
-            }
-
-            // Messages List
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(activeMessages) { msg ->
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = if (msg.isSentByMe) Alignment.CenterEnd else Alignment.CenterStart
-                    ) {
-                        Card(
-                            shape = RoundedCornerShape(
-                                topStart = 14.dp,
-                                topEnd = 14.dp,
-                                bottomStart = if (msg.isSentByMe) 14.dp else 2.dp,
-                                bottomEnd = if (msg.isSentByMe) 2.dp else 14.dp
-                            ),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (msg.isSentByMe) WorkoraNavy else Color.White
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            modifier = Modifier.widthIn(max = 290.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                Text(
-                                    text = msg.text,
-                                    fontSize = 14.sp,
-                                    color = if (msg.isSentByMe) Color.White else WorkoraTextDark
-                                )
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = msg.time,
-                                    fontSize = 10.sp,
-                                    color = if (msg.isSentByMe) Color.White.copy(alpha = 0.75f) else WorkoraTextMuted,
-                                    modifier = Modifier.align(Alignment.End)
-                                )
-                            }
-                        }
                     }
                 }
             }
-
-            // Quick Reply Suggestions
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.9f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                listOf(
-                    tr("क्या आप आज उपलब्ध हैं?", "Kya aap aaj available hain?", "Are you available today?"),
-                    tr("दिहाड़ी क्या लगेगी?", "Dihadi kya lagegi?", "What is your daily rate?"),
-                    tr("मुझे कॉल करें 📞", "Mujhe call karein 📞", "Please call me 📞")
-                ).forEach { quickText ->
-                    OutlinedButton(
-                        onClick = { messageInput = quickText },
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(30.dp),
-                        border = BorderStroke(1.dp, WorkoraOrange)
-                    ) {
-                        Text(quickText, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
-                    }
-                }
-            }
-
-            // Bottom Message Input Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = messageInput,
-                    onValueChange = { messageInput = it },
-                    placeholder = {
-                        Text(
-                            text = tr("मैसेज लिखें...", "Message likhein...", "Type a message..."),
-                            fontSize = 13.sp
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(24.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = WorkoraOrange,
-                        unfocusedBorderColor = WorkoraBorder
-                    )
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                IconButton(
-                    onClick = {
-                        val cleanText = messageInput.trim()
-                        if (cleanText.isNotBlank()) {
-                            val nowTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-                            val myMsg = DirectChatMessage(
-                                id = System.currentTimeMillis().toString(),
-                                senderName = myUserName,
-                                text = cleanText,
-                                time = nowTime,
-                                isSentByMe = true
-                            )
-                            activeMessages.add(myMsg)
-                            messageInput = ""
-                            saveMessagesForContact(currentPerson)
-
-                            // Sync message to Firebase Cloud as well
-                            FirebaseManager.sendChatMessageToCloud(
-                                senderName = "$myUserName → ${currentPerson.name}",
-                                messageText = cleanText,
-                                timeText = nowTime
-                            )
-                        }
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(WorkoraOrange)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = Color.White
-                    )
-                }
-            }
-        }
-        return
-    }
-
-    // ==================== SCREEN 2: WHATSAPP STYLE ALL CHATS LIST + "+ NEW CHAT" ====================
-    val filteredContacts = contactsList.filter {
-        searchQuery.isBlank() ||
-                it.name.contains(searchQuery, ignoreCase = true) ||
-                it.roleOrTrade.contains(searchQuery, ignoreCase = true) ||
-                it.phone.contains(searchQuery, ignoreCase = true)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WorkoraBgLight)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // WhatsApp Style Top App Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(WorkoraNavy)
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Column {
-                        Text(
-                            text = tr("Workora चैट्स (WhatsApp Style)", "Workora Chats (${contactsList.size})", "Workora Chats (${contactsList.size})"),
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = tr("किसी भी कारीगर या ग्राहक से सीधे बात करें", "Kisi bhi worker ya customer par tap karke chat karein", "Tap any worker or customer to chat"),
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showNewChatDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "New Chat", tint = WorkoraOrange)
-                    }
-                    IconButton(onClick = {
-                        loadWhatsAppStyleContacts()
-                        Toast.makeText(context, "Chats Refreshed ✓", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
-                    }
-                }
-            }
-
-            // Search Contacts Bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = {
-                        Text(
-                            text = tr("नाम, काम या नंबर से चैट खोजें...", "Naam, kaam ya number se chat khojein...", "Search chat by name, skill or phone..."),
-                            fontSize = 13.sp
-                        )
-                    },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WorkoraOrange) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = WorkoraOrange,
-                        unfocusedBorderColor = WorkoraBorder
-                    )
-                )
-            }
-
-            // All Contacts / Conversations List
+        ) { innerPadding ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(filteredContacts) { person ->
+                items(contactsList, key = { it.id }) { contact ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                loadMessagesForContact(person)
-                                selectedContact = person
-                            },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, WorkoraBorder),
+                            .clickable { activePartner = contact },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = ChatWhite),
+                        border = BorderStroke(1.dp, ChatBorder),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Avatar Circle with Online Green Dot
-                            Box(modifier = Modifier.size(50.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(WorkoraNavy.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = person.name.take(1).uppercase(),
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = WorkoraNavy
-                                    )
-                                }
-                                if (person.isOnline) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(13.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF16A34A))
-                                            .align(Alignment.BottomEnd)
-                                    )
-                                }
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFDBEAFE)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = contact.name.take(1).uppercase(Locale.US),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = ChatNavyPrimary
+                                )
                             }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
+                            Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = person.name,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = WorkoraTextDark,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
+                                        text = contact.name,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ChatMainText
                                     )
                                     Text(
-                                        text = person.lastTime,
+                                        text = contact.time,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = WorkoraOrange
+                                        color = ChatSuccessGreen,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
-
                                 Text(
-                                    text = person.roleOrTrade,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = WorkoraNavy
-                                )
-
-                                Spacer(modifier = Modifier.height(2.dp))
-
-                                Text(
-                                    text = person.lastMessage,
+                                    text = "${contact.roleOrSkill} • ${contact.area}",
                                     fontSize = 12.sp,
-                                    color = WorkoraTextMuted,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = ChatNavyPrimary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = contact.lastMessage,
+                                    fontSize = 13.sp,
+                                    color = ChatSecondaryText,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -745,117 +280,319 @@ fun ChatScreen(
                         }
                     }
                 }
-                item {
-                    Spacer(modifier = Modifier.height(80.dp))
-                }
             }
         }
-
-        // Floating "+ New Chat" Button (Just like WhatsApp!)
-        ExtendedFloatingActionButton(
-            onClick = { showNewChatDialog = true },
-            containerColor = Color(0xFF16A34A),
-            contentColor = Color.White,
-            shape = RoundedCornerShape(28.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "New Chat", tint = Color.White)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = tr("+ नई चैट शुरू करें", "+ New Chat", "+ New Chat"),
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 14.sp
-            )
-        }
+        return
     }
 
-    // "+ New Chat" Popup Dialog to start chatting with any person
-    if (showNewChatDialog) {
-        AlertDialog(
-            onDismissRequest = { showNewChatDialog = false },
-            title = {
-                Text(
-                    text = tr("नई चैट शुरू करें (+ New Chat)", "Start New Chat (+ Nayi Chat)", "Start New Chat"),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 17.sp,
-                    color = WorkoraNavy
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = newPersonName,
-                        onValueChange = { newPersonName = it },
-                        label = { Text(tr("व्यक्ति का नाम (जैसे: राजू मिस्त्री)", "Person Name (e.g. Raju Mistri)", "Person Name")) },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    OutlinedTextField(
-                        value = newPersonRole,
-                        onValueChange = { newPersonRole = it },
-                        label = { Text(tr("काम / रोल (जैसे: Electrician)", "Work / Role (e.g. Electrician)", "Skill / Role")) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    OutlinedTextField(
-                        value = newPersonPhone,
-                        onValueChange = { newPersonPhone = it },
-                        label = { Text(tr("मोबाइल नंबर", "Mobile Number", "Phone Number")) },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val cleanName = newPersonName.trim()
-                        if (cleanName.isBlank()) {
-                            Toast.makeText(context, "Kripya naam likhein!", Toast.LENGTH_SHORT).show()
-                        } else {
-                            val newId = "custom_${System.currentTimeMillis()}"
-                            val newContact = ChatContactPerson(
-                                id = newId,
-                                name = cleanName,
-                                roleOrTrade = newPersonRole.trim().ifBlank { "Worker / Customer" },
-                                phone = newPersonPhone.trim().ifBlank { "+91 6265798340" },
-                                lastMessage = "New chat started",
-                                lastTime = "Just Now",
-                                isOnline = true
-                            )
-                            contactsList.add(0, newContact)
-
-                            // Save to custom contacts list permanently
-                            val existingStr = chatStorePrefs.getString("custom_contacts_list", "[]") ?: "[]"
-                            val arr = JSONArray(existingStr)
-                            arr.put(JSONObject().apply {
-                                put("id", newContact.id)
-                                put("name", newContact.name)
-                                put("role", newContact.roleOrTrade)
-                                put("phone", newContact.phone)
-                            })
-                            chatStorePrefs.edit().putString("custom_contacts_list", arr.toString()).apply()
-
-                            newPersonName = ""
-                            showNewChatDialog = false
-                            loadMessagesForContact(newContact)
-                            selectedContact = newContact
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+    // Active 1-on-1 Live Chat Room with Selected Worker / Customer
+    val partner = activePartner!!
+    Scaffold(
+        containerColor = ChatBgLight,
+        topBar = {
+            Surface(color = ChatNavyPrimary, shadowElevation = 4.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(tr("चैट खोलें ✓", "Start Chat ✓", "Start Chat ✓"), fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showNewChatDialog = false }) {
-                    Text(tr("रद्द करें", "Cancel", "Cancel"))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                chatPrefs.edit().remove("chat_partner_name").apply()
+                                onBack()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ChatWhite)
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(ChatOrangeAccent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = partner.name.take(1).uppercase(Locale.US),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = ChatWhite
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = partner.name,
+                                color = ChatWhite,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background( Color(0xFF4ADE80))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${partner.roleOrSkill} • Online",
+                                    color = Color(0xFFE2E8F0),
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Direct Call Button inside Live Chat Header
+                        IconButton(
+                            onClick = {
+                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${partner.phone}"))
+                                context.startActivity(dialIntent)
+                            }
+                        ) {
+                            Icon(Icons.Default.Call, contentDescription = "Call", tint = ChatWhite)
+                        }
+
+                        // Switch to All Chats List
+                        TextButton(
+                            onClick = { activePartner = null }
+                        ) {
+                            Text("All Chats", color = ChatOrangeAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
-        )
+        },
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(ChatWhite)
+                    .navigationBarsPadding()
+            ) {
+                // Quick Reply Suggestions Bar
+                val quickReplies = listOf(
+                    "नमस्ते, क्या आप आज काम के लिए उपलब्ध हैं?",
+                    "आपका डेली रेट क्या है?",
+                    "अपना लोकेशन भेजें",
+                    "मुझे अभी कॉल करें"
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    quickReplies.forEach { reply ->
+                        Surface(
+                            color = ChatBgLight,
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(1.dp, ChatBorder),
+                            modifier = Modifier.clickable { sendLiveMessage(reply) }
+                        ) {
+                            Text(
+                                text = reply,
+                                fontSize = 12.sp,
+                                color = ChatNavyPrimary,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = ChatBorder)
+
+                // Message Input Box + Send Button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = messageInput,
+                        onValueChange = { messageInput = it },
+                        placeholder = {
+                            Text(
+                                text = "Type a message to ${partner.name}...",
+                                fontSize = 14.sp,
+                                color = ChatSecondaryText
+                            )
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = ChatBgLight,
+                            unfocusedContainerColor = ChatBgLight,
+                            focusedBorderColor = ChatNavyPrimary,
+                            unfocusedBorderColor = ChatBorder,
+                            focusedTextColor = ChatMainText,
+                            unfocusedTextColor = ChatMainText
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    FloatingActionButton(
+                        onClick = { sendLiveMessage(messageInput) },
+                        containerColor = ChatOrangeAccent,
+                        contentColor = ChatWhite,
+                        shape = CircleShape,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Send Message",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 14.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(messagesList, key = { it.id }) { msg ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (msg.isSentByMe) Arrangement.End else Arrangement.Start
+                ) {
+                    Surface(
+                        color = if (msg.isSentByMe) ChatNavyPrimary else ChatWhite,
+                        shape = RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = if (msg.isSentByMe) 16.dp else 4.dp,
+                            bottomEnd = if (msg.isSentByMe) 4.dp else 16.dp
+                        ),
+                        border = if (msg.isSentByMe) null else BorderStroke(1.dp, ChatBorder),
+                        shadowElevation = 1.dp,
+                        modifier = Modifier.widthIn(max = 290.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = msg.text,
+                                fontSize = 14.sp,
+                                color = if (msg.isSentByMe) ChatWhite else ChatMainText
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = msg.time,
+                                fontSize = 10.sp,
+                                color = if (msg.isSentByMe) Color(0xFFCBD5E1) else ChatSecondaryText,
+                                modifier = Modifier.align(Alignment.End)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+private fun loadMessagesFromFirebase(
+    roomId: String,
+    myUserName: String,
+    onLoaded: (List<LiveChatMessage>) -> Unit
+) {
+    val cleanRoom = roomId.trim().lowercase(Locale.US).replace(" ", "_")
+    Thread {
+        val list = mutableListOf<LiveChatMessage>()
+        try {
+            val conn = URL("$CHAT_FB_URL/chats/$cleanRoom.json").openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 5000
+            if (conn.responseCode == 200) {
+                val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
+                    val root = JSONObject(resp)
+                    val keys = root.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val obj = root.optJSONObject(k) ?: continue
+                        val sender = obj.optString("senderName", "")
+                        val text = obj.optString("text", "")
+                        val time = obj.optString("time", "")
+                        if (text.isNotBlank()) {
+                            list.add(
+                                LiveChatMessage(
+                                    id = k,
+                                    senderName = sender,
+                                    text = text,
+                                    time = time,
+                                    isSentByMe = sender.equals(myUserName, ignoreCase = true)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            conn.disconnect()
+        } catch (_: Exception) {
+        }
+        Handler(Looper.getMainLooper()).post {
+            onLoaded(list)
+        }
+    }.start()
+}
+
+private fun pushMessageToFirebase(
+    roomId: String,
+    senderName: String,
+    text: String,
+    time: String
+) {
+    val cleanRoom = roomId.trim().lowercase(Locale.US).replace(" ", "_")
+    Thread {
+        try {
+            val msgKey = "m_${System.currentTimeMillis()}"
+            val url = URL("$CHAT_FB_URL/chats/$cleanRoom/$msgKey.json")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "PUT"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            val payload = JSONObject().apply {
+                put("senderName", senderName)
+                put("text", text)
+                put("time", time)
+                put("timestamp", System.currentTimeMillis())
+            }
+            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
+            conn.responseCode
+            conn.disconnect()
+        } catch (_: Exception) {
+        }
+    }.start()
 }
