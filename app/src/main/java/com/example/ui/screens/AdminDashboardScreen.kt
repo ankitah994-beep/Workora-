@@ -80,6 +80,7 @@ private enum class AdminRoute(val title: String, val icon: ImageVector) {
     WORKERS("Workers", Icons.Outlined.Construction),
     BOOKINGS("Bookings", Icons.Outlined.EventAvailable),
     CATEGORIES("Categories", Icons.Outlined.GridView),
+    STATE_CONTROL("State / Area", Icons.Outlined.LocationOn),
     REPORTS("Reports", Icons.Outlined.Flag),
     SETTINGS("Settings", Icons.Outlined.Settings)
 }
@@ -91,6 +92,7 @@ private data class AdminUserRecord(
     val email: String,
     val role: String,
     val area: String,
+    val stateName: String = "Madhya Pradesh",
     val status: String,
     val joined: String,
     val category: String = "Electrician",
@@ -128,6 +130,35 @@ private data class AdminCategoryRecord(
     val workerCount: Int
 )
 
+private data class AdminStateAreaRule(
+    val id: String,
+    val stateName: String,
+    val areaKeywords: String,
+    val isServiceEnabled: Boolean
+)
+
+private fun inferStateFromArea(areaText: String, explicitState: String = ""): String {
+    if (explicitState.isNotBlank()) return explicitState
+    val lower = areaText.lowercase(Locale.US)
+    return when {
+        lower.contains("silwani") || lower.contains("raisen") || lower.contains("bhopal") ||
+            lower.contains("indore") || lower.contains("sagar") || lower.contains("vidisha") ||
+            lower.contains("jabalpur") || lower.contains("gwalior") || lower.contains("mp") ||
+            lower.contains("madhya") -> "Madhya Pradesh"
+        lower.contains("delhi") || lower.contains("ncr") -> "Delhi NCR"
+        lower.contains("noida") || lower.contains("lucknow") || lower.contains("kanpur") ||
+            lower.contains("varanasi") || lower.contains("agra") || lower.contains("up") ||
+            lower.contains("uttar") -> "Uttar Pradesh"
+        lower.contains("mumbai") || lower.contains("pune") || lower.contains("nagpur") ||
+            lower.contains("maharashtra") -> "Maharashtra"
+        lower.contains("jaipur") || lower.contains("kota") || lower.contains("udaipur") ||
+            lower.contains("rajasthan") -> "Rajasthan"
+        lower.contains("patna") || lower.contains("bihar") -> "Bihar"
+        lower.contains("ahmedabad") || lower.contains("surat") || lower.contains("gujarat") -> "Gujarat"
+        else -> "Madhya Pradesh"
+    }
+}
+
 @Composable
 fun AdminDashboardScreen(
     adminEmail: String = "ankitah994@gmail.com",
@@ -138,7 +169,6 @@ fun AdminDashboardScreen(
     val context = LocalContext.current
     val activity = context as? Activity
 
-    // Automatically switch mobile into Horizontal (Landscape) mode for Admin Panel
     DisposableEffect(Unit) {
         val previousOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -163,7 +193,6 @@ fun AdminDashboardScreen(
     }
     var showAccessDeniedBanner by remember { mutableStateOf(!isAdminAuthenticated) }
 
-    // Helper to switch directly to Customer or Worker Mode from Top-Right Admin Menu
     val switchAdminToRole: (String) -> Unit = { targetRole ->
         authPrefs.edit()
             .putBoolean("is_logged_in", true)
@@ -204,6 +233,7 @@ fun AdminDashboardScreen(
     val usersList = remember { mutableStateListOf<AdminUserRecord>() }
     val bookingsList = remember { mutableStateListOf<AdminBookingRecord>() }
     val categoriesList = remember { mutableStateListOf<AdminCategoryRecord>() }
+    val stateAreaRulesList = remember { mutableStateListOf<AdminStateAreaRule>() }
 
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
     var selectedUserForDetail by remember { mutableStateOf<AdminUserRecord?>(null) }
@@ -213,18 +243,21 @@ fun AdminDashboardScreen(
     var bookingStatusConfirmPair by remember { mutableStateOf<Pair<AdminBookingRecord, String>?>(null) }
     var showAddCategoryModal by remember { mutableStateOf(false) }
     var categoryForEdit by remember { mutableStateOf<AdminCategoryRecord?>(null) }
+    var showAddStateAreaModal by remember { mutableStateOf(false) }
 
     val refreshAdminDatabase: () -> Unit = {
         isLoadingData = true
         errorBannerMessage = null
         loadAdminDataFromFirebase(
-            onLoaded = { loadedUsers, loadedBookings, loadedCategories ->
+            onLoaded = { loadedUsers, loadedBookings, loadedCategories, loadedAreaRules ->
                 usersList.clear()
                 usersList.addAll(loadedUsers)
                 bookingsList.clear()
                 bookingsList.addAll(loadedBookings)
                 categoriesList.clear()
                 categoriesList.addAll(loadedCategories)
+                stateAreaRulesList.clear()
+                stateAreaRulesList.addAll(loadedAreaRules)
                 isLoadingData = false
             },
             onError = { msg ->
@@ -238,7 +271,6 @@ fun AdminDashboardScreen(
         refreshAdminDatabase()
     }
 
-    // Safe Drawing + Auto-Fit Desktop Viewport Scaling
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -288,6 +320,7 @@ fun AdminDashboardScreen(
                         onRefreshClick = refreshAdminDatabase,
                         onSwitchToCustomer = { switchAdminToRole("CUSTOMER") },
                         onSwitchToWorker = { switchAdminToRole("LABOUR") },
+                        onOpenStateControl = { currentRoute = AdminRoute.STATE_CONTROL },
                         onOpenSettings = { currentRoute = AdminRoute.SETTINGS },
                         onLogoutClick = { showLogoutConfirmDialog = true }
                     )
@@ -329,6 +362,7 @@ fun AdminDashboardScreen(
                                 AdminDashboardOverviewPage(
                                     usersList = usersList,
                                     bookingsList = bookingsList,
+                                    stateAreaRulesList = stateAreaRulesList,
                                     globalSearchQuery = globalSearchQuery,
                                     onNavigateRoute = { currentRoute = it },
                                     onViewUser = { selectedUserForDetail = it },
@@ -397,10 +431,40 @@ fun AdminDashboardScreen(
                                     }
                                 )
                             }
+                            AdminRoute.STATE_CONTROL -> {
+                                AdminStateAreaControlPage(
+                                    usersList = usersList,
+                                    stateRules = stateAreaRulesList,
+                                    globalSearchQuery = globalSearchQuery,
+                                    onAddStateRuleClick = { showAddStateAreaModal = true },
+                                    onToggleStateService = { rule ->
+                                        val idx = stateAreaRulesList.indexOfFirst { it.id == rule.id }
+                                        if (idx >= 0) {
+                                            val updated = rule.copy(isServiceEnabled = !rule.isServiceEnabled)
+                                            stateAreaRulesList[idx] = updated
+                                            saveStateAreaRuleToFirebase(updated)
+                                            syncDisabledAreasPrefs(settingsPrefs, stateAreaRulesList)
+                                            val statusWord = if (updated.isServiceEnabled) "चालू (ACTIVE)" else "बंद (DISABLED)"
+                                            Toast.makeText(context, "${updated.stateName} में ऐप $statusWord कर दिया गया ✓", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onDeleteStateRule = { rule ->
+                                        stateAreaRulesList.remove(rule)
+                                        deleteStateAreaRuleFromFirebase(rule.id)
+                                        syncDisabledAreasPrefs(settingsPrefs, stateAreaRulesList)
+                                        Toast.makeText(context, "${rule.stateName} नियम हटाया गया", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onFilterUsersByState = { stateSearch ->
+                                        globalSearchQuery = stateSearch
+                                        currentRoute = AdminRoute.USERS
+                                    }
+                                )
+                            }
                             AdminRoute.REPORTS -> {
                                 AdminReportsPage(
                                     usersList = usersList,
-                                    bookingsList = bookingsList
+                                    bookingsList = bookingsList,
+                                    stateRules = stateAreaRulesList
                                 )
                             }
                             AdminRoute.SETTINGS -> {
@@ -423,10 +487,126 @@ fun AdminDashboardScreen(
     }
 
     // ==================================================
-    // LANDSCAPE-FRIENDLY COMPACT SCROLLABLE MODALS
+    // MODALS & DIALOGS
     // ==================================================
 
-    // 1. View Profile Details Modal
+    // Add New State / Area Service Control Rule Modal
+    if (showAddStateAreaModal) {
+        var newStateName by remember { mutableStateOf("") }
+        var newAreaKeywords by remember { mutableStateOf("") }
+        var newIsEnabled by remember { mutableStateOf(true) }
+
+        Dialog(
+            onDismissRequest = { showAddStateAreaModal = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Card(
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth(0.92f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = AdminWhite),
+                border = BorderStroke(1.dp, AdminBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Add State / Area Service Control",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AdminMainText
+                    )
+                    Text(
+                        text = "यहाँ किसी भी State या Area/City का नाम डालकर उस जगह के लिए ऐप को चालू (ON) या बंद (OFF) करें:",
+                        fontSize = 12.sp,
+                        color = AdminSecondaryText
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = newStateName,
+                            onValueChange = { newStateName = it },
+                            label = { Text("State / Region (e.g. Madhya Pradesh)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = newAreaKeywords,
+                            onValueChange = { newAreaKeywords = it },
+                            label = { Text("Cities / Areas (e.g. Silwani, Raisen, Bhopal)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (newIsEnabled) "App Status: चालू (ACTIVE)" else "App Status: बंद (DISABLED)",
+                            fontWeight = FontWeight.Bold,
+                            color = if (newIsEnabled) AdminSuccessGreen else AdminDangerRed
+                        )
+                        Switch(
+                            checked = newIsEnabled,
+                            onCheckedChange = { newIsEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = AdminWhite,
+                                checkedTrackColor = AdminSuccessGreen,
+                                uncheckedThumbColor = AdminWhite,
+                                uncheckedTrackColor = AdminDangerRed
+                            )
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showAddStateAreaModal = false }) {
+                            Text("Cancel", color = AdminSecondaryText)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (newStateName.isNotBlank()) {
+                                    val cleanId = "state_" + newStateName.trim().lowercase(Locale.US).replace(" ", "_")
+                                    val rule = AdminStateAreaRule(
+                                        id = cleanId,
+                                        stateName = newStateName.trim(),
+                                        areaKeywords = newAreaKeywords.trim().ifEmpty { newStateName.trim() },
+                                        isServiceEnabled = newIsEnabled
+                                    )
+                                    val existingIdx = stateAreaRulesList.indexOfFirst { it.id == cleanId || it.stateName.equals(rule.stateName, true) }
+                                    if (existingIdx >= 0) {
+                                        stateAreaRulesList[existingIdx] = rule
+                                    } else {
+                                        stateAreaRulesList.add(0, rule)
+                                    }
+                                    saveStateAreaRuleToFirebase(rule)
+                                    syncDisabledAreasPrefs(settingsPrefs, stateAreaRulesList)
+                                    Toast.makeText(context, "${rule.stateName} सेटिंग सेव हो गई ✓", Toast.LENGTH_SHORT).show()
+                                    showAddStateAreaModal = false
+                                } else {
+                                    Toast.makeText(context, "कृपया State या Area का नाम लिखें", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange)
+                        ) {
+                            Text("Save Rule", color = AdminWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (selectedUserForDetail != null) {
         val u = selectedUserForDetail!!
         Dialog(
@@ -461,7 +641,8 @@ fun AdminDashboardScreen(
                     AdminDetailRow("Phone", u.phone)
                     AdminDetailRow("Email", u.email)
                     AdminDetailRow("Role", u.role)
-                    AdminDetailRow("Area", u.area)
+                    AdminDetailRow("State", u.stateName)
+                    AdminDetailRow("Area / City", u.area)
                     AdminDetailRow("Joined", u.joined)
                     if (u.role.equals("Worker", ignoreCase = true)) {
                         AdminDetailRow("Category", u.category)
@@ -490,11 +671,11 @@ fun AdminDashboardScreen(
         }
     }
 
-    // 2. Edit User Modal (2-Column Landscape-Optimized & Scrollable so no field ever gets squished)
     if (selectedUserForEdit != null) {
         val u = selectedUserForEdit!!
         var editName by remember(u) { mutableStateOf(u.name) }
         var editPhone by remember(u) { mutableStateOf(u.phone) }
+        var editState by remember(u) { mutableStateOf(u.stateName) }
         var editArea by remember(u) { mutableStateOf(u.area) }
         var editCategory by remember(u) { mutableStateOf(u.category) }
         var editRate by remember(u) { mutableStateOf(u.dailyRate.toString()) }
@@ -516,7 +697,7 @@ fun AdminDashboardScreen(
         ) {
             Card(
                 modifier = Modifier
-                    .widthIn(max = 620.dp)
+                    .widthIn(max = 640.dp)
                     .fillMaxWidth(0.92f)
                     .padding(vertical = 8.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -537,7 +718,6 @@ fun AdminDashboardScreen(
                         color = AdminMainText
                     )
 
-                    // Row 1: Full Name + Phone Number side-by-side
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -560,20 +740,33 @@ fun AdminDashboardScreen(
                         )
                     }
 
-                    // Row 2: Area + Category & Daily Rate (if Worker)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         OutlinedTextField(
-                            value = editArea,
-                            onValueChange = { editArea = it },
-                            label = { Text("Area / City") },
+                            value = editState,
+                            onValueChange = { editState = it },
+                            label = { Text("State (e.g. Madhya Pradesh)") },
                             singleLine = true,
                             colors = textFieldColors,
                             modifier = Modifier.weight(1f)
                         )
-                        if (u.role.equals("Worker", ignoreCase = true)) {
+                        OutlinedTextField(
+                            value = editArea,
+                            onValueChange = { editArea = it },
+                            label = { Text("Area / City (e.g. Silwani)") },
+                            singleLine = true,
+                            colors = textFieldColors,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    if (u.role.equals("Worker", ignoreCase = true)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
                             OutlinedTextField(
                                 value = editCategory,
                                 onValueChange = { editCategory = it },
@@ -588,7 +781,7 @@ fun AdminDashboardScreen(
                                 label = { Text("Daily Rate (₹)") },
                                 singleLine = true,
                                 colors = textFieldColors,
-                                modifier = Modifier.weight(0.8f)
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -612,6 +805,7 @@ fun AdminDashboardScreen(
                                         val updated = u.copy(
                                             name = editName.trim(),
                                             phone = editPhone.trim(),
+                                            stateName = editState.trim().ifEmpty { "Madhya Pradesh" },
                                             area = editArea.trim().ifEmpty { "Silwani" },
                                             category = editCategory.trim().ifEmpty { u.category },
                                             dailyRate = editRate.filter { it.isDigit() }.toIntOrNull() ?: u.dailyRate
@@ -634,7 +828,6 @@ fun AdminDashboardScreen(
         }
     }
 
-    // 3. Block / Unblock Confirmation Dialog
     if (userPendingBlockToggle != null) {
         val u = userPendingBlockToggle!!
         val isBlocked = u.status.equals("Blocked", ignoreCase = true)
@@ -679,7 +872,6 @@ fun AdminDashboardScreen(
         )
     }
 
-    // 4. Booking Details Modal
     if (selectedBookingDetail != null) {
         val bk = selectedBookingDetail!!
         Dialog(
@@ -780,7 +972,6 @@ fun AdminDashboardScreen(
         )
     }
 
-    // 5. Create / Edit Category Modal
     if (showAddCategoryModal || categoryForEdit != null) {
         val editing = categoryForEdit
         var catName by remember(editing) { mutableStateOf(editing?.name ?: "") }
@@ -908,6 +1099,281 @@ fun AdminDashboardScreen(
 }
 
 // ==================================================
+// NEW: STATE / AREA WISE ANALYTICS & ON/OFF CONTROL PAGE
+// ==================================================
+@Composable
+private fun AdminStateAreaControlPage(
+    usersList: List<AdminUserRecord>,
+    stateRules: List<AdminStateAreaRule>,
+    globalSearchQuery: String,
+    onAddStateRuleClick: () -> Unit,
+    onToggleStateService: (AdminStateAreaRule) -> Unit,
+    onDeleteStateRule: (AdminStateAreaRule) -> Unit,
+    onFilterUsersByState: (String) -> Unit
+) {
+    val filteredRules = remember(stateRules, globalSearchQuery) {
+        if (globalSearchQuery.isBlank()) stateRules
+        else stateRules.filter {
+            it.stateName.contains(globalSearchQuery, true) ||
+                it.areaKeywords.contains(globalSearchQuery, true)
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Top Header Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = AdminWhite),
+            border = BorderStroke(1.dp, AdminBorder)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "State & Area Wise Service Control (राज्य / एरिया के अनुसार कंट्रोल)",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = AdminMainText
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "देखें किस राज्य (State) से कितने Customers और Workers हैं, और किसी भी State/Area में ऐप को एक क्लिक में चालू (ON) या बंद (OFF) करें।",
+                        fontSize = 12.sp,
+                        color = AdminSecondaryText
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(
+                    onClick = onAddStateRuleClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = AdminAccentOrange),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.AddLocationAlt, contentDescription = null, tint = AdminWhite, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("+ Add State / Area", color = AdminWhite, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // State-wise Summary Cards Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            val activeStatesCount = stateRules.count { it.isServiceEnabled }
+            val disabledStatesCount = stateRules.count { !it.isServiceEnabled }
+
+            Surface(
+                color = AdminWhite,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AdminBorder),
+                modifier = Modifier.width(240.dp)
+            ) {
+                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape).background(AdminInfoBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Map, contentDescription = null, tint = AdminPrimaryNavy)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Total Managed States", fontSize = 11.sp, color = AdminSecondaryText)
+                        Text("${stateRules.size} States / Areas", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = AdminMainText)
+                    }
+                }
+            }
+
+            Surface(
+                color = AdminWhite,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AdminBorder),
+                modifier = Modifier.width(240.dp)
+            ) {
+                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape).background(AdminSuccessBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = AdminSuccessGreen)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Active States (चालू)", fontSize = 11.sp, color = AdminSecondaryText)
+                        Text("$activeStatesCount Active", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = AdminSuccessGreen)
+                    }
+                }
+            }
+
+            Surface(
+                color = AdminWhite,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AdminBorder),
+                modifier = Modifier.width(240.dp)
+            ) {
+                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape).background(AdminDangerBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Block, contentDescription = null, tint = AdminDangerRed)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Disabled States (बंद)", fontSize = 11.sp, color = AdminSecondaryText)
+                        Text("$disabledStatesCount Closed", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = AdminDangerRed)
+                    }
+                }
+            }
+        }
+
+        // State-wise Customer / Worker Breakdown & ON/OFF Table
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = AdminWhite),
+            border = BorderStroke(1.dp, AdminBorder)
+        ) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "State-wise Customers, Workers & App Service Toggle",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AdminMainText
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(AdminNeutralGrayBg, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("State / Region", modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("Covered Cities / Areas", modifier = Modifier.weight(1.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("Customers", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("Workers", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("Total Users", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("App Status", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                    Text("ON / OFF Control", modifier = Modifier.weight(1.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                }
+
+                filteredRules.forEach { rule ->
+                    val keywords = rule.areaKeywords.split(",").map { it.trim().lowercase(Locale.US) }.filter { it.isNotEmpty() }
+                    val matchingUsers = usersList.filter { u ->
+                        u.stateName.equals(rule.stateName, ignoreCase = true) ||
+                            u.area.contains(rule.stateName, ignoreCase = true) ||
+                            keywords.any { kw -> u.area.lowercase(Locale.US).contains(kw) || u.stateName.lowercase(Locale.US).contains(kw) }
+                    }
+                    val customerCount = matchingUsers.count { it.role.equals("Customer", ignoreCase = true) }
+                    val workerCount = matchingUsers.count { it.role.equals("Worker", ignoreCase = true) }
+                    val totalInState = customerCount + workerCount
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(1.4f), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.LocationOn,
+                                contentDescription = null,
+                                tint = if (rule.isServiceEnabled) AdminPrimaryNavy else AdminDangerRed,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = rule.stateName,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AdminMainText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = rule.areaKeywords,
+                            modifier = Modifier.weight(1.6f),
+                            fontSize = 12.sp,
+                            color = AdminSecondaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "$customerCount Customers",
+                            modifier = Modifier.weight(0.9f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AdminPrimaryNavy
+                        )
+                        Text(
+                            text = "$workerCount Workers",
+                            modifier = Modifier.weight(0.9f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AdminAccentOrange
+                        )
+                        Text(
+                            text = "$totalInState Total",
+                            modifier = Modifier.weight(0.9f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AdminMainText
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            AdminStatusBadge(if (rule.isServiceEnabled) "ACTIVE" else "DISABLED")
+                        }
+                        Row(
+                            modifier = Modifier.weight(1.6f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Switch(
+                                checked = rule.isServiceEnabled,
+                                onCheckedChange = { onToggleStateService(rule) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = AdminWhite,
+                                    checkedTrackColor = AdminSuccessGreen,
+                                    uncheckedThumbColor = AdminWhite,
+                                    uncheckedTrackColor = AdminDangerRed
+                                )
+                            )
+                            OutlinedButton(
+                                onClick = { onFilterUsersByState(rule.stateName) },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text("View Users", fontSize = 10.sp, color = AdminPrimaryNavy)
+                            }
+                            IconButton(
+                                onClick = { onDeleteStateRule(rule) },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DeleteOutline,
+                                    contentDescription = "Remove Rule",
+                                    tint = AdminDangerRed,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = AdminBorder)
+                }
+            }
+        }
+    }
+}
+
+// ==================================================
 // ADMIN SIDEBAR
 // ==================================================
 @Composable
@@ -920,44 +1386,44 @@ private fun AdminSidebarContent(
     Column(
         modifier = modifier
             .background(AdminPrimaryNavy)
-            .padding(vertical = 18.dp, horizontal = 16.dp),
+            .padding(vertical = 16.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                AdminHelmetLogo(size = 38.dp)
+                AdminHelmetLogo(size = 36.dp)
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
                         text = "Workora",
                         color = AdminWhite,
-                        fontSize = 21.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
                         text = "Find. Hire. Work.",
                         color = Color(0xFFD1D5DB),
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = "ADMIN PANEL",
                 color = AdminAccentOrange,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.8.sp,
                 modifier = Modifier.padding(horizontal = 6.dp)
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             AdminRoute.values().forEach { route ->
                 val isSelected = currentRoute == route
@@ -968,20 +1434,20 @@ private fun AdminSidebarContent(
                         .clip(RoundedCornerShape(10.dp))
                         .background(if (isSelected) AdminAccentOrange else Color.Transparent)
                         .clickable { onSelectRoute(route) }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = route.icon,
                         contentDescription = route.title,
                         tint = AdminWhite,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(19.dp)
                     )
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = route.title,
                         color = if (isSelected) AdminWhite else Color(0xFFE5E7EB),
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
                 }
@@ -993,20 +1459,20 @@ private fun AdminSidebarContent(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .clickable { onLogoutClick() }
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Outlined.Logout,
                 contentDescription = "Logout",
                 tint = Color(0xFFCBD5E1),
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(19.dp)
             )
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "Logout",
                 color = Color(0xFFCBD5E1),
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -1014,7 +1480,7 @@ private fun AdminSidebarContent(
 }
 
 // ==================================================
-// ADMIN TOP BAR (WITH WORKING SEARCH & ROLE SWITCH DROPDOWN)
+// ADMIN TOP BAR
 // ==================================================
 @Composable
 private fun AdminTopBar(
@@ -1025,6 +1491,7 @@ private fun AdminTopBar(
     onRefreshClick: () -> Unit,
     onSwitchToCustomer: () -> Unit,
     onSwitchToWorker: () -> Unit,
+    onOpenStateControl: () -> Unit,
     onOpenSettings: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
@@ -1057,7 +1524,6 @@ private fun AdminTopBar(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Working Search Bar
                 Surface(
                     color = AdminBgLight,
                     shape = RoundedCornerShape(10.dp),
@@ -1082,7 +1548,7 @@ private fun AdminTopBar(
                         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             if (searchQuery.isEmpty()) {
                                 Text(
-                                    text = "Search users, workers, bookings...",
+                                    text = "Search users, workers, states, bookings...",
                                     color = AdminSecondaryText,
                                     fontSize = 13.sp
                                 )
@@ -1114,7 +1580,6 @@ private fun AdminTopBar(
                 }
             }
 
-            // Right Controls: Notification Bell + Clickable Admin Profile Dropdown
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1217,6 +1682,16 @@ private fun AdminTopBar(
                         )
                         HorizontalDivider(color = AdminBorder)
                         DropdownMenuItem(
+                            text = { Text("State / Area Service Control", fontWeight = FontWeight.SemiBold, color = AdminMainText) },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = AdminSuccessGreen)
+                            },
+                            onClick = {
+                                showAdminDropdown = false
+                                onOpenStateControl()
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Admin Settings", color = AdminMainText) },
                             leadingIcon = {
                                 Icon(Icons.Outlined.Settings, contentDescription = null, tint = AdminMainText)
@@ -1245,12 +1720,13 @@ private fun AdminTopBar(
 }
 
 // ==================================================
-// DASHBOARD OVERVIEW (FILTERS LIVE BY SEARCH QUERY)
+// DASHBOARD OVERVIEW
 // ==================================================
 @Composable
 private fun AdminDashboardOverviewPage(
     usersList: List<AdminUserRecord>,
     bookingsList: List<AdminBookingRecord>,
+    stateAreaRulesList: List<AdminStateAreaRule>,
     globalSearchQuery: String,
     onNavigateRoute: (AdminRoute) -> Unit,
     onViewUser: (AdminUserRecord) -> Unit,
@@ -1281,7 +1757,8 @@ private fun AdminDashboardOverviewPage(
             it.name.contains(q, true) ||
                 it.phone.contains(q, true) ||
                 it.role.contains(q, true) ||
-                it.area.contains(q, true)
+                it.area.contains(q, true) ||
+                it.stateName.contains(q, true)
         }
     }
 
@@ -1304,31 +1781,48 @@ private fun AdminDashboardOverviewPage(
             )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Outlined.CalendarToday,
-                contentDescription = null,
-                tint = AdminPrimaryNavy,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = "Today",
-                    fontSize = 11.sp,
-                    color = AdminSecondaryText
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(
+                color = AdminInfoBg,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.clickable { onNavigateRoute(AdminRoute.STATE_CONTROL) }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = AdminPrimaryNavy, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "State / Area Control (${stateAreaRulesList.count { it.isServiceEnabled }} Active)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AdminPrimaryNavy
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.CalendarToday,
+                    contentDescription = null,
+                    tint = AdminPrimaryNavy,
+                    modifier = Modifier.size(20.dp)
                 )
-                Text(
-                    text = SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AdminMainText
-                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text("Today", fontSize = 11.sp, color = AdminSecondaryText)
+                    Text(
+                        text = SimpleDateFormat("d MMM yyyy", Locale.US).format(Date()),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AdminMainText
+                    )
+                }
             }
         }
     }
 
-    // Row 1: 4 Large Stat Cards
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1375,7 +1869,6 @@ private fun AdminDashboardOverviewPage(
         }
     }
 
-    // Row 2: Left = Recent Bookings Table | Right = Worker Availability
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1394,12 +1887,7 @@ private fun AdminDashboardOverviewPage(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Recent Bookings",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AdminMainText
-                    )
+                    Text("Recent Bookings", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                     Text(
                         text = "View All",
                         fontSize = 12.sp,
@@ -1426,41 +1914,32 @@ private fun AdminDashboardOverviewPage(
                     Text("Status", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 }
 
-                if (filteredRecentBookings.isEmpty()) {
-                    Text(
-                        text = "No matching bookings found for \"$globalSearchQuery\"",
-                        color = AdminSecondaryText,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                } else {
-                    filteredRecentBookings.forEach { bk ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onViewBooking(bk) }
-                                .padding(horizontal = 10.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
-                                AdminMiniAvatar(bk.customerName, Color(0xFFDBEAFE), AdminPrimaryNavy)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(bk.customerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
-                                AdminMiniAvatar(bk.workerName, Color(0xFFFEF3C7), AdminWarningOrange)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(bk.workerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Text(bk.category, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
-                            Text(bk.area, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
-                            Text(bk.date, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
-                            Box(modifier = Modifier.weight(1f)) {
-                                AdminStatusBadge(bk.status)
-                            }
+                filteredRecentBookings.forEach { bk ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onViewBooking(bk) }
+                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
+                            AdminMiniAvatar(bk.customerName, Color(0xFFDBEAFE), AdminPrimaryNavy)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(bk.customerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        HorizontalDivider(color = AdminBorder)
+                        Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
+                            AdminMiniAvatar(bk.workerName, Color(0xFFFEF3C7), AdminWarningOrange)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(bk.workerName, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(bk.category, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                        Text(bk.area, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                        Text(bk.date, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                        Box(modifier = Modifier.weight(1f)) {
+                            AdminStatusBadge(bk.status)
+                        }
                     }
+                    HorizontalDivider(color = AdminBorder)
                 }
             }
         }
@@ -1476,12 +1955,7 @@ private fun AdminDashboardOverviewPage(
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Worker Availability",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AdminMainText
-                )
+                Text("Worker Availability", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
 
                 WorkerAvailabilityBox(
                     icon = Icons.Outlined.Construction,
@@ -1516,7 +1990,7 @@ private fun AdminDashboardOverviewPage(
         }
     }
 
-    // Row 3: Recent Users Full-Width Table
+    // Row 3: Recent Users Table
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -1530,12 +2004,7 @@ private fun AdminDashboardOverviewPage(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Recent Users",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AdminMainText
-                )
+                Text("Recent Users", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text(
                     text = "View All",
                     fontSize = 12.sp,
@@ -1554,76 +2023,69 @@ private fun AdminDashboardOverviewPage(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Name", modifier = Modifier.weight(1.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Role", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Name", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Role", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("State", modifier = Modifier.weight(1.2f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Area", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Status", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Status", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Joined", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Action", modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             }
 
-            if (filteredRecentUsers.isEmpty()) {
-                Text(
-                    text = "No matching users found for \"$globalSearchQuery\"",
-                    color = AdminSecondaryText,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(12.dp)
-                )
-            } else {
-                filteredRecentUsers.forEach { user ->
+            filteredRecentUsers.forEach { user ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
+                        AdminMiniAvatar(user.name, Color(0xFFE0E7FF), AdminPrimaryNavy)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(user.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(user.role, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText)
+                    Text(user.stateName, modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminPrimaryNavy, maxLines = 1)
+                    Text(user.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                    Box(modifier = Modifier.weight(0.9f)) {
+                        AdminStatusBadge(user.status)
+                    }
+                    Text(user.joined, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.weight(1.4f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(modifier = Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
-                            AdminMiniAvatar(user.name, Color(0xFFE0E7FF), AdminPrimaryNavy)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(user.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text(user.role, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
-                        Text(user.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
-                        Box(modifier = Modifier.weight(1f)) {
-                            AdminStatusBadge(user.status)
-                        }
-                        Text(user.joined, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
-                        Row(
-                            modifier = Modifier.weight(1.4f),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Surface(
+                            color = AdminWhite,
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, Color(0xFF93C5FD)),
+                            modifier = Modifier.clickable { onViewUser(user) }
                         ) {
-                            Surface(
-                                color = AdminWhite,
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF93C5FD)),
-                                modifier = Modifier.clickable { onViewUser(user) }
-                            ) {
-                                Text(
-                                    text = "View",
-                                    color = Color(0xFF1D4ED8),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                                )
-                            }
-                            Surface(
-                                color = AdminWhite,
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
-                                modifier = Modifier.clickable { onConfirmBlockUser(user) }
-                            ) {
-                                Text(
-                                    text = if (user.status == "Blocked") "Unblock" else "Block",
-                                    color = AdminDangerRed,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                                )
-                            }
+                            Text(
+                                text = "View",
+                                color = Color(0xFF1D4ED8),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                            )
+                        }
+                        Surface(
+                            color = AdminWhite,
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                            modifier = Modifier.clickable { onConfirmBlockUser(user) }
+                        ) {
+                            Text(
+                                text = if (user.status == "Blocked") "Unblock" else "Block",
+                                color = AdminDangerRed,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                            )
                         }
                     }
-                    HorizontalDivider(color = AdminBorder)
                 }
+                HorizontalDivider(color = AdminBorder)
             }
         }
     }
@@ -1667,31 +2129,12 @@ private fun AdminReferenceStatCard(
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AdminMainText
-                )
-                Text(
-                    text = number,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = AdminMainText
-                )
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
+                Text(number, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = AdminMainText)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = percent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AdminSuccessGreen
-                    )
+                    Text(percent, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminSuccessGreen)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "vs last week",
-                        fontSize = 11.sp,
-                        color = AdminSecondaryText
-                    )
+                    Text("vs last week", fontSize = 11.sp, color = AdminSecondaryText)
                 }
             }
         }
@@ -1725,12 +2168,7 @@ private fun WorkerAvailabilityBox(
                     .background(circleBg),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = AdminWhite,
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(imageVector = icon, contentDescription = label, tint = AdminWhite, modifier = Modifier.size(20.dp))
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -1753,9 +2191,6 @@ private fun WorkerAvailabilityBox(
     }
 }
 
-// ==================================================
-// CLEAN FULL-WIDTH ADMIN TABLES (NO TRUNCATED NAMES)
-// ==================================================
 @Composable
 private fun AdminUsersPage(
     title: String,
@@ -1765,14 +2200,22 @@ private fun AdminUsersPage(
     onEditUser: (AdminUserRecord) -> Unit,
     onConfirmBlockUser: (AdminUserRecord) -> Unit
 ) {
-    val filtered = remember(usersList, globalSearchQuery) {
-        if (globalSearchQuery.isBlank()) usersList
-        else usersList.filter {
-            it.name.contains(globalSearchQuery, true) ||
-                it.phone.contains(globalSearchQuery, true) ||
-                it.email.contains(globalSearchQuery, true) ||
-                it.area.contains(globalSearchQuery, true) ||
-                it.role.contains(globalSearchQuery, true)
+    var selectedStateChip by remember { mutableStateOf("All States") }
+    val stateOptions = remember(usersList) {
+        listOf("All States") + usersList.map { it.stateName }.distinct()
+    }
+
+    val filtered = remember(usersList, globalSearchQuery, selectedStateChip) {
+        usersList.filter { u ->
+            val matchState = selectedStateChip == "All States" || u.stateName.equals(selectedStateChip, true)
+            val matchSearch = globalSearchQuery.isBlank() ||
+                u.name.contains(globalSearchQuery, true) ||
+                u.phone.contains(globalSearchQuery, true) ||
+                u.email.contains(globalSearchQuery, true) ||
+                u.area.contains(globalSearchQuery, true) ||
+                u.stateName.contains(globalSearchQuery, true) ||
+                u.role.contains(globalSearchQuery, true)
+            matchState && matchSearch
         }
     }
 
@@ -1783,9 +2226,36 @@ private fun AdminUsersPage(
         border = BorderStroke(1.dp, AdminBorder)
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("$title (${filtered.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("$title (${filtered.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
 
-            // Full-Width Table Header
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    stateOptions.forEach { st ->
+                        val isSelected = selectedStateChip == st
+                        Surface(
+                            color = if (isSelected) AdminPrimaryNavy else AdminNeutralGrayBg,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.clickable { selectedStateChip = st }
+                        ) {
+                            Text(
+                                text = st,
+                                color = if (isSelected) AdminWhite else AdminMainText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1793,11 +2263,11 @@ private fun AdminUsersPage(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Name", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Phone Number", modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Email", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Name", modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Phone Number", modifier = Modifier.weight(1.2f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("State", modifier = Modifier.weight(1.2f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Area / City", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Role", modifier = Modifier.weight(0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Area", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Status", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Actions", modifier = Modifier.weight(1.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             }
@@ -1809,15 +2279,15 @@ private fun AdminUsersPage(
                         .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1.4f), verticalAlignment = Alignment.CenterVertically) {
                         AdminMiniAvatar(u.name, Color(0xFFDBEAFE), AdminPrimaryNavy)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(u.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Text(u.phone, modifier = Modifier.weight(1.3f), fontSize = 12.sp, color = AdminMainText, maxLines = 1)
-                    Text(u.email, modifier = Modifier.weight(1.5f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(u.role, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText)
+                    Text(u.phone, modifier = Modifier.weight(1.2f), fontSize = 12.sp, color = AdminMainText, maxLines = 1)
+                    Text(u.stateName, modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AdminPrimaryNavy, maxLines = 1)
                     Text(u.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
+                    Text(u.role, modifier = Modifier.weight(0.8f), fontSize = 12.sp, color = AdminSecondaryText)
                     Box(modifier = Modifier.weight(0.9f)) {
                         AdminStatusBadge(u.status)
                     }
@@ -1857,6 +2327,7 @@ private fun AdminWorkersPage(
             it.name.contains(globalSearchQuery, true) ||
                 it.category.contains(globalSearchQuery, true) ||
                 it.area.contains(globalSearchQuery, true) ||
+                it.stateName.contains(globalSearchQuery, true) ||
                 it.phone.contains(globalSearchQuery, true)
         }
     }
@@ -1877,12 +2348,12 @@ private fun AdminWorkersPage(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Worker Name", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Worker Name", modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Category", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Area", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("State", modifier = Modifier.weight(1.1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+                Text("Area", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Rate", modifier = Modifier.weight(0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Availability", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
-                Text("Status", modifier = Modifier.weight(0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
                 Text("Actions", modifier = Modifier.weight(2f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             }
 
@@ -1893,19 +2364,17 @@ private fun AdminWorkersPage(
                         .padding(horizontal = 12.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1.4f), verticalAlignment = Alignment.CenterVertically) {
                         AdminMiniAvatar(w.name, Color(0xFFFEF3C7), AdminWarningOrange)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(w.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminMainText, maxLines = 1)
                     }
                     Text(w.category, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
-                    Text(w.area, modifier = Modifier.weight(1f), fontSize = 12.sp, color = AdminSecondaryText)
+                    Text(w.stateName, modifier = Modifier.weight(1.1f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AdminPrimaryNavy, maxLines = 1)
+                    Text(w.area, modifier = Modifier.weight(0.9f), fontSize = 12.sp, color = AdminSecondaryText, maxLines = 1)
                     Text("₹${w.dailyRate}/day", modifier = Modifier.weight(0.8f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AdminMainText)
                     Box(modifier = Modifier.weight(1f)) {
                         AdminStatusBadge(w.availability)
-                    }
-                    Box(modifier = Modifier.weight(0.9f)) {
-                        AdminStatusBadge(w.status)
                     }
                     Row(
                         modifier = Modifier.weight(2f),
@@ -2044,7 +2513,8 @@ private fun AdminCategoriesPage(
 @Composable
 private fun AdminReportsPage(
     usersList: List<AdminUserRecord>,
-    bookingsList: List<AdminBookingRecord>
+    bookingsList: List<AdminBookingRecord>,
+    stateRules: List<AdminStateAreaRule>
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2053,15 +2523,14 @@ private fun AdminReportsPage(
         border = BorderStroke(1.dp, AdminBorder)
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Reports", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
+            Text("Reports & State Analytics", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AdminMainText)
             AdminDetailRow("Total users", usersList.size.coerceAtLeast(1250).toString())
             AdminDetailRow("Total workers", usersList.count { it.role == "Worker" }.coerceAtLeast(820).toString())
             AdminDetailRow("Total customers", usersList.count { it.role == "Customer" }.coerceAtLeast(430).toString())
             AdminDetailRow("Total bookings", bookingsList.size.coerceAtLeast(1540).toString())
-            AdminDetailRow("Completed bookings", bookingsList.count { it.status == "COMPLETED" }.coerceAtLeast(980).toString())
-            AdminDetailRow("Cancelled bookings", bookingsList.count { it.status == "CANCELLED" }.coerceAtLeast(45).toString())
+            AdminDetailRow("Active States / Areas", stateRules.count { it.isServiceEnabled }.toString())
+            AdminDetailRow("Disabled States / Areas", stateRules.count { !it.isServiceEnabled }.toString())
             AdminDetailRow("Average worker rating", "4.8 ★")
-            AdminDetailRow("Available workers", "56")
         }
     }
 }
@@ -2215,7 +2684,7 @@ private fun AdminStatusBadge(status: String) {
         "ACTIVE", "AVAILABLE", "COMPLETED" -> Pair(AdminSuccessBg, AdminSuccessGreen)
         "ACCEPTED", "IN_PROGRESS" -> Pair(AdminInfoBg, AdminInfoBlue)
         "PENDING", "BUSY" -> Pair(AdminWarningBg, AdminWarningOrange)
-        "BLOCKED", "REJECTED", "CANCELLED" -> Pair(AdminDangerBg, AdminDangerRed)
+        "BLOCKED", "REJECTED", "CANCELLED", "DISABLED" -> Pair(AdminDangerBg, AdminDangerRed)
         else -> Pair(AdminNeutralGrayBg, AdminSecondaryText)
     }
     Surface(color = bg, shape = RoundedCornerShape(50)) {
@@ -2263,14 +2732,29 @@ private fun AdminHelmetLogo(size: Dp = 40.dp) {
 // ==================================================
 // FIREBASE REALTIME DATABASE SYNC
 // ==================================================
+private fun syncDisabledAreasPrefs(
+    settingsPrefs: android.content.SharedPreferences,
+    rules: List<AdminStateAreaRule>
+) {
+    val disabledTokens = rules
+        .filter { !it.isServiceEnabled }
+        .flatMap { r ->
+            listOf(r.stateName) + r.areaKeywords.split(",").map { it.trim() }
+        }
+        .filter { it.isNotBlank() }
+        .joinToString("|")
+    settingsPrefs.edit().putString("disabled_state_areas", disabledTokens).apply()
+}
+
 private fun loadAdminDataFromFirebase(
-    onLoaded: (List<AdminUserRecord>, List<AdminBookingRecord>, List<AdminCategoryRecord>) -> Unit,
+    onLoaded: (List<AdminUserRecord>, List<AdminBookingRecord>, List<AdminCategoryRecord>, List<AdminStateAreaRule>) -> Unit,
     onError: (String) -> Unit
 ) {
     Thread {
         val users = mutableListOf<AdminUserRecord>()
         val bookings = mutableListOf<AdminBookingRecord>()
         val categories = mutableListOf<AdminCategoryRecord>()
+        val stateRules = mutableListOf<AdminStateAreaRule>()
 
         try {
             val usersConn = URL("$ADMIN_FB_URL/users.json").openConnection() as HttpURLConnection
@@ -2286,6 +2770,8 @@ private fun loadAdminDataFromFirebase(
                         val obj = root.optJSONObject(k) ?: continue
                         val roleRaw = obj.optString("role", "Customer")
                         val roleClean = if (roleRaw.contains("LABOUR", true) || roleRaw.contains("Worker", true)) "Worker" else "Customer"
+                        val areaStr = obj.optString("location", "Silwani, Raisen")
+                        val stateStr = inferStateFromArea(areaStr, obj.optString("state", ""))
                         users.add(
                             AdminUserRecord(
                                 key = k,
@@ -2293,7 +2779,8 @@ private fun loadAdminDataFromFirebase(
                                 phone = obj.optString("phone", "+91 98765 43210"),
                                 email = obj.optString("email", k.replace("_at_", "@")),
                                 role = roleClean,
-                                area = obj.optString("location", "Silwani"),
+                                area = areaStr,
+                                stateName = stateStr,
                                 status = obj.optString("status", "Active"),
                                 joined = obj.optString("joined", "2 Nov 2024"),
                                 category = obj.optString("skill", "Electrician"),
@@ -2343,14 +2830,38 @@ private fun loadAdminDataFromFirebase(
                 }
             }
             jobsConn.disconnect()
+
+            val areaConn = URL("$ADMIN_FB_URL/area_controls.json").openConnection() as HttpURLConnection
+            areaConn.requestMethod = "GET"
+            areaConn.connectTimeout = 5000
+            if (areaConn.responseCode == 200) {
+                val resp = BufferedReader(InputStreamReader(areaConn.inputStream)).use { it.readText() }
+                if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
+                    val root = JSONObject(resp)
+                    val keys = root.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val obj = root.optJSONObject(k) ?: continue
+                        stateRules.add(
+                            AdminStateAreaRule(
+                                id = obj.optString("id", k),
+                                stateName = obj.optString("stateName", "Madhya Pradesh"),
+                                areaKeywords = obj.optString("areaKeywords", "Silwani, Raisen, Bhopal"),
+                                isServiceEnabled = obj.optBoolean("isServiceEnabled", true)
+                            )
+                        )
+                    }
+                }
+            }
+            areaConn.disconnect()
         } catch (_: Exception) {
         }
 
         val defaultUsers = listOf(
-            AdminUserRecord("u1", "Amit Sharma", "+91 98765 43210", "amit@workora.com", "Customer", "Delhi", "Active", "2 Nov 2024"),
-            AdminUserRecord("u2", "Ramesh Kumar", "+91 87654 32109", "ramesh@workora.com", "Worker", "Delhi", "Active", "2 Nov 2024", "Electrician", "5 yrs", 700, "Available"),
-            AdminUserRecord("u3", "Pooja Verma", "+91 76543 21098", "pooja@workora.com", "Customer", "Noida", "Active", "31 Oct 2024"),
-            AdminUserRecord("u4", "Mahesh Singh", "+91 65432 10987", "mahesh@workora.com", "Worker", "Delhi", "Active", "30 Oct 2024", "Mason", "6 yrs", 750, "Available")
+            AdminUserRecord("u1", "Amit Sharma", "+91 98765 43210", "amit@workora.com", "Customer", "Delhi", "Delhi NCR", "Active", "2 Nov 2024"),
+            AdminUserRecord("u2", "Ramesh Kumar", "+91 87654 32109", "ramesh@workora.com", "Worker", "Silwani, Raisen", "Madhya Pradesh", "Active", "2 Nov 2024", "Electrician", "5 yrs", 700, "Available"),
+            AdminUserRecord("u3", "Pooja Verma", "+91 76543 21098", "pooja@workora.com", "Customer", "Noida", "Uttar Pradesh", "Active", "31 Oct 2024"),
+            AdminUserRecord("u4", "Mahesh Singh", "+91 65432 10987", "mahesh@workora.com", "Worker", "Bhopal", "Madhya Pradesh", "Active", "30 Oct 2024", "Mason", "6 yrs", 750, "Available")
         )
         if (users.size < 4) {
             users.addAll(defaultUsers)
@@ -2358,13 +2869,26 @@ private fun loadAdminDataFromFirebase(
 
         val defaultBookings = listOf(
             AdminBookingRecord("BK001", "Amit Sharma", "+91 98765 43210", "Ramesh Kumar", "+91 87654 32109", "Electrician", "Delhi", "2 Nov 2024", "09:00 AM", 2, 700, "Wiring work", "", "PENDING", "2 Nov 2024", "2 Nov 2024"),
-            AdminBookingRecord("BK002", "Pooja Verma", "+91 76543 21098", "Suresh Yadav", "+91 81234 56789", "Painter", "Delhi", "1 Nov 2024", "10:00 AM", 3, 650, "Wall painting", "", "ACCEPTED", "1 Nov 2024", "1 Nov 2024"),
-            AdminBookingRecord("BK003", "Rajesh Patel", "+91 91234 56780", "Mahesh Singh", "+91 65432 10987", "Mason", "Delhi", "31 Oct 2024", "08:30 AM", 4, 750, "Plastering", "", "COMPLETED", "31 Oct 2024", "31 Oct 2024"),
+            AdminBookingRecord("BK002", "Pooja Verma", "+91 76543 21098", "Suresh Yadav", "+91 81234 56789", "Painter", "Silwani", "1 Nov 2024", "10:00 AM", 3, 650, "Wall painting", "", "ACCEPTED", "1 Nov 2024", "1 Nov 2024"),
+            AdminBookingRecord("BK003", "Rajesh Patel", "+91 91234 56780", "Mahesh Singh", "+91 65432 10987", "Mason", "Bhopal", "31 Oct 2024", "08:30 AM", 4, 750, "Plastering", "", "COMPLETED", "31 Oct 2024", "31 Oct 2024"),
             AdminBookingRecord("BK004", "Neha Gupta", "+91 99887 76655", "Sanjay Kumar", "+91 70001 12233", "Carpenter", "Noida", "30 Oct 2024", "11:00 AM", 1, 600, "Door repair", "", "CANCELLED", "30 Oct 2024", "30 Oct 2024"),
             AdminBookingRecord("BK005", "Vikash Singh", "+91 94455 66778", "Pooja Verma", "+91 76543 21098", "Cleaner", "Delhi", "29 Oct 2024", "09:30 AM", 1, 500, "House cleaning", "", "IN_PROGRESS", "29 Oct 2024", "29 Oct 2024")
         )
         if (bookings.size < 5) {
             bookings.addAll(defaultBookings)
+        }
+
+        if (stateRules.isEmpty()) {
+            stateRules.addAll(
+                listOf(
+                    AdminStateAreaRule("state_mp", "Madhya Pradesh", "Silwani, Raisen, Bhopal, Indore, Sagar, Vidisha, MP", true),
+                    AdminStateAreaRule("state_delhi", "Delhi NCR", "Delhi, New Delhi, Gurgaon, Faridabad", true),
+                    AdminStateAreaRule("state_up", "Uttar Pradesh", "Noida, Lucknow, Kanpur, Agra, Varanasi, UP", true),
+                    AdminStateAreaRule("state_mh", "Maharashtra", "Mumbai, Pune, Nagpur, Nashik", true),
+                    AdminStateAreaRule("state_rj", "Rajasthan", "Jaipur, Kota, Udaipur, Jodhpur", true),
+                    AdminStateAreaRule("state_gj", "Gujarat", "Ahmedabad, Surat, Vadodara", true)
+                )
+            )
         }
 
         categories.addAll(
@@ -2383,7 +2907,42 @@ private fun loadAdminDataFromFirebase(
         )
 
         Handler(Looper.getMainLooper()).post {
-            onLoaded(users, bookings, categories)
+            onLoaded(users, bookings, categories, stateRules)
+        }
+    }.start()
+}
+
+private fun saveStateAreaRuleToFirebase(rule: AdminStateAreaRule) {
+    Thread {
+        try {
+            val url = URL("$ADMIN_FB_URL/area_controls/${rule.id}.json")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "PUT"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            val payload = JSONObject().apply {
+                put("id", rule.id)
+                put("stateName", rule.stateName)
+                put("areaKeywords", rule.areaKeywords)
+                put("isServiceEnabled", rule.isServiceEnabled)
+            }
+            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
+            conn.responseCode
+            conn.disconnect()
+        } catch (_: Exception) {
+        }
+    }.start()
+}
+
+private fun deleteStateAreaRuleFromFirebase(ruleId: String) {
+    Thread {
+        try {
+            val url = URL("$ADMIN_FB_URL/area_controls/$ruleId.json")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "DELETE"
+            conn.responseCode
+            conn.disconnect()
+        } catch (_: Exception) {
         }
     }.start()
 }
@@ -2419,6 +2978,7 @@ private fun saveUserEditToFirebase(user: AdminUserRecord) {
             val payload = JSONObject().apply {
                 put("name", user.name)
                 put("phone", user.phone)
+                put("state", user.stateName)
                 put("location", user.area)
                 put("skill", user.category)
                 put("dailyRate", user.dailyRate)
