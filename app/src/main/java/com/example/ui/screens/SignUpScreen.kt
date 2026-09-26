@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,14 +60,35 @@ fun SignUpScreen(
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
 
+    // Role pre-selected from "What do you want to do?" page, user can also switch here
+    var selectedRole by remember {
+        val initial = authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER"
+        mutableStateOf(if (initial.equals("LABOUR", true) || initial.equals("Worker", true)) "LABOUR" else "CUSTOMER")
+    }
+    val isWorkerRole = selectedRole == "LABOUR"
+
+    // ALL registration fields start completely empty (NO automatic dummy data)
     var fullName by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var emailAddress by remember { mutableStateOf("") }
-    var areaLocation by remember { mutableStateOf("Silwani, Raisen") }
+    var stateName by remember { mutableStateOf("") }
+    var areaLocation by remember { mutableStateOf("") }
+
+    // Worker-specific mandatory fields (empty by default)
+    var workerCategory by remember { mutableStateOf("") }
+    var workerExperienceYears by remember { mutableStateOf("") }
+    var workerDailyRate by remember { mutableStateOf("") }
+
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isRegistering by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val availableCategories = listOf(
+        "Mason", "General Labour", "Painter", "Electrician",
+        "Plumber", "Carpenter", "Cleaner", "Farm Worker", "Tile Worker"
+    )
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = SignUpMainText,
@@ -82,11 +104,10 @@ fun SignUpScreen(
             .fillMaxSize()
             .background(SignUpBgLight)
     ) {
-        // Bottom Navy & Orange Wave Design
         SignUpBottomWaveCanvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(190.dp)
+                .height(180.dp)
                 .align(Alignment.BottomCenter)
         )
 
@@ -96,37 +117,34 @@ fun SignUpScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // Top Workora Orange Hard-Hat Logo
-            SignUpScreenHelmetLogo(size = 78.dp)
+            SignUpScreenHelmetLogo(size = 72.dp)
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = "Workora",
-                fontSize = 32.sp,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = SignUpNavyPrimary,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(2.dp))
-
             Text(
                 text = "Find. Hire. Work.",
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = SignUpMainText,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Login | Register Tab Bar (Register Active)
+            // Login | Register Tab Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -153,9 +171,7 @@ fun SignUpScreen(
                 }
 
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { /* Active Tab */ },
+                    modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -174,9 +190,9 @@ fun SignUpScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // White Registration Form Card
+            // Complete Registration Form Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -187,23 +203,99 @@ fun SignUpScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Text(
+                        text = "Select Account Type *",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SignUpMainText
+                    )
+
+                    // Role Selector (Customer vs Worker)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            color = if (!isWorkerRole) SignUpNavyPrimary else SignUpBgLight,
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, if (!isWorkerRole) SignUpNavyPrimary else SignUpBorderColor),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    selectedRole = "CUSTOMER"
+                                    authPrefs.edit().putString("saved_user_role", "CUSTOMER").apply()
+                                    errorMessage = null
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = if (!isWorkerRole) SignUpWhite else SignUpMainText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Customer (Hire)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (!isWorkerRole) SignUpWhite else SignUpMainText
+                                )
+                            }
+                        }
+
+                        Surface(
+                            color = if (isWorkerRole) SignUpOrangeAccent else SignUpBgLight,
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, if (isWorkerRole) SignUpOrangeAccent else SignUpBorderColor),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    selectedRole = "LABOUR"
+                                    authPrefs.edit().putString("saved_user_role", "LABOUR").apply()
+                                    errorMessage = null
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Construction,
+                                    contentDescription = null,
+                                    tint = if (isWorkerRole) SignUpWhite else SignUpMainText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Worker (Work)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isWorkerRole) SignUpWhite else SignUpMainText
+                                )
+                            }
+                        }
+                    }
+
+                    // 1. Full Name
                     OutlinedTextField(
                         value = fullName,
                         onValueChange = {
                             fullName = it
                             errorMessage = null
                         },
-                        placeholder = { Text("Full Name", color = SignUpSecondaryText, fontSize = 14.sp) },
+                        label = { Text("Full Name *") },
+                        placeholder = { Text("Enter your full name", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Person,
-                                contentDescription = "Full Name",
-                                tint = SignUpSecondaryText,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Outlined.Person, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -211,22 +303,17 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // 2. Phone Number (10 digits)
                     OutlinedTextField(
                         value = phoneNumber,
-                        onValueChange = {
-                            phoneNumber = it
+                        onValueChange = { input ->
+                            phoneNumber = input.filter { it.isDigit() || it == '+' }.take(13)
                             errorMessage = null
                         },
-                        placeholder = { Text("Phone Number", color = SignUpSecondaryText, fontSize = 14.sp) },
+                        label = { Text("Phone Number *") },
+                        placeholder = { Text("Enter 10-digit mobile number", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Phone,
-                                contentDescription = "Phone Number",
-                                tint = SignUpSecondaryText,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Outlined.Phone, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -235,22 +322,17 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // 3. Email Address
                     OutlinedTextField(
                         value = emailAddress,
                         onValueChange = {
                             emailAddress = it
                             errorMessage = null
                         },
-                        placeholder = { Text("Email Address", color = SignUpSecondaryText, fontSize = 14.sp) },
+                        label = { Text("Email Address *") },
+                        placeholder = { Text("Enter your email address", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Email,
-                                contentDescription = "Email",
-                                tint = SignUpSecondaryText,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Outlined.Email, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -259,22 +341,17 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // 4. State Name
                     OutlinedTextField(
-                        value = areaLocation,
+                        value = stateName,
                         onValueChange = {
-                            areaLocation = it
+                            stateName = it
                             errorMessage = null
                         },
-                        placeholder = { Text("City / Area / State", color = SignUpSecondaryText, fontSize = 14.sp) },
+                        label = { Text("State (राज्य) *") },
+                        placeholder = { Text("e.g. Madhya Pradesh, Delhi, UP", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.LocationOn,
-                                contentDescription = "Location",
-                                tint = SignUpSecondaryText,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Outlined.Map, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -282,22 +359,133 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    // 5. City / Area / Village
+                    OutlinedTextField(
+                        value = areaLocation,
+                        onValueChange = {
+                            areaLocation = it
+                            errorMessage = null
+                        },
+                        label = { Text("City / Area / Village (शहर / गाँव) *") },
+                        placeholder = { Text("Enter your city, tehsil or area", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
+                    // 6. WORKER SPECIFIC MANDATORY DETAILS (Category, Experience, Daily Rate)
+                    if (isWorkerRole) {
+                        HorizontalDivider(color = SignUpBorderColor)
+
+                        Text(
+                            text = "Worker Work Details (काम की जानकारी) *",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SignUpNavyPrimary
+                        )
+
+                        Text(
+                            text = "Tap to select your Category / Skill or type below:",
+                            fontSize = 11.sp,
+                            color = SignUpSecondaryText
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            availableCategories.forEach { cat ->
+                                val isSelected = workerCategory.equals(cat, ignoreCase = true)
+                                Surface(
+                                    color = if (isSelected) SignUpNavyPrimary else SignUpBgLight,
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, if (isSelected) SignUpNavyPrimary else SignUpBorderColor),
+                                    modifier = Modifier.clickable {
+                                        workerCategory = cat
+                                        errorMessage = null
+                                    }
+                                ) {
+                                    Text(
+                                        text = cat,
+                                        color = if (isSelected) SignUpWhite else SignUpMainText,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = workerCategory,
+                            onValueChange = {
+                                workerCategory = it
+                                errorMessage = null
+                            },
+                            label = { Text("Work Category / Skill (काम की श्रेणी) *") },
+                            placeholder = { Text("Select above or type your skill", color = SignUpSecondaryText, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Construction, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = fieldColors,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = workerExperienceYears,
+                                onValueChange = { input ->
+                                    workerExperienceYears = input.filter { it.isDigit() }.take(2)
+                                    errorMessage = null
+                                },
+                                label = { Text("Experience (Yrs) *") },
+                                placeholder = { Text("e.g. 3", color = SignUpSecondaryText, fontSize = 13.sp) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = fieldColors,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            OutlinedTextField(
+                                value = workerDailyRate,
+                                onValueChange = { input ->
+                                    workerDailyRate = input.filter { it.isDigit() }.take(5)
+                                    errorMessage = null
+                                },
+                                label = { Text("Daily Rate (₹) *") },
+                                placeholder = { Text("e.g. 500", color = SignUpSecondaryText, fontSize = 13.sp) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = fieldColors,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // 7. Password & Confirm Password
                     OutlinedTextField(
                         value = password,
                         onValueChange = {
                             password = it
                             errorMessage = null
                         },
-                        placeholder = { Text("Password", color = SignUpSecondaryText, fontSize = 14.sp) },
+                        label = { Text("Create Password *") },
+                        placeholder = { Text("Minimum 6 characters", color = SignUpSecondaryText, fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Lock,
-                                contentDescription = "Password",
-                                tint = SignUpSecondaryText,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
                         },
                         trailingIcon = {
                             IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
@@ -317,50 +505,105 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = {
+                            confirmPassword = it
+                            errorMessage = null
+                        },
+                        label = { Text("Confirm Password *") },
+                        placeholder = { Text("Re-enter your password", color = SignUpSecondaryText, fontSize = 13.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Lock, contentDescription = null, tint = SignUpSecondaryText, modifier = Modifier.size(20.dp))
+                        },
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     if (!errorMessage.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = errorMessage!!,
                             color = SignUpDangerRed,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
+                    // Strict Validation before Registration
                     Button(
                         onClick = {
                             val cleanName = fullName.trim()
                             val cleanPhone = phoneNumber.trim()
-                            val cleanEmail = emailAddress.trim().ifEmpty { cleanPhone }
-                            val cleanArea = areaLocation.trim().ifEmpty { "Silwani, Raisen" }
+                            val digitsInPhone = cleanPhone.filter { it.isDigit() }
+                            val cleanEmail = emailAddress.trim().lowercase(Locale.US)
+                            val cleanState = stateName.trim()
+                            val cleanArea = areaLocation.trim()
+                            val cleanCategory = workerCategory.trim()
+                            val cleanExp = workerExperienceYears.trim()
+                            val cleanRate = workerDailyRate.trim()
                             val cleanPass = password.trim()
+                            val cleanConfirm = confirmPassword.trim()
 
                             when {
                                 cleanName.isEmpty() -> {
-                                    errorMessage = "Please enter your Full Name"
+                                    errorMessage = "कृपया अपना पूरा नाम (Full Name) भरें।"
                                 }
-                                cleanPhone.length < 10 -> {
-                                    errorMessage = "Please enter a valid 10-digit Phone Number"
+                                digitsInPhone.length < 10 -> {
+                                    errorMessage = "कृपया सही 10 अंकों का मोबाइल नंबर (Phone Number) भरें।"
+                                }
+                                cleanEmail.isEmpty() || !cleanEmail.contains("@") -> {
+                                    errorMessage = "कृपया अपना सही ईमेल पता (Email Address) भरें।"
+                                }
+                                cleanState.isEmpty() -> {
+                                    errorMessage = "कृपया अपने राज्य का नाम (State) भरें।"
+                                }
+                                cleanArea.isEmpty() -> {
+                                    errorMessage = "कृपया अपने शहर / गाँव / एरिया (City / Area) का नाम भरें।"
+                                }
+                                isWorkerRole && cleanCategory.isEmpty() -> {
+                                    errorMessage = "कृपया अपने काम की श्रेणी (Work Category / Skill) चुनें या लिखें।"
+                                }
+                                isWorkerRole && cleanExp.isEmpty() -> {
+                                    errorMessage = "कृपया अपना काम का अनुभव (Experience in Years) भरें।"
+                                }
+                                isWorkerRole && (cleanRate.isEmpty() || (cleanRate.toIntOrNull() ?: 0) <= 0) -> {
+                                    errorMessage = "कृपया अपनी प्रतिदिन की मजदूरी (Daily Rate ₹) भरें।"
                                 }
                                 cleanPass.length < 6 -> {
-                                    errorMessage = "Password must be at least 6 characters"
+                                    errorMessage = "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
+                                }
+                                cleanPass != cleanConfirm -> {
+                                    errorMessage = "दोनों पासवर्ड एक समान नहीं हैं (Passwords do not match)।"
                                 }
                                 else -> {
                                     isRegistering = true
-                                    val chosenRole = authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER"
+                                    val formattedExp = if (isWorkerRole) "$cleanExp yrs" else ""
+                                    val parsedRate = if (isWorkerRole) (cleanRate.toIntOrNull() ?: 0) else 0
+                                    val finalSkill = if (isWorkerRole) cleanCategory else "Customer"
 
+                                    // Save exact user-provided values to SharedPreferences (no dummy data)
                                     profilePrefs.edit()
                                         .putString("user_name", cleanName)
                                         .putString("user_phone", cleanPhone)
+                                        .putString("user_state", cleanState)
                                         .putString("user_location", cleanArea)
+                                        .putString("user_skill", finalSkill)
+                                        .putString("user_experience", formattedExp)
+                                        .putString("user_rate", if (parsedRate > 0) parsedRate.toString() else "")
                                         .apply()
 
                                     authPrefs.edit()
                                         .putBoolean("is_logged_in", true)
                                         .putString("last_logged_in_email", cleanEmail)
+                                        .putString("saved_user_role", selectedRole)
                                         .putString("saved_password_$cleanEmail", cleanPass)
                                         .apply()
 
@@ -368,12 +611,16 @@ fun SignUpScreen(
                                         name = cleanName,
                                         phone = cleanPhone,
                                         email = cleanEmail,
+                                        state = cleanState,
                                         area = cleanArea,
-                                        role = chosenRole,
+                                        role = selectedRole,
+                                        skill = finalSkill,
+                                        experience = formattedExp,
+                                        dailyRate = parsedRate,
                                         password = cleanPass
                                     ) {
                                         isRegistering = false
-                                        Toast.makeText(context, "Account created successfully! ✓", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Registration Successful! ✓", Toast.LENGTH_SHORT).show()
                                         onSignUp(cleanName, cleanEmail, cleanPhone, cleanPass)
                                     }
                                 }
@@ -396,15 +643,14 @@ fun SignUpScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Creating Account...", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("Saving Your Details...", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         } else {
-                            Text("Register", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("Complete Registration", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -424,13 +670,13 @@ fun SignUpScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(180.dp))
+            Spacer(modifier = Modifier.height(170.dp))
         }
     }
 }
 
 @Composable
-private fun SignUpScreenHelmetLogo(size: Dp = 78.dp) {
+private fun SignUpScreenHelmetLogo(size: Dp = 72.dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -525,8 +771,12 @@ private fun registerNewUserToFirebase(
     name: String,
     phone: String,
     email: String,
+    state: String,
     area: String,
     role: String,
+    skill: String,
+    experience: String,
+    dailyRate: Int,
     password: String,
     onDone: () -> Unit
 ) {
@@ -542,8 +792,14 @@ private fun registerNewUserToFirebase(
                 put("name", name)
                 put("phone", phone)
                 put("email", email)
+                put("state", state)
                 put("location", area)
                 put("role", if (role.equals("LABOUR", true)) "Worker" else "Customer")
+                put("skill", skill)
+                put("experience", experience)
+                put("dailyRate", dailyRate)
+                put("rating", 0.0)
+                put("bookingsCount", 0)
                 put("password", password)
                 put("status", "Active")
                 put("availability", "Available")
