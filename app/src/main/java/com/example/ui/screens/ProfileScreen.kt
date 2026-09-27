@@ -17,6 +17,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +70,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -88,6 +90,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -107,6 +110,94 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
+
+// =========================================================================
+// GLOBAL APP THEME MANAGER (CONTROLS ENTIRE APP FROM ONE PLACE)
+// Default Mode = "System" (Follows Phone's Default System Light/Dark Mode)
+// Options = "System" (Default) | "Light" | "Dark"
+// =========================================================================
+object WorkoraThemeManager {
+    private const val SETTINGS_PREFS = "workora_app_settings"
+    private const val KEY_THEME_MODE = "app_theme_mode"
+
+    var currentMode by mutableStateOf("System")
+        private set
+
+    private var isInitialized = false
+
+    fun syncFromPrefs(context: Context): String {
+        val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+        // Normal default is strictly "System"
+        val saved = prefs.getString(KEY_THEME_MODE, "System") ?: "System"
+        val validMode = if (saved in listOf("System", "Light", "Dark")) saved else "System"
+        if (!isInitialized || currentMode != validMode) {
+            currentMode = validMode
+            isInitialized = true
+        }
+        return currentMode
+    }
+
+    fun setThemeMode(context: Context, mode: String) {
+        val validMode = if (mode in listOf("System", "Light", "Dark")) mode else "System"
+        currentMode = validMode
+        isInitialized = true
+        context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_THEME_MODE, validMode)
+            .apply()
+    }
+
+    fun cycleNextThemeMode(context: Context): String {
+        val next = when (currentMode) {
+            "System" -> "Light"
+            "Light" -> "Dark"
+            else -> "System"
+        }
+        setThemeMode(context, next)
+        return next
+    }
+
+    @Composable
+    fun isDark(context: Context? = null): Boolean {
+        if (context != null) {
+            syncFromPrefs(context)
+        }
+        val sysDark = isSystemInDarkTheme()
+        return when (currentMode) {
+            "Dark" -> true
+            "Light" -> false
+            else -> sysDark // "System" Default Mode
+        }
+    }
+
+    @Composable
+    fun bgColor(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFF0B1120) else Color(0xFFF8FAFC)
+
+    @Composable
+    fun surfaceColor(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFF1E293B) else Color.White
+
+    @Composable
+    fun subtleSurfaceColor(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFF0F172A) else Color(0xFFF1F5F9)
+
+    @Composable
+    fun textPrimary(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFFF8FAFC) else Color(0xFF102A43)
+
+    @Composable
+    fun textSecondary(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFF94A3B8) else Color(0xFF667085)
+
+    @Composable
+    fun borderColor(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFF334155) else Color(0xFFE5E7EB)
+
+    @Composable
+    fun accentBlue(context: Context? = null): Color =
+        if (isDark(context)) Color(0xFF60A5FA) else Color(0xFF083D91)
+}
 
 private fun decodeBase64ToBitmap(base64Str: String): ImageBitmap? {
     if (base64Str.isBlank()) return null
@@ -333,9 +424,12 @@ fun LiveLocationAutoCompleteField(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val deepNavy = Color(0xFF083D91)
+    val isDark = WorkoraThemeManager.isDark(context)
+    val deepNavy = WorkoraThemeManager.accentBlue(context)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF102A43)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val cardBg = WorkoraThemeManager.surfaceColor(context)
+    val borderCol = WorkoraThemeManager.borderColor(context)
 
     val liveSuggestions = remember { mutableStateListOf<String>() }
     var isSearching by remember { mutableStateOf(false) }
@@ -393,6 +487,7 @@ fun LiveLocationAutoCompleteField(
             },
             label = { Text(label) },
             placeholder = { Text("Type any village, tehsil, city or district...") },
+            textStyle = TextStyle(color = textDark, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.LocationOn,
@@ -471,7 +566,13 @@ fun LiveLocationAutoCompleteField(
             },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = deepNavy,
+                unfocusedBorderColor = borderCol,
+                focusedContainerColor = cardBg,
+                unfocusedContainerColor = cardBg
+            )
         )
 
         if (isSearching) {
@@ -498,8 +599,10 @@ fun LiveLocationAutoCompleteField(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                border = BorderStroke(1.dp, Color(0xFFBAE6FD)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF0F9FF)
+                ),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFBAE6FD)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
             ) {
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -543,9 +646,13 @@ fun WorkoraLiveLocationModal(
     onLocationSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val deepNavy = Color(0xFF083D91)
+    val deepNavy = WorkoraThemeManager.accentBlue(context)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF102A43)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val surfaceCol = WorkoraThemeManager.surfaceColor(context)
+    val subtleBg = WorkoraThemeManager.subtleSurfaceColor(context)
+    val borderCol = WorkoraThemeManager.borderColor(context)
 
     var queryText by remember { mutableStateOf("") }
     val liveResults = remember { mutableStateListOf<String>() }
@@ -587,7 +694,7 @@ fun WorkoraLiveLocationModal(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = surfaceCol,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -604,11 +711,11 @@ fun WorkoraLiveLocationModal(
                     Text(
                         text = "Current: $currentLocation",
                         fontSize = 11.sp,
-                        color = Color(0xFF667085)
+                        color = textMuted
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
                 }
             }
         },
@@ -666,13 +773,14 @@ fun WorkoraLiveLocationModal(
                     value = queryText,
                     onValueChange = { queryText = it },
                     placeholder = { Text("Type village, tehsil, city or pin code...") },
+                    textStyle = TextStyle(color = textDark, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = null, tint = deepNavy)
                     },
                     trailingIcon = {
                         if (queryText.isNotEmpty()) {
                             IconButton(onClick = { queryText = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear")
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = textMuted)
                             }
                         }
                     },
@@ -705,8 +813,8 @@ fun WorkoraLiveLocationModal(
                                 onClick = { onLocationSelected(locName) },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                colors = CardDefaults.cardColors(containerColor = subtleBg),
+                                border = BorderStroke(1.dp, borderCol)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -744,7 +852,7 @@ fun WorkoraLiveLocationModal(
                     Text(
                         text = "Type at least 2 letters above to see live village, town & city suggestions.",
                         fontSize = 11.sp,
-                        color = Color(0xFF667085)
+                        color = textMuted
                     )
                 }
             }
@@ -771,12 +879,22 @@ fun ProfileScreen(
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
+    // Sync Global Theme State (Default = "System")
+    LaunchedEffect(Unit) {
+        WorkoraThemeManager.syncFromPrefs(context)
+    }
+    val appThemeMode = WorkoraThemeManager.currentMode
+    val isDark = WorkoraThemeManager.isDark(context)
+
     val navyColor = Color(0xFF083D91)
+    val accentBlue = WorkoraThemeManager.accentBlue(context)
     val orangeColor = Color(0xFFFF8C00)
-    val bgColor = Color(0xFFF8FAFC)
-    val textDark = Color(0xFF102A43)
-    val textMuted = Color(0xFF667085)
-    val borderColor = Color(0xFFE5E7EB)
+    val bgColor = WorkoraThemeManager.bgColor(context)
+    val cardColor = WorkoraThemeManager.surfaceColor(context)
+    val subtleBgColor = WorkoraThemeManager.subtleSurfaceColor(context)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val borderColor = WorkoraThemeManager.borderColor(context)
     val greenColor = Color(0xFF22A06B)
 
     var appLang by remember {
@@ -788,6 +906,14 @@ fun ProfileScreen(
             "Hindi" -> hi
             "Hinglish" -> hinglish
             else -> en
+        }
+    }
+
+    fun themeLabel(mode: String): String {
+        return when (mode) {
+            "Light" -> tr("लाइट (Light)", "Light", "Light")
+            "Dark" -> tr("डार्क (Dark)", "Dark", "Dark")
+            else -> tr("सिस्टम डिफ़ॉल्ट (System)", "System (Default)", "System (Default)")
         }
     }
 
@@ -837,9 +963,6 @@ fun ProfileScreen(
     var notificationsEnabled by remember {
         mutableStateOf(settingsPrefs.getBoolean("notifications_enabled", true))
     }
-    var appThemeMode by remember {
-        mutableStateOf(settingsPrefs.getString("app_theme_mode", "Light") ?: "Light")
-    }
     var dataUsageMode by remember {
         mutableStateOf(settingsPrefs.getString("data_usage_mode", "Standard") ?: "Standard")
     }
@@ -853,6 +976,7 @@ fun ProfileScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showLiveLocationModal by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
+    var showAdminSecurityGate by remember { mutableStateOf(false) }
     var activeInfoDialogTitle by remember { mutableStateOf<String?>(null) }
     var activeInfoDialogBody by remember { mutableStateOf("") }
     var activePhotoSlot by remember { mutableIntStateOf(0) }
@@ -908,7 +1032,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .background(navyColor)
+                .background(if (isDark) Color(0xFF0F172A) else navyColor)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -964,7 +1088,7 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
                 border = BorderStroke(1.dp, borderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
@@ -1051,7 +1175,7 @@ fun ProfileScreen(
                                     text = "$savedLocation (${tr("बदलें", "Change", "Change")})",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = navyColor
+                                    color = accentBlue
                                 )
                             }
 
@@ -1078,18 +1202,18 @@ fun ProfileScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(bgColor)
+                            .background(subtleBgColor)
                             .padding(vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("4.9 ★", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = navyColor)
+                            Text("4.9 ★", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = accentBlue)
                             Text(tr("रेटिंग", "Rating", "Rating"), fontSize = 11.sp, color = textMuted)
                         }
                         Box(modifier = Modifier.width(1.dp).height(28.dp).background(borderColor))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("₹$savedWage", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = navyColor)
+                            Text("₹$savedWage", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = accentBlue)
                             Text(tr("दिहाड़ी/दिन", "Daily Wage", "Daily Wage"), fontSize = 11.sp, color = textMuted)
                         }
                         Box(modifier = Modifier.width(1.dp).height(28.dp).background(borderColor))
@@ -1106,11 +1230,79 @@ fun ProfileScreen(
                 }
             }
 
+            // 🎨 ONE-PLACE GLOBAL APP THEME MODE CARD (System Default / Light / Dark)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                border = BorderStroke(1.dp, borderColor)
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = tr("🎨 ऐप थीम मोड (App Theme Mode)", "🎨 App Theme Mode", "🎨 App Theme Mode"),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = textDark
+                        )
+                        Text(
+                            text = themeLabel(appThemeMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = orangeColor
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "System" to tr("सिस्टम (Default)", "System", "System"),
+                            "Light" to tr("लाइट (Light)", "Light", "Light"),
+                            "Dark" to tr("डार्क (Dark)", "Dark", "Dark")
+                        ).forEach { (modeCode, modeLabel) ->
+                            val selected = appThemeMode == modeCode
+                            Button(
+                                onClick = {
+                                    WorkoraThemeManager.setThemeMode(context, modeCode)
+                                    Toast.makeText(
+                                        context,
+                                        "App Theme: ${themeLabel(modeCode)} ✓",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                modifier = Modifier.weight(1f).height(40.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selected) navyColor else subtleBgColor
+                                ),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = modeLabel,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selected) Color.White else textDark
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Language Selection Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
                 border = BorderStroke(1.dp, borderColor)
             ) {
                 Column(
@@ -1118,7 +1310,7 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = tr("ऐप की भाषा चुनें (App Language)", "App Language (भाषा चुनें)", "Select App Language"),
+                        text = tr("🌐 ऐप की भाषा चुनें (App Language)", "🌐 App Language", "🌐 Select App Language"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = textDark
@@ -1143,7 +1335,7 @@ fun ProfileScreen(
                                 modifier = Modifier.weight(1f).height(40.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selected) navyColor else bgColor
+                                    containerColor = if (selected) navyColor else subtleBgColor
                                 ),
                                 contentPadding = PaddingValues(0.dp)
                             ) {
@@ -1163,7 +1355,7 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
                 border = BorderStroke(1.dp, borderColor)
             ) {
                 Column(
@@ -1171,7 +1363,7 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = tr("काम की फ़ोटो (Work Proof Photos)", "Work Proof Photos (काम की फोटो)", "Work Proof Photos"),
+                        text = tr("काम की फ़ोटो (Work Proof Photos)", "Work Proof Photos", "Work Proof Photos"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = textDark
@@ -1192,7 +1384,7 @@ fun ProfileScreen(
                                     .weight(1f)
                                     .height(86.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(bgColor)
+                                    .background(subtleBgColor)
                                     .clickable {
                                         activePhotoSlot = slot
                                         imagePickerLauncher.launch("image/*")
@@ -1233,7 +1425,7 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
                 border = BorderStroke(1.dp, borderColor)
             ) {
                 Column(
@@ -1348,7 +1540,7 @@ fun ProfileScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 border = BorderStroke(1.dp, if (selected) orangeColor else borderColor),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (selected) Color(0xFFFFF0DE) else Color.White
+                                    containerColor = if (selected) orangeColor.copy(alpha = 0.15f) else cardColor
                                 ),
                                 contentPadding = PaddingValues(0.dp)
                             ) {
@@ -1364,12 +1556,12 @@ fun ProfileScreen(
                 }
             }
 
-            // ⚙️ Full Settings Tree (100% Translated for Hindi & English - Fixes Image 3!)
+            // ⚙️ Full Settings Tree (100% Connected to Live Theme & Language)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, if (isSettingsExpanded) navyColor else borderColor)
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                border = BorderStroke(1.dp, if (isSettingsExpanded) accentBlue else borderColor)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -1381,7 +1573,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Settings, contentDescription = null, tint = navyColor)
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = accentBlue)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
@@ -1404,7 +1596,7 @@ fun ProfileScreen(
                         Icon(
                             imageVector = if (isSettingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                             contentDescription = "Expand Settings",
-                            tint = navyColor
+                            tint = accentBlue
                         )
                     }
 
@@ -1412,31 +1604,47 @@ fun ProfileScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFF8FAFC))
+                                .background(subtleBgColor)
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            SettingsCategoryHeader(title = tr("+ अकाउंट (+ Account)", "+ Account", "+ Account"))
+                            SettingsCategoryHeader(title = tr("+ अकाउंट (+ Account)", "+ Account", "+ Account"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("👤 प्रोफाइल (Profile)", "👤 Profile", "👤 Profile"),
                                 valueText = savedName,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = { showEditProfileDialog = true }
                             )
                             SettingsTreeItem(
                                 label = tr("📱 मोबाइल नंबर (Phone Number)", "📱 Phone Number", "📱 Phone Number"),
                                 valueText = savedPhone,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = { showEditProfileDialog = true }
                             )
                             SettingsTreeItem(
                                 label = tr("🔐 पासवर्ड और सुरक्षा", "🔐 Password & Security", "🔐 Password & Security"),
                                 valueText = tr("पासवर्ड बदलें", "Change Password", "Change Password"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = { showPasswordDialog = true }
                             )
 
-                            SettingsCategoryHeader(title = tr("+ ऐप सेटिंग्स (+ App Settings)", "+ App Settings", "+ App Settings"))
+                            SettingsCategoryHeader(title = tr("+ ऐप सेटिंग्स (+ App Settings)", "+ App Settings", "+ App Settings"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("🌐 भाषा (Language)", "🌐 Language", "🌐 Language"),
                                 valueText = if (appLang == "Hindi") "हिन्दी" else "English",
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     appLang = if (appLang == "Hindi") "English" else "Hindi"
                                     settingsPrefs.edit().putString("app_language", appLang).apply()
@@ -1450,6 +1658,10 @@ fun ProfileScreen(
                             SettingsTreeItem(
                                 label = tr("🔔 नोटिफिकेशन (Notifications)", "🔔 Notifications", "🔔 Notifications"),
                                 valueText = if (notificationsEnabled) tr("चालू (ON)", "ON", "ON") else tr("बंद (OFF)", "OFF", "OFF"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     notificationsEnabled = !notificationsEnabled
                                     settingsPrefs.edit().putBoolean("notifications_enabled", notificationsEnabled).apply()
@@ -1457,34 +1669,50 @@ fun ProfileScreen(
                             )
                             SettingsTreeItem(
                                 label = tr("🎨 थीम (Theme)", "🎨 Theme", "🎨 Theme"),
-                                valueText = appThemeMode,
+                                valueText = themeLabel(appThemeMode),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
-                                    appThemeMode = when (appThemeMode) {
-                                        "Light" -> "Dark"
-                                        "Dark" -> "System"
-                                        else -> "Light"
-                                    }
-                                    settingsPrefs.edit().putString("app_theme_mode", appThemeMode).apply()
+                                    val newMode = WorkoraThemeManager.cycleNextThemeMode(context)
+                                    Toast.makeText(
+                                        context,
+                                        "App Theme: ${themeLabel(newMode)} ✓",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             )
                             SettingsTreeItem(
                                 label = tr("📍 लोकेशन और क्षेत्र", "📍 Location & Area", "📍 Location & Area"),
                                 valueText = savedLocation,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = { showLiveLocationModal = true }
                             )
                             SettingsTreeItem(
                                 label = tr("📶 डेटा उपयोग (Data Usage)", "📶 Data Usage", "📶 Data Usage"),
                                 valueText = dataUsageMode,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     dataUsageMode = if (dataUsageMode == "Standard") "Data Saver" else "Standard"
                                     settingsPrefs.edit().putString("data_usage_mode", dataUsageMode).apply()
                                 }
                             )
 
-                            SettingsCategoryHeader(title = tr("+ प्राइवेसी और सुरक्षा", "+ Privacy & Security", "+ Privacy & Security"))
+                            SettingsCategoryHeader(title = tr("+ प्राइवेसी और सुरक्षा", "+ Privacy & Security", "+ Privacy & Security"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("🔒 प्राइवेसी (Privacy)", "🔒 Privacy", "🔒 Privacy"),
                                 valueText = tr("सुरक्षित", "Protected", "Protected"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     activeInfoDialogTitle = tr("🔒 प्राइवेसी पॉलिसी", "🔒 Privacy Policy", "🔒 Privacy Policy")
                                     activeInfoDialogBody = tr(
@@ -1497,6 +1725,10 @@ fun ProfileScreen(
                             SettingsTreeItem(
                                 label = tr("👁️ मेरी प्रोफाइल कौन देख सकता है", "👁️ Who can see my profile", "👁️ Who can see my profile"),
                                 valueText = profileVisibility,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     profileVisibility = if (profileVisibility == "Everyone") "Verified Users" else "Everyone"
                                     settingsPrefs.edit().putString("profile_visibility", profileVisibility).apply()
@@ -1505,6 +1737,10 @@ fun ProfileScreen(
                             SettingsTreeItem(
                                 label = tr("📍 लोकेशन प्राइवेसी", "📍 Location Privacy", "📍 Location Privacy"),
                                 valueText = locationPrivacy,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     locationPrivacy = if (locationPrivacy == "Area Only") "Exact Location" else "Area Only"
                                     settingsPrefs.edit().putString("location_privacy", locationPrivacy).apply()
@@ -1513,6 +1749,10 @@ fun ProfileScreen(
                             SettingsTreeItem(
                                 label = tr("🚫 ब्लॉक किए गए यूज़र", "🚫 Blocked Users", "🚫 Blocked Users"),
                                 valueText = tr("0 ब्लॉक", "0 Blocked", "0 Blocked"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     activeInfoDialogTitle = tr("🚫 ब्लॉक किए गए यूज़र", "🚫 Blocked Users", "🚫 Blocked Users")
                                     activeInfoDialogBody = tr(
@@ -1525,13 +1765,21 @@ fun ProfileScreen(
                             SettingsTreeItem(
                                 label = tr("🛡️ सुरक्षा (Security)", "🛡️ Security", "🛡️ Security"),
                                 valueText = tr("सत्यापित ✓", "OTP Verified ✓", "OTP Verified ✓"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = { showPasswordDialog = true }
                             )
 
-                            SettingsCategoryHeader(title = "+ Workora")
+                            SettingsCategoryHeader(title = "+ Workora", color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("❓ सहायता और सपोर्ट", "❓ Help & Support", "❓ Help & Support"),
                                 valueText = "24x7 Support",
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
                                 onClick = {
                                     activeInfoDialogTitle = tr("❓ Workora सहायता और सपोर्ट", "❓ Workora Help & Support", "❓ Workora Help & Support")
                                     activeInfoDialogBody = "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: Silwani, Raisen (MP) & All India"
@@ -1547,7 +1795,7 @@ fun ProfileScreen(
                 onClick = onSwitchRole,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
                 border = BorderStroke(1.dp, borderColor)
             ) {
                 Row(
@@ -1558,7 +1806,7 @@ fun ProfileScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = navyColor)
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = accentBlue)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = tr("रोल बदलें (Customer ⇄ Worker)", "Switch Role (Customer ⇄ Worker)", "Switch Role (Customer ⇄ Worker)"),
@@ -1575,7 +1823,7 @@ fun ProfileScreen(
                 onClick = onOpenChat,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
                 border = BorderStroke(1.dp, borderColor)
             ) {
                 Row(
@@ -1606,6 +1854,10 @@ fun ProfileScreen(
                 } else {
                     tr("नोटिफिकेशन बंद हैं", "Notifications are muted", "Notifications are muted")
                 },
+                cardColor = cardColor,
+                borderColor = borderColor,
+                textDark = textDark,
+                textMuted = textMuted,
                 onClick = {
                     activeInfoDialogTitle = tr("🔔 नोटिफिकेशन", "🔔 Notifications", "🔔 Notifications")
                     activeInfoDialogBody = "• Welcome to Workora (Find. Hire. Work.)!\n• Your profile in $savedLocation is verified and active.\n• Check Workora Message for new worker & customer updates."
@@ -1616,6 +1868,10 @@ fun ProfileScreen(
                 ProfileMenuActionRow(
                     title = tr("⭐ सेव किए गए कारीगर (Saved Workers)", "⭐ Saved Workers", "⭐ Saved Workers"),
                     subtitle = tr("अपने सेव किए गए कारीगरों को तुरंत देखें", "Quickly access your bookmarked workers", "Quickly access your bookmarked workers"),
+                    cardColor = cardColor,
+                    borderColor = borderColor,
+                    textDark = textDark,
+                    textMuted = textMuted,
                     onClick = {
                         activeInfoDialogTitle = tr("⭐ सेव किए गए कारीगर", "⭐ Saved Workers", "⭐ Saved Workers")
                         activeInfoDialogBody = "1. Ramesh Kumar — Mason (₹600/day • Silwani)\n2. Suresh Patel — Electrician (₹550/day • Silwani)\n3. Amit Yadav — Plumber (₹500/day • Silwani)"
@@ -1625,6 +1881,10 @@ fun ProfileScreen(
                 ProfileMenuActionRow(
                     title = tr("🔖 सेव किए गए काम (Saved Jobs)", "🔖 Saved Jobs", "🔖 Saved Jobs"),
                     subtitle = tr("सेव या अप्लाई किए गए काम देखें", "View jobs you have bookmarked or applied for", "View jobs you have bookmarked or applied for"),
+                    cardColor = cardColor,
+                    borderColor = borderColor,
+                    textDark = textDark,
+                    textMuted = textMuted,
                     onClick = {
                         activeInfoDialogTitle = tr("🔖 सेव किए गए काम", "🔖 Saved Jobs", "🔖 Saved Jobs")
                         activeInfoDialogBody = "1. House Repair & Wall Plastering — ₹600/day (Silwani)\n2. Complete House Wiring — ₹550/day (Silwani)"
@@ -1635,6 +1895,10 @@ fun ProfileScreen(
             ProfileMenuActionRow(
                 title = tr("❓ सहायता और सपोर्ट (Help & Support)", "❓ Help & Support", "❓ Help & Support"),
                 subtitle = tr("कॉल सपोर्ट, सवाल-जवाब और Workora मैसेज सहायता", "Call support, FAQs & Workora Message assistance", "Call support, FAQs & Workora Message assistance"),
+                cardColor = cardColor,
+                borderColor = borderColor,
+                textDark = textDark,
+                textMuted = textMuted,
                 onClick = {
                     activeInfoDialogTitle = tr("❓ सहायता और सपोर्ट", "❓ Help & Support", "❓ Help & Support")
                     activeInfoDialogBody = "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers."
@@ -1644,15 +1908,20 @@ fun ProfileScreen(
             ProfileMenuActionRow(
                 title = tr("🛡️ रिपोर्ट और सुरक्षा (Report / Safety)", "🛡️ Report / Safety", "🛡️ Report / Safety"),
                 subtitle = tr("सुरक्षा नियम और फेक काम/यूज़र की शिकायत करें", "Safety guidelines & report fake jobs or users", "Safety guidelines & report fake jobs or users"),
+                cardColor = cardColor,
+                borderColor = borderColor,
+                textDark = textDark,
+                textMuted = textMuted,
                 onClick = {
                     activeInfoDialogTitle = tr("🛡️ रिपोर्ट और सुरक्षा", "🛡️ Report / Safety", "🛡️ Report / Safety")
                     activeInfoDialogBody = "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340."
                 }
             )
 
+            // Protected Super Admin Panel Button -> Opens 3-Layer Admin Security Gate
             if (isSuperAdmin) {
                 Card(
-                    onClick = onOpenAdmin,
+                    onClick = { showAdminSecurityGate = true },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = navyColor),
@@ -1669,7 +1938,7 @@ fun ProfileScreen(
                             Icon(Icons.Default.Lock, contentDescription = null, tint = orangeColor)
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = "Open Super Admin Panel",
+                                text = tr("🔐 सुपर एडमिन पैनल खोलें (PIN + OTP)", "🔐 Open Super Admin Panel (PIN + OTP)", "🔐 Open Super Admin Panel (PIN + OTP)"),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
@@ -1702,6 +1971,16 @@ fun ProfileScreen(
         }
     }
 
+    if (showAdminSecurityGate) {
+        WorkoraAdminSecurityGateDialog(
+            onDismiss = { showAdminSecurityGate = false },
+            onAdminVerifiedSuccess = {
+                showAdminSecurityGate = false
+                onOpenAdmin()
+            }
+        )
+    }
+
     if (showLiveLocationModal) {
         WorkoraLiveLocationModal(
             currentLocation = savedLocation,
@@ -1725,13 +2004,13 @@ fun ProfileScreen(
 
         AlertDialog(
             onDismissRequest = { showEditProfileDialog = false },
-            containerColor = Color.White,
+            containerColor = cardColor,
             title = {
                 Text(
                     text = tr("प्रोफाइल जानकारी बदलें", "Edit Profile Details", "Edit Profile Details"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = navyColor
+                    color = accentBlue
                 )
             },
             text = {
@@ -1745,6 +2024,7 @@ fun ProfileScreen(
                         value = editName,
                         onValueChange = { editName = it },
                         label = { Text("Full Name") },
+                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -1753,6 +2033,7 @@ fun ProfileScreen(
                         value = editPhone,
                         onValueChange = { editPhone = it },
                         label = { Text("Phone Number") },
+                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
@@ -1767,6 +2048,7 @@ fun ProfileScreen(
                         value = editSkill,
                         onValueChange = { editSkill = it },
                         label = { Text("Primary Skill (e.g. Mason, Electrician)") },
+                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                         leadingIcon = { Icon(Icons.Default.Build, contentDescription = null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -1775,6 +2057,7 @@ fun ProfileScreen(
                         value = editWage,
                         onValueChange = { editWage = it.filter { c -> c.isDigit() } },
                         label = { Text("Daily Wage (₹/day)") },
+                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                         leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -1823,9 +2106,9 @@ fun ProfileScreen(
         var newPass by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showPasswordDialog = false },
-            containerColor = Color.White,
+            containerColor = cardColor,
             title = {
-                Text("🔐 Password & Security", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = navyColor)
+                Text("🔐 Password & Security", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = accentBlue)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1838,6 +2121,7 @@ fun ProfileScreen(
                         value = newPass,
                         onValueChange = { newPass = it },
                         label = { Text("New Password") },
+                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1849,9 +2133,13 @@ fun ProfileScreen(
                         val clean = newPass.trim()
                         if (clean.length >= 8 && clean.any { it.isLetter() } && clean.any { it.isDigit() }) {
                             val digits = savedPhone.filter { it.isDigit() }.takeLast(10)
+                            val hash = WorkoraSecurityManager.hashPasswordSecure(clean)
                             authPrefs.edit().apply {
                                 if (loggedEmail.isNotBlank()) putString("user_pass_$loggedEmail", clean)
-                                if (digits.isNotBlank()) putString("user_pass_$digits", clean)
+                                if (digits.isNotBlank()) {
+                                    putString("user_pass_$digits", clean)
+                                    putString("user_hash_$digits", hash)
+                                }
                                 apply()
                             }
                             showPasswordDialog = false
@@ -1876,13 +2164,13 @@ fun ProfileScreen(
     if (activeInfoDialogTitle != null) {
         AlertDialog(
             onDismissRequest = { activeInfoDialogTitle = null },
-            containerColor = Color.White,
+            containerColor = cardColor,
             title = {
                 Text(
                     text = activeInfoDialogTitle!!,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = navyColor
+                    color = accentBlue
                 )
             },
             text = {
@@ -1922,12 +2210,15 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun SettingsCategoryHeader(title: String) {
+private fun SettingsCategoryHeader(
+    title: String,
+    color: Color
+) {
     Text(
         text = title,
         fontSize = 13.sp,
         fontWeight = FontWeight.ExtraBold,
-        color = Color(0xFF083D91),
+        color = color,
         modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
     )
 }
@@ -1936,14 +2227,18 @@ private fun SettingsCategoryHeader(title: String) {
 private fun SettingsTreeItem(
     label: String,
     valueText: String,
+    cardColor: Color,
+    borderColor: Color,
+    textDark: Color,
+    textMuted: Color,
     onClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -1957,7 +2252,7 @@ private fun SettingsTreeItem(
                 text = label,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF102A43)
+                color = textDark
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -1970,7 +2265,7 @@ private fun SettingsTreeItem(
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowRight,
                     contentDescription = null,
-                    tint = Color(0xFF667085),
+                    tint = textMuted,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -1982,14 +2277,18 @@ private fun SettingsTreeItem(
 private fun ProfileMenuActionRow(
     title: String,
     subtitle: String,
+    cardColor: Color,
+    borderColor: Color,
+    textDark: Color,
+    textMuted: Color,
     onClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -2004,19 +2303,19 @@ private fun ProfileMenuActionRow(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF102A43)
+                    color = textDark
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontSize = 11.sp,
-                    color = Color(0xFF667085)
+                    color = textMuted
                 )
             }
             Icon(
                 imageVector = Icons.Default.KeyboardArrowRight,
                 contentDescription = null,
-                tint = Color(0xFF667085)
+                tint = textMuted
             )
         }
     }
