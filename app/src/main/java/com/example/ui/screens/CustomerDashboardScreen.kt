@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -546,16 +547,26 @@ fun CustomerDashboardScreen(
     val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
-    // Read current selected language live every time screen composes
-    val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
-    fun tr(hi: String, en: String): String = if (appLang == "Hindi") hi else en
+    // Sync Global Theme Mode (Normal Default = "System")
+    LaunchedEffect(Unit) {
+        WorkoraThemeManager.syncFromPrefs(context)
+    }
+    val isDark = WorkoraThemeManager.isDark(context)
+    val bgColor = WorkoraThemeManager.bgColor(context)
+    val cardColor = WorkoraThemeManager.surfaceColor(context)
+    val subtleBgColor = WorkoraThemeManager.subtleSurfaceColor(context)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val borderLight = WorkoraThemeManager.borderColor(context)
+    val accentBlue = WorkoraThemeManager.accentBlue(context)
 
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF102A43)
-    val textMuted = Color(0xFF667085)
-    val borderLight = Color(0xFFE5E7EB)
     val greenTrusted = Color(0xFF22A06B)
+
+    // Live Language Reader
+    val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
+    fun tr(hi: String, en: String): String = if (appLang == "Hindi") hi else en
 
     var liveAppName by remember {
         mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA")
@@ -848,7 +859,7 @@ fun CustomerDashboardScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
+            .background(bgColor)
     ) {
         when (bottomNavIndex) {
             0 -> {
@@ -861,11 +872,11 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
-                    // Top Header (3-Lines Menu Icon Removed as requested in Image 2!)
+                    // Top Header (3-Lines Menu Icon Removed + Global Theme Synced)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White)
+                            .background(cardColor)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -912,7 +923,7 @@ fun CustomerDashboardScreen(
                             onClick = { showLocationModal = true },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
                             border = BorderStroke(1.dp, borderLight),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
@@ -966,7 +977,11 @@ fun CustomerDashboardScreen(
                                     .fillMaxWidth()
                                     .background(
                                         Brush.horizontalGradient(
-                                            colors = listOf(Color(0xFFE0F2FE), Color(0xFFDBEAFE))
+                                            colors = if (isDark) {
+                                                listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                                            } else {
+                                                listOf(Color(0xFFE0F2FE), Color(0xFFDBEAFE))
+                                            }
                                         )
                                     )
                                     .padding(horizontal = 16.dp, vertical = 16.dp)
@@ -988,7 +1003,7 @@ fun CustomerDashboardScreen(
                                         Text(
                                             text = tr("अपना काम आसानी और\nसुरक्षा से पूरा करवाएं।", liveBannerSubtext),
                                             fontSize = 12.sp,
-                                            color = Color(0xFF475569),
+                                            color = textMuted,
                                             lineHeight = 16.sp
                                         )
                                         Spacer(modifier = Modifier.height(14.dp))
@@ -1037,7 +1052,7 @@ fun CustomerDashboardScreen(
                                     text = tr("सभी देखें >", "View All >"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = deepNavy,
+                                    color = accentBlue,
                                     modifier = Modifier.clickable {
                                         onCategorySelected("All")
                                         bottomNavIndex = 1
@@ -1061,7 +1076,7 @@ fun CustomerDashboardScreen(
                                                 .weight(1f)
                                                 .height(90.dp),
                                             shape = RoundedCornerShape(14.dp),
-                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            colors = CardDefaults.cardColors(containerColor = cardColor),
                                             border = BorderStroke(1.dp, borderLight),
                                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                         ) {
@@ -1089,8 +1104,10 @@ fun CustomerDashboardScreen(
                             onClick = { bottomNavIndex = 1 },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                            border = BorderStroke(1.dp, Color(0xFFE0F2FE)),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF0F9FF)
+                            ),
+                            border = BorderStroke(1.dp, if (isDark) borderLight else Color(0xFFE0F2FE)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Row(
@@ -1157,7 +1174,7 @@ fun CustomerDashboardScreen(
                                     text = tr("कारीगर खोजें >", "Find Workers >"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = deepNavy,
+                                    color = accentBlue,
                                     modifier = Modifier.clickable { bottomNavIndex = 1 }
                                 )
                             }
@@ -1166,6 +1183,11 @@ fun CustomerDashboardScreen(
                                 CustomerWorkerRichCard(
                                     worker = worker,
                                     appLang = appLang,
+                                    cardColor = cardColor,
+                                    borderColor = borderLight,
+                                    textDark = textDark,
+                                    textMuted = textMuted,
+                                    accentBlue = accentBlue,
                                     showHelmet = idx == 0,
                                     onViewProfile = { viewingWorkerProfile = worker },
                                     onHireClick = {
@@ -1195,7 +1217,7 @@ fun CustomerDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White)
+                            .background(cardColor)
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1224,7 +1246,7 @@ fun CustomerDashboardScreen(
                             onClick = { showLocationModal = true },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
                             border = BorderStroke(1.dp, borderLight)
                         ) {
                             Row(
@@ -1238,7 +1260,7 @@ fun CustomerDashboardScreen(
                                     Icon(
                                         imageVector = Icons.Default.LocationOn,
                                         contentDescription = null,
-                                        tint = deepNavy,
+                                        tint = accentBlue,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1253,7 +1275,7 @@ fun CustomerDashboardScreen(
                                     text = tr("बदलें", "Change"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = deepNavy
+                                    color = accentBlue
                                 )
                             }
                         }
@@ -1261,11 +1283,12 @@ fun CustomerDashboardScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChanged,
+                            textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                             placeholder = {
                                 Text(
                                     text = tr("नाम, काम या सेवा से खोजें...", "Search by name, skill or service..."),
                                     fontSize = 13.sp,
-                                    color = Color(0xFF94A3B8)
+                                    color = textMuted
                                 )
                             },
                             leadingIcon = {
@@ -1280,10 +1303,10 @@ fun CustomerDashboardScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = deepNavy,
+                                focusedBorderColor = accentBlue,
                                 unfocusedBorderColor = borderLight,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
+                                focusedContainerColor = cardColor,
+                                unfocusedContainerColor = cardColor
                             )
                         )
 
@@ -1300,7 +1323,7 @@ fun CustomerDashboardScreen(
                                     onClick = { onCategorySelected(cat) },
                                     shape = RoundedCornerShape(20.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isSelected) deepNavy else Color.White
+                                        containerColor = if (isSelected) deepNavy else cardColor
                                     ),
                                     border = BorderStroke(1.dp, if (isSelected) deepNavy else borderLight),
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -1340,6 +1363,11 @@ fun CustomerDashboardScreen(
                             CustomerWorkerRichCard(
                                 worker = worker,
                                 appLang = appLang,
+                                cardColor = cardColor,
+                                borderColor = borderLight,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                accentBlue = accentBlue,
                                 showHelmet = index % 2 == 0,
                                 onViewProfile = { viewingWorkerProfile = worker },
                                 onHireClick = {
@@ -1369,7 +1397,7 @@ fun CustomerDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(deepNavy)
+                            .background(if (isDark) Color(0xFF0F172A) else deepNavy)
                             .padding(horizontal = 12.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1399,7 +1427,7 @@ fun CustomerDashboardScreen(
                             .fillMaxWidth()
                             .padding(16.dp),
                         shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = cardColor),
                         border = BorderStroke(1.dp, borderLight),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
@@ -1412,6 +1440,7 @@ fun CustomerDashboardScreen(
                             OutlinedTextField(
                                 value = jobWorkName,
                                 onValueChange = { jobWorkName = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("1. Work Name (काम का नाम)") },
                                 placeholder = { Text("e.g. House Wall Plastering / Wiring Work") },
                                 singleLine = true,
@@ -1436,7 +1465,7 @@ fun CustomerDashboardScreen(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(20.dp))
-                                                .background(if (isSelected) deepNavy else Color(0xFFF1F5F9))
+                                                .background(if (isSelected) deepNavy else subtleBgColor)
                                                 .clickable { jobCategory = cat }
                                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                                         ) {
@@ -1454,6 +1483,7 @@ fun CustomerDashboardScreen(
                             OutlinedTextField(
                                 value = jobDescription,
                                 onValueChange = { jobDescription = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("3. Work Description (काम के बारे में जानकारी)") },
                                 placeholder = { Text("Describe what work needs to be done...") },
                                 minLines = 3,
@@ -1498,7 +1528,7 @@ fun CustomerDashboardScreen(
                                             modifier = Modifier
                                                 .size(74.dp)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(Color(0xFFF1F5F9))
+                                                .background(subtleBgColor)
                                         ) {
                                             if (bmp != null) {
                                                 Image(
@@ -1528,7 +1558,7 @@ fun CustomerDashboardScreen(
                                             modifier = Modifier
                                                 .size(74.dp)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(Color(0xFFFFF0DE))
+                                                .background(brandOrange.copy(alpha = 0.15f))
                                                 .clickable { jobPhotoPicker.launch("image/*") },
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -1561,6 +1591,7 @@ fun CustomerDashboardScreen(
                                 OutlinedTextField(
                                     value = jobPreferredDate,
                                     onValueChange = { jobPreferredDate = it },
+                                    textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                     label = { Text("6. Preferred Date") },
                                     placeholder = { Text("e.g. 28 Sep / Today") },
                                     singleLine = true,
@@ -1571,6 +1602,7 @@ fun CustomerDashboardScreen(
                                 OutlinedTextField(
                                     value = jobNumberOfDays,
                                     onValueChange = { jobNumberOfDays = it.filter { c -> c.isDigit() } },
+                                    textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                     label = { Text("7. No. of Days") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -1586,6 +1618,7 @@ fun CustomerDashboardScreen(
                                 OutlinedTextField(
                                     value = jobNumberOfWorkers,
                                     onValueChange = { jobNumberOfWorkers = it.filter { c -> c.isDigit() } },
+                                    textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                     label = { Text("8. Workers Needed") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -1596,6 +1629,7 @@ fun CustomerDashboardScreen(
                                 OutlinedTextField(
                                     value = jobRateOrBudget,
                                     onValueChange = { jobRateOrBudget = it.filter { c -> c.isDigit() } },
+                                    textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                     label = { Text("9. Rate / Budget (₹)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -1616,7 +1650,7 @@ fun CustomerDashboardScreen(
                                         shape = RoundedCornerShape(10.dp),
                                         border = BorderStroke(1.dp, if (selected) brandOrange else borderLight),
                                         colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = if (selected) Color(0xFFFFF0DE) else Color.White
+                                            containerColor = if (selected) brandOrange.copy(alpha = 0.15f) else cardColor
                                         ),
                                         contentPadding = PaddingValues(0.dp)
                                     ) {
@@ -1633,6 +1667,7 @@ fun CustomerDashboardScreen(
                             OutlinedTextField(
                                 value = jobWorkTime,
                                 onValueChange = { jobWorkTime = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("10. Work Time (काम का समय)") },
                                 placeholder = { Text("e.g. 9:00 AM to 6:00 PM") },
                                 singleLine = true,
@@ -1643,6 +1678,7 @@ fun CustomerDashboardScreen(
                             OutlinedTextField(
                                 value = jobSpecialRequirement,
                                 onValueChange = { jobSpecialRequirement = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("11. Special Requirement (कोई विशेष आवश्यकता)") },
                                 placeholder = { Text("e.g. Must bring own tools / helmet") },
                                 singleLine = true,
@@ -1653,6 +1689,7 @@ fun CustomerDashboardScreen(
                             OutlinedTextField(
                                 value = jobAbout,
                                 onValueChange = { jobAbout = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("12. About Site / Customer Note") },
                                 placeholder = { Text("Landmark, house details or extra note...") },
                                 minLines = 2,
@@ -1799,7 +1836,7 @@ fun CustomerDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(deepNavy)
+                            .background(if (isDark) Color(0xFF0F172A) else deepNavy)
                             .padding(horizontal = 12.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1834,7 +1871,7 @@ fun CustomerDashboardScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = cardColor),
                                 border = BorderStroke(1.dp, borderLight),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                             ) {
@@ -1860,7 +1897,7 @@ fun CustomerDashboardScreen(
                                                 text = "${translateCategoryLabel(myJob.category, appLang)} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = deepNavy
+                                                color = accentBlue
                                             )
                                         }
                                         Box(
@@ -1899,11 +1936,11 @@ fun CustomerDashboardScreen(
                                             OutlinedButton(
                                                 onClick = onOpenChat,
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = BorderStroke(1.dp, deepNavy),
+                                                border = BorderStroke(1.dp, accentBlue),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                                 modifier = Modifier.height(34.dp)
                                             ) {
-                                                Text(tr("Workora मैसेज", "Workora Message"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = deepNavy)
+                                                Text(tr("Workora मैसेज", "Workora Message"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accentBlue)
                                             }
                                             Button(
                                                 onClick = {
@@ -1963,7 +2000,7 @@ fun CustomerDashboardScreen(
                 .fillMaxWidth()
                 .navigationBarsPadding(),
             shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Row(
@@ -1982,7 +2019,7 @@ fun CustomerDashboardScreen(
                     Icon(
                         imageVector = Icons.Default.Home,
                         contentDescription = "Home",
-                        tint = if (bottomNavIndex == 0) deepNavy else textMuted,
+                        tint = if (bottomNavIndex == 0) accentBlue else textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -1990,7 +2027,7 @@ fun CustomerDashboardScreen(
                         text = tr("होम", "Home"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 0) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 0) deepNavy else textMuted,
+                        color = if (bottomNavIndex == 0) accentBlue else textMuted,
                         maxLines = 1
                     )
                 }
@@ -2004,7 +2041,7 @@ fun CustomerDashboardScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Find Workers",
-                        tint = if (bottomNavIndex == 1) deepNavy else textMuted,
+                        tint = if (bottomNavIndex == 1) accentBlue else textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -2012,7 +2049,7 @@ fun CustomerDashboardScreen(
                         text = tr("कारीगर खोजें", "Find Workers"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 1) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 1) deepNavy else textMuted,
+                        color = if (bottomNavIndex == 1) accentBlue else textMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2046,7 +2083,7 @@ fun CustomerDashboardScreen(
                         text = tr("काम पोस्ट करें", "Post Job"),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (bottomNavIndex == 2) deepNavy else brandOrange,
+                        color = if (bottomNavIndex == 2) accentBlue else brandOrange,
                         maxLines = 1
                     )
                 }
@@ -2060,7 +2097,7 @@ fun CustomerDashboardScreen(
                     Icon(
                         imageVector = Icons.Default.DateRange,
                         contentDescription = "My Jobs",
-                        tint = if (bottomNavIndex == 3) deepNavy else textMuted,
+                        tint = if (bottomNavIndex == 3) accentBlue else textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -2068,7 +2105,7 @@ fun CustomerDashboardScreen(
                         text = tr("मेरे काम", "My Jobs"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 3) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 3) deepNavy else textMuted,
+                        color = if (bottomNavIndex == 3) accentBlue else textMuted,
                         maxLines = 1
                     )
                 }
@@ -2105,7 +2142,7 @@ fun CustomerDashboardScreen(
         val w = viewingWorkerProfile!!
         AlertDialog(
             onDismissRequest = { viewingWorkerProfile = null },
-            containerColor = Color.White,
+            containerColor = cardColor,
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -2126,14 +2163,14 @@ fun CustomerDashboardScreen(
                         }
                     }
                     IconButton(onClick = { viewingWorkerProfile = null }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
                     }
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("• Skills: ${w.skills}", fontSize = 13.sp, color = textDark, fontWeight = FontWeight.SemiBold)
-                    Text("• Daily Rate: ₹${w.dailyWage}/day", fontSize = 13.sp, color = deepNavy, fontWeight = FontWeight.ExtraBold)
+                    Text("• Daily Rate: ₹${w.dailyWage}/day", fontSize = 13.sp, color = accentBlue, fontWeight = FontWeight.ExtraBold)
                     Text("• Area / Location: ${w.area} (Max ${w.maxDistanceKm})", fontSize = 12.sp, color = textMuted)
                     Text("• Rating: ★ ${w.rating} (${w.reviewsCount} verified reviews)", fontSize = 12.sp, color = textDark)
                     Text("• Availability: ${w.availability} (From: ${w.availableFrom}, ${w.availableDays})", fontSize = 12.sp, color = greenTrusted, fontWeight = FontWeight.Bold)
@@ -2166,9 +2203,9 @@ fun CustomerDashboardScreen(
                         }
                     }
                 ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, tint = deepNavy, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(tr("कॉल करें", "Call"), color = deepNavy, fontWeight = FontWeight.Bold)
+                    Text(tr("कॉल करें", "Call"), color = accentBlue, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -2193,22 +2230,24 @@ fun CustomerDashboardScreen(
 private fun CustomerWorkerRichCard(
     worker: ExactWorkerItem,
     appLang: String,
+    cardColor: Color,
+    borderColor: Color,
+    textDark: Color,
+    textMuted: Color,
+    accentBlue: Color,
     showHelmet: Boolean,
     onViewProfile: () -> Unit,
     onHireClick: () -> Unit
 ) {
-    val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF102A43)
-    val textMuted = Color(0xFF667085)
     val isHindi = appLang == "Hindi"
 
     Card(
         onClick = onViewProfile,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -2246,7 +2285,7 @@ private fun CustomerWorkerRichCard(
                             text = "${translateCategoryLabel(worker.trade, appLang)} • ${worker.experience}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = deepNavy
+                            color = accentBlue
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -2310,7 +2349,7 @@ private fun CustomerWorkerRichCard(
                         text = if (isHindi) "₹${worker.dailyWage}/दिन" else "₹${worker.dailyWage}/day",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = deepNavy
+                        color = accentBlue
                     )
                 }
             }
@@ -2325,14 +2364,14 @@ private fun CustomerWorkerRichCard(
                         .weight(1f)
                         .height(40.dp),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.2.dp, deepNavy),
+                    border = BorderStroke(1.2.dp, accentBlue),
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
                         text = if (isHindi) "प्रोफाइल देखें" else "View Profile",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = deepNavy
+                        color = accentBlue
                     )
                 }
 
