@@ -40,7 +40,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -49,7 +48,6 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -167,6 +165,25 @@ private fun encodeJobPhotoUri(context: Context, uri: Uri): String {
         if (bytes != null) Base64.encodeToString(bytes, Base64.NO_WRAP) else ""
     } catch (_: Exception) {
         ""
+    }
+}
+
+private fun translateCategoryLabel(cat: String, lang: String): String {
+    if (lang != "Hindi") return cat
+    return when (cat) {
+        "All" -> "सभी (All)"
+        "Mason" -> "राजमिस्त्री"
+        "Electrician" -> "इलेक्ट्रीशियन"
+        "Plumber" -> "प्लंबर"
+        "Painter" -> "पेंटर"
+        "Carpenter" -> "बढ़ई"
+        "Labour" -> "मज़दूर"
+        "Cleaner" -> "सफाईकर्मी"
+        "Farm Worker" -> "कृषि मज़दूर"
+        "Tile Worker" -> "टाइल्स मिस्त्री"
+        "More" -> "अन्य"
+        "Other" -> "अन्य"
+        else -> cat
     }
 }
 
@@ -527,6 +544,11 @@ fun CustomerDashboardScreen(
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
+
+    // Read current selected language live every time screen composes
+    val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
+    fun tr(hi: String, en: String): String = if (appLang == "Hindi") hi else en
 
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
@@ -535,7 +557,6 @@ fun CustomerDashboardScreen(
     val borderLight = Color(0xFFE5E7EB)
     val greenTrusted = Color(0xFF22A06B)
 
-    // Live Admin Branding States (Synced with Admin Panel "Edit App")
     var liveAppName by remember {
         mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA")
     }
@@ -840,6 +861,7 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
+                    // Top Header (3-Lines Menu Icon Removed as requested in Image 2!)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -863,35 +885,20 @@ fun CustomerDashboardScreen(
                                     letterSpacing = 0.5.sp
                                 )
                                 Text(
-                                    text = liveAppTagline,
+                                    text = tr("कुशल कारीगर खोजें और काम पर रखें", liveAppTagline),
                                     fontSize = 11.sp,
                                     color = textMuted
                                 )
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onOpenNotifications) {
-                                Icon(
-                                    imageVector = Icons.Default.Notifications,
-                                    contentDescription = "Notifications",
-                                    tint = textDark,
-                                    modifier = Modifier.size(23.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    onOpenProfile()
-                                    onNavigateToProfile()
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menu & Settings",
-                                    tint = textDark,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                        IconButton(onClick = onOpenNotifications) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = textDark,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
 
@@ -932,7 +939,10 @@ fun CustomerDashboardScreen(
                                             color = textDark
                                         )
                                         Text(
-                                            text = "Tap to change location (Live GPS & Search)",
+                                            text = tr(
+                                                "लोकेशन बदलने के लिए टैप करें (Live GPS & Search)",
+                                                "Tap to change location (Live GPS & Search)"
+                                            ),
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -946,7 +956,6 @@ fun CustomerDashboardScreen(
                             }
                         }
 
-                        // Clean Hero Banner (No duplicate Post Job button here)
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
@@ -969,7 +978,7 @@ fun CustomerDashboardScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = liveBannerHeading,
+                                            text = tr("अपने पास कुशल\nकारीगर खोजें", liveBannerHeading),
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = textDark,
@@ -977,7 +986,7 @@ fun CustomerDashboardScreen(
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = liveBannerSubtext,
+                                            text = tr("अपना काम आसानी और\nसुरक्षा से पूरा करवाएं।", liveBannerSubtext),
                                             fontSize = 12.sp,
                                             color = Color(0xFF475569),
                                             lineHeight = 16.sp
@@ -999,7 +1008,7 @@ fun CustomerDashboardScreen(
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Explore Workers",
+                                                text = tr("कारीगर खोजें", "Explore Workers"),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
@@ -1019,13 +1028,13 @@ fun CustomerDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Popular Categories",
+                                    text = tr("लोकप्रिय श्रेणियां", "Popular Categories"),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark
                                 )
                                 Text(
-                                    text = "View All >",
+                                    text = tr("सभी देखें >", "View All >"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = deepNavy,
@@ -1064,7 +1073,7 @@ fun CustomerDashboardScreen(
                                                 ExactCategoryIconBox(category = catName)
                                                 Spacer(modifier = Modifier.height(6.dp))
                                                 Text(
-                                                    text = catName,
+                                                    text = translateCategoryLabel(catName, appLang),
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = textDark
@@ -1109,13 +1118,16 @@ fun CustomerDashboardScreen(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(
-                                            text = "Verified & Trusted Workers",
+                                            text = tr("सत्यापित और भरोसेमंद कारीगर", "Verified & Trusted Workers"),
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = textDark
                                         )
                                         Text(
-                                            text = "All workers are verified for your safety.",
+                                            text = tr(
+                                                "आपकी सुरक्षा के लिए सभी कारीगर सत्यापित हैं।",
+                                                "All workers are verified for your safety."
+                                            ),
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -1136,13 +1148,13 @@ fun CustomerDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Available Workers",
+                                    text = tr("उपलब्ध कारीगर", "Available Workers"),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark
                                 )
                                 Text(
-                                    text = "Find Workers >",
+                                    text = tr("कारीगर खोजें >", "Find Workers >"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = deepNavy,
@@ -1153,6 +1165,7 @@ fun CustomerDashboardScreen(
                             filteredWorkers.take(3).forEachIndexed { idx, worker ->
                                 CustomerWorkerRichCard(
                                     worker = worker,
+                                    appLang = appLang,
                                     showHelmet = idx == 0,
                                     onViewProfile = { viewingWorkerProfile = worker },
                                     onHireClick = {
@@ -1170,7 +1183,7 @@ fun CustomerDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔍 FIND WORKERS (CLEAN HEADER WITHOUT DUPLICATE POST BUTTON) ====================
+                // ==================== 1: 🔍 FIND WORKERS ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1194,7 +1207,7 @@ fun CustomerDashboardScreen(
                             )
                         }
                         Text(
-                            text = "Find Workers",
+                            text = tr("कारीगर खोजें", "Find Workers"),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textDark
@@ -1237,7 +1250,7 @@ fun CustomerDashboardScreen(
                                     )
                                 }
                                 Text(
-                                    text = "Change",
+                                    text = tr("बदलें", "Change"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = deepNavy
@@ -1250,7 +1263,7 @@ fun CustomerDashboardScreen(
                             onValueChange = onSearchQueryChanged,
                             placeholder = {
                                 Text(
-                                    text = "Search by name, skill or service...",
+                                    text = tr("नाम, काम या सेवा से खोजें...", "Search by name, skill or service..."),
                                     fontSize = 13.sp,
                                     color = Color(0xFF94A3B8)
                                 )
@@ -1294,7 +1307,7 @@ fun CustomerDashboardScreen(
                                     modifier = Modifier.height(36.dp)
                                 ) {
                                     Text(
-                                        text = cat,
+                                        text = translateCategoryLabel(cat, appLang),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color.White else textDark
@@ -1309,13 +1322,13 @@ fun CustomerDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${filteredWorkers.size} Workers Found",
+                                text = tr("${filteredWorkers.size} कारीगर मिले", "${filteredWorkers.size} Workers Found"),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = textDark
                             )
                             Text(
-                                text = "Refresh ↻",
+                                text = tr("रिफ्रेश ↻", "Refresh ↻"),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = brandOrange,
@@ -1326,6 +1339,7 @@ fun CustomerDashboardScreen(
                         filteredWorkers.forEachIndexed { index, worker ->
                             CustomerWorkerRichCard(
                                 worker = worker,
+                                appLang = appLang,
                                 showHelmet = index % 2 == 0,
                                 onViewProfile = { viewingWorkerProfile = worker },
                                 onHireClick = {
@@ -1342,7 +1356,7 @@ fun CustomerDashboardScreen(
             }
 
             2 -> {
-                // ==================== 2: ➕ POST JOB (OPENED ONLY FROM BOTTOM '+' ICON) ====================
+                // ==================== 2: ➕ POST JOB ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1364,13 +1378,16 @@ fun CustomerDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = "Post a Job",
+                                text = tr("नया काम पोस्ट करें (Post a Job)", "Post a Job"),
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
                             Text(
-                                text = "Fill work details so nearby workers can apply",
+                                text = tr(
+                                    "काम की जानकारी भरें ताकि पास के कारीगर अप्लाई कर सकें",
+                                    "Fill work details so nearby workers can apply"
+                                ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
                             )
@@ -1424,7 +1441,7 @@ fun CustomerDashboardScreen(
                                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                                         ) {
                                             Text(
-                                                text = cat,
+                                                text = translateCategoryLabel(cat, appLang),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (isSelected) Color.White else textDark
@@ -1525,7 +1542,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 5. Work Location using Real Live Auto-Suggest Component
                             LiveLocationAutoCompleteField(
                                 value = jobWorkLocation,
                                 onValueChange = {
@@ -1758,7 +1774,7 @@ fun CustomerDashboardScreen(
                                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "13. Post Job ✓",
+                                        text = tr("13. काम पोस्ट करें (Post Job) ✓", "13. Post Job ✓"),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color.White
@@ -1771,7 +1787,7 @@ fun CustomerDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY JOBS (CLEAN HEADER WITHOUT DUPLICATE POST BUTTON) ====================
+                // ==================== 3: 📋 MY JOBS ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1792,13 +1808,16 @@ fun CustomerDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = "My Jobs",
+                                text = tr("मेरे पोस्ट किए काम (My Jobs)", "My Jobs"),
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
                             Text(
-                                text = "Track your posted requirements & worker responses",
+                                text = tr(
+                                    "अपने पोस्ट किए काम और कारीगरों के जवाब देखें",
+                                    "Track your posted requirements & worker responses"
+                                ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
                             )
@@ -1838,7 +1857,7 @@ fun CustomerDashboardScreen(
                                                 color = textDark
                                             )
                                             Text(
-                                                text = "${myJob.category} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
+                                                text = "${translateCategoryLabel(myJob.category, appLang)} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = deepNavy
@@ -1884,7 +1903,7 @@ fun CustomerDashboardScreen(
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                                 modifier = Modifier.height(34.dp)
                                             ) {
-                                                Text("Workora Message", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = deepNavy)
+                                                Text(tr("Workora मैसेज", "Workora Message"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = deepNavy)
                                             }
                                             Button(
                                                 onClick = {
@@ -1896,7 +1915,7 @@ fun CustomerDashboardScreen(
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                                 modifier = Modifier.height(34.dp)
                                             ) {
-                                                Text("Complete ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                Text(tr("पूरा हुआ ✓", "Complete ✓"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                             }
                                         }
                                     }
@@ -1929,7 +1948,7 @@ fun CustomerDashboardScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Workora Message",
+                    text = tr("Workora मैसेज", "Workora Message"),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -1938,7 +1957,6 @@ fun CustomerDashboardScreen(
         }
 
         // ==================== 5-ICON CUSTOMER BOTTOM NAVIGATION BAR ====================
-        // ONLY PLACE WITH '+' POST JOB BUTTON
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1969,7 +1987,7 @@ fun CustomerDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Home",
+                        text = tr("होम", "Home"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 0) FontWeight.ExtraBold else FontWeight.Medium,
                         color = if (bottomNavIndex == 0) deepNavy else textMuted,
@@ -1991,7 +2009,7 @@ fun CustomerDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Find Workers",
+                        text = tr("कारीगर खोजें", "Find Workers"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 1) FontWeight.ExtraBold else FontWeight.Medium,
                         color = if (bottomNavIndex == 1) deepNavy else textMuted,
@@ -2000,7 +2018,6 @@ fun CustomerDashboardScreen(
                     )
                 }
 
-                // THE ONLY '+' POST JOB BUTTON IN THE APP
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -2026,7 +2043,7 @@ fun CustomerDashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Post Job",
+                        text = tr("काम पोस्ट करें", "Post Job"),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (bottomNavIndex == 2) deepNavy else brandOrange,
@@ -2048,7 +2065,7 @@ fun CustomerDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "My Jobs",
+                        text = tr("मेरे काम", "My Jobs"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 3) FontWeight.ExtraBold else FontWeight.Medium,
                         color = if (bottomNavIndex == 3) deepNavy else textMuted,
@@ -2073,7 +2090,7 @@ fun CustomerDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Profile",
+                        text = tr("प्रोफाइल", "Profile"),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = textMuted,
@@ -2105,7 +2122,7 @@ fun CustomerDashboardScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(w.name, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = textDark)
-                            Text("${w.trade} • ${w.experience}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = brandOrange)
+                            Text("${translateCategoryLabel(w.trade, appLang)} • ${w.experience}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = brandOrange)
                         }
                     }
                     IconButton(onClick = { viewingWorkerProfile = null }) {
@@ -2137,7 +2154,7 @@ fun CustomerDashboardScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
                 ) {
-                    Text("Hire Now", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(tr("अभी काम पर रखें", "Hire Now"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -2151,13 +2168,12 @@ fun CustomerDashboardScreen(
                 ) {
                     Icon(Icons.Default.Phone, contentDescription = null, tint = deepNavy, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Call", color = deepNavy, fontWeight = FontWeight.Bold)
+                    Text(tr("कॉल करें", "Call"), color = deepNavy, fontWeight = FontWeight.Bold)
                 }
             }
         )
     }
 
-    // Real Live Location Picker Modal
     if (showLocationModal) {
         WorkoraLiveLocationModal(
             currentLocation = currentRealLocation,
@@ -2176,6 +2192,7 @@ fun CustomerDashboardScreen(
 @Composable
 private fun CustomerWorkerRichCard(
     worker: ExactWorkerItem,
+    appLang: String,
     showHelmet: Boolean,
     onViewProfile: () -> Unit,
     onHireClick: () -> Unit
@@ -2184,6 +2201,7 @@ private fun CustomerWorkerRichCard(
     val brandOrange = Color(0xFFFF8C00)
     val textDark = Color(0xFF102A43)
     val textMuted = Color(0xFF667085)
+    val isHindi = appLang == "Hindi"
 
     Card(
         onClick = onViewProfile,
@@ -2225,7 +2243,7 @@ private fun CustomerWorkerRichCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${worker.trade} • ${worker.experience}",
+                            text = "${translateCategoryLabel(worker.trade, appLang)} • ${worker.experience}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = deepNavy
@@ -2282,14 +2300,14 @@ private fun CustomerWorkerRichCard(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = worker.availability,
+                            text = if (isHindi) "आज उपलब्ध" else worker.availability,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF15803D)
                         )
                     }
                     Text(
-                        text = "₹${worker.dailyWage}/day",
+                        text = if (isHindi) "₹${worker.dailyWage}/दिन" else "₹${worker.dailyWage}/day",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = deepNavy
@@ -2311,7 +2329,7 @@ private fun CustomerWorkerRichCard(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = "View Profile",
+                        text = if (isHindi) "प्रोफाइल देखें" else "View Profile",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = deepNavy
@@ -2328,7 +2346,7 @@ private fun CustomerWorkerRichCard(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = "Hire",
+                        text = if (isHindi) "काम पर रखें" else "Hire",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
