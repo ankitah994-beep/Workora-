@@ -50,7 +50,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -103,14 +102,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 
 private const val CUSTOMER_DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
@@ -562,7 +559,6 @@ fun CustomerDashboardScreen(
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
     var showLocationModal by remember { mutableStateOf(false) }
-    var locationSearchInput by remember { mutableStateOf("") }
 
     // 5-Icon Bottom Navigation State:
     // 0 = 🏠 Home | 1 = 🔍 Find Workers | 2 = ➕ Post Job | 3 = 📋 My Jobs | 4 = 👤 Profile
@@ -576,8 +572,6 @@ fun CustomerDashboardScreen(
     var jobDescription by remember { mutableStateOf("") }
     val jobWorkPhotos = remember { mutableStateListOf<String>() }
     var jobWorkLocation by remember { mutableStateOf(currentRealLocation) }
-    val liveLocationSuggestions = remember { mutableStateListOf<String>() }
-    var isFetchingLocationSuggestions by remember { mutableStateOf(false) }
     var jobPreferredDate by remember { mutableStateOf("Tomorrow Morning") }
     var jobNumberOfDays by remember { mutableStateOf("3") }
     var jobNumberOfWorkers by remember { mutableStateOf("2") }
@@ -621,61 +615,6 @@ fun CustomerDashboardScreen(
             if (encoded.isNotBlank()) {
                 jobWorkPhotos.add(encoded)
                 Toast.makeText(context, "Photo ${jobWorkPhotos.size}/5 added ✓", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun fetchLiveLocationSuggestions(query: String) {
-        val clean = query.trim()
-        if (clean.length < 2) {
-            liveLocationSuggestions.clear()
-            return
-        }
-        isFetchingLocationSuggestions = true
-        CoroutineScope(Dispatchers.IO).launch {
-            val suggestions = mutableListOf<String>()
-            val presetLocal = listOf(
-                "Silwani, Raisen (MP)",
-                "Raisen, Madhya Pradesh",
-                "Begamganj, Raisen (MP)",
-                "Gairatganj, Raisen (MP)",
-                "Bareli, Raisen (MP)",
-                "Udaipura, Raisen (MP)",
-                "Bhopal, Madhya Pradesh",
-                "Sagar, Madhya Pradesh",
-                "Vidisha, Madhya Pradesh",
-                "Indore, Madhya Pradesh"
-            ).filter { it.contains(clean, ignoreCase = true) }
-            suggestions.addAll(presetLocal)
-
-            try {
-                val encoded = URLEncoder.encode("$clean, India", "UTF-8")
-                val url = URL("https://nominatim.openstreetmap.org/search?q=$encoded&format=json&addressdetails=1&limit=5")
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    setRequestProperty("User-Agent", "WorkoraAndroidApp/1.0")
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                }
-                if (conn.responseCode in 200..299) {
-                    val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    val arr = JSONArray(text)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.getJSONObject(i)
-                        val display = obj.optString("display_name", "")
-                        val shortName = display.split(",").take(3).joinToString(", ").trim()
-                        if (shortName.isNotBlank() && !suggestions.contains(shortName)) {
-                            suggestions.add(shortName)
-                        }
-                    }
-                }
-                conn.disconnect()
-            } catch (_: Exception) {
-            }
-
-            withContext(Dispatchers.Main) {
-                liveLocationSuggestions.clear()
-                liveLocationSuggestions.addAll(suggestions.take(6))
-                isFetchingLocationSuggestions = false
             }
         }
     }
@@ -1002,7 +941,7 @@ fun CustomerDashboardScreen(
                                             color = textDark
                                         )
                                         Text(
-                                            text = "Tap to change location",
+                                            text = "Tap to change location (Live GPS & Search)",
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -1622,64 +1561,18 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                OutlinedTextField(
-                                    value = jobWorkLocation,
-                                    onValueChange = {
-                                        jobWorkLocation = it
-                                        fetchLiveLocationSuggestions(it)
-                                    },
-                                    label = { Text("5. Work Location (Area / Village / City)") },
-                                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = brandOrange) },
-                                    trailingIcon = {
-                                        IconButton(
-                                            onClick = {
-                                                jobWorkLocation = currentRealLocation
-                                                liveLocationSuggestions.clear()
-                                            }
-                                        ) {
-                                            Icon(Icons.Default.MyLocation, contentDescription = "Use Current Location", tint = deepNavy)
-                                        }
-                                    },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                if (isFetchingLocationSuggestions) {
-                                    Text("Searching live locations...", fontSize = 11.sp, color = deepNavy)
-                                }
-
-                                if (liveLocationSuggestions.isNotEmpty()) {
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                                        border = BorderStroke(1.dp, Color(0xFFBAE6FD))
-                                    ) {
-                                        Column(modifier = Modifier.padding(6.dp)) {
-                                            liveLocationSuggestions.forEach { suggestion ->
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            jobWorkLocation = suggestion
-                                                            currentRealLocation = suggestion
-                                                            profilePrefs.edit().putString("user_location", suggestion).apply()
-                                                            liveLocationSuggestions.clear()
-                                                        }
-                                                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = deepNavy, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(suggestion, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textDark)
-                                                }
-                                            }
-                                        }
+                            // 5. Work Location using Real Live Auto-Suggest Component
+                            LiveLocationAutoCompleteField(
+                                value = jobWorkLocation,
+                                onValueChange = {
+                                    jobWorkLocation = it
+                                    if (it.length > 3) {
+                                        currentRealLocation = it
+                                        profilePrefs.edit().putString("user_location", it).apply()
                                     }
-                                }
-                            }
+                                },
+                                label = "5. Work Location (Area / Village / City - Live Search)"
+                            )
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1796,6 +1689,9 @@ fun CustomerDashboardScreen(
                                     val finalLoc = jobWorkLocation.trim().ifBlank { currentRealLocation }
                                     val customerName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
                                     val customerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
+
+                                    currentRealLocation = finalLoc
+                                    profilePrefs.edit().putString("user_location", finalLoc).apply()
 
                                     val fullCombinedDesc = buildString {
                                         append(jobDescription.trim().ifBlank { "$cleanTitle at $finalLoc" })
@@ -2314,63 +2210,18 @@ fun CustomerDashboardScreen(
         )
     }
 
+    // Real Live Location Picker Modal (Zero Fake Locations!)
     if (showLocationModal) {
-        val locations = listOf(
-            "Silwani, Raisen (MP)",
-            "Raisen, Madhya Pradesh",
-            "Begamganj, Raisen (MP)",
-            "Gairatganj, Raisen (MP)",
-            "Bareli, Raisen (MP)",
-            "Bhopal, Madhya Pradesh"
-        )
-        AlertDialog(
-            onDismissRequest = { showLocationModal = false },
-            title = { Text("Select Location", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = locationSearchInput,
-                        onValueChange = {
-                            locationSearchInput = it
-                            fetchLiveLocationSuggestions(it)
-                        },
-                        placeholder = { Text("Type village or city...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (locationSearchInput.isNotBlank()) {
-                        Button(
-                            onClick = {
-                                currentRealLocation = locationSearchInput.trim()
-                                jobWorkLocation = currentRealLocation
-                                profilePrefs.edit().putString("user_location", currentRealLocation).apply()
-                                showLocationModal = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Set '${locationSearchInput.trim()}'", color = Color.White)
-                        }
-                    }
-                    (liveLocationSuggestions + locations).distinct().take(7).forEach { loc ->
-                        Text(
-                            text = "📍 $loc",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    currentRealLocation = loc
-                                    jobWorkLocation = loc
-                                    profilePrefs.edit().putString("user_location", loc).apply()
-                                    showLocationModal = false
-                                }
-                                .padding(vertical = 8.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {}
+        WorkoraLiveLocationModal(
+            currentLocation = currentRealLocation,
+            onDismiss = { showLocationModal = false },
+            onLocationSelected = { selectedLoc ->
+                currentRealLocation = selectedLoc
+                jobWorkLocation = selectedLoc
+                profilePrefs.edit().putString("user_location", selectedLoc).apply()
+                showLocationModal = false
+                Toast.makeText(context, "Location set to $selectedLoc ✓", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 }
