@@ -21,25 +21,37 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,13 +61,411 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.UserRole
 import com.example.ui.components.WorkoraHelmetLogo
 import kotlinx.coroutines.delay
+
+// =========================================================================
+// 3-LAYER SUPER ADMIN SECURITY GATE DIALOG (REUSABLE ACROSS ENTIRE APP)
+// Layer 1: Secret 6-Digit Admin Master PIN (Hardware Encrypted AES-256)
+// Layer 2: Real 6-Digit Admin OTP sent to +91 6265798340 & ankitah994@gmail.com
+// Layer 3: 3-Attempt Brute-Force Lockout (15 Mins) + Admin Audit Logging
+// =========================================================================
+@Composable
+fun WorkoraAdminSecurityGateDialog(
+    onDismiss: () -> Unit,
+    onAdminVerifiedSuccess: () -> Unit
+) {
+    val context = LocalContext.current
+    val cardBg = WorkoraThemeManager.surfaceColor(context)
+    val deepNavy = WorkoraThemeManager.accentBlue(context)
+    val brandOrange = Color(0xFFFF8C00)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val borderCol = WorkoraThemeManager.borderColor(context)
+
+    val savedEncryptedPinHash = remember {
+        WorkoraSecurityManager.readEncryptedSecret(context, "super_admin_master_pin_hash", "")
+    }
+    var isFirstTimePinSetup by remember { mutableStateOf(savedEncryptedPinHash.isBlank()) }
+
+    // Step 1 = PIN Verification / Setup | Step 2 = Real 6-Digit Admin OTP Verification
+    var gateStep by remember { mutableIntStateOf(1) }
+
+    var pinInput by remember { mutableStateOf("") }
+    var confirmPinInput by remember { mutableStateOf("") }
+    var pinVisible by remember { mutableStateOf(false) }
+
+    var otpInput by remember { mutableStateOf("") }
+    var maskedTarget by remember { mutableStateOf("+91 ******8340 & an***@gmail.com") }
+    var secondsLeft by remember { mutableIntStateOf(60) }
+    var isSendingOtp by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(gateStep, secondsLeft) {
+        if (gateStep == 2 && secondsLeft > 0) {
+            delay(1000L)
+            secondsLeft -= 1
+        }
+    }
+
+    fun dispatchAdminOtp() {
+        isSendingOtp = true
+        WorkoraRealOtpEngine.sendRealOtp(
+            context = context,
+            phoneOrEmail = "6265798340",
+            emailOptional = "ankitah994@gmail.com",
+            purpose = "SUPER ADMIN PANEL ACCESS"
+        ) { masked ->
+            isSendingOtp = false
+            maskedTarget = masked
+            gateStep = 2
+            secondsLeft = 60
+            Toast.makeText(
+                context,
+                "Admin Security OTP sent to $masked ✓",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = brandOrange,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (gateStep == 1) "Super Admin Security Gate" else "Verify Admin Real OTP",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = deepNavy
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (gateStep == 1) {
+                    if (isFirstTimePinSetup) {
+                        Text(
+                            text = "Pehli baar Admin Panel surakshit karne ke liye apna 6-Digit Secret Admin PIN banayein:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textDark,
+                            textAlign = TextAlign.Center
+                        )
+
+                        OutlinedTextField(
+                            value = pinInput,
+                            onValueChange = {
+                                pinInput = it.filter { c -> c.isDigit() }.take(6)
+                                errorMessage = null
+                            },
+                            textStyle = TextStyle(color = textDark, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                            label = { Text("Create 6-Digit Admin PIN") },
+                            placeholder = { Text("e.g. 789456") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { pinVisible = !pinVisible }) {
+                                    Icon(
+                                        imageVector = if (pinVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = null,
+                                        tint = brandOrange
+                                    )
+                                }
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = confirmPinInput,
+                            onValueChange = {
+                                confirmPinInput = it.filter { c -> c.isDigit() }.take(6)
+                                errorMessage = null
+                            },
+                            textStyle = TextStyle(color = textDark, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                            label = { Text("Confirm 6-Digit Admin PIN") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "Admin Panel kholne ke liye apna 6-Digit Secret Admin Master PIN dalein:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textDark,
+                            textAlign = TextAlign.Center
+                        )
+
+                        OutlinedTextField(
+                            value = pinInput,
+                            onValueChange = {
+                                pinInput = it.filter { c -> c.isDigit() }.take(6)
+                                errorMessage = null
+                            },
+                            label = { Text("Enter 6-Digit Admin PIN") },
+                            placeholder = { Text("● ● ● ● ● ●") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { pinVisible = !pinVisible }) {
+                                    Icon(
+                                        imageVector = if (pinVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = null,
+                                        tint = brandOrange
+                                    )
+                                }
+                            },
+                            textStyle = TextStyle(
+                                color = deepNavy,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                textAlign = TextAlign.Center,
+                                letterSpacing = 5.sp
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = brandOrange,
+                                unfocusedBorderColor = borderCol
+                            )
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Step 2/2: Admin Security 6-Digit Real OTP bheja gaya hai:\n$maskedTarget",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textDark,
+                        textAlign = TextAlign.Center
+                    )
+
+                    OutlinedTextField(
+                        value = otpInput,
+                        onValueChange = {
+                            otpInput = it.filter { c -> c.isDigit() }.take(6)
+                            errorMessage = null
+                        },
+                        label = { Text("Enter 6-Digit Admin OTP") },
+                        placeholder = { Text("● ● ● ● ● ●") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        textStyle = TextStyle(
+                            color = deepNavy,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 6.sp
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = brandOrange,
+                            unfocusedBorderColor = borderCol
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (secondsLeft > 0) "Resend in ${secondsLeft}s" else "OTP expired?",
+                            fontSize = 11.sp,
+                            color = textMuted
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                if (secondsLeft == 0) {
+                                    otpInput = ""
+                                    errorMessage = null
+                                    dispatchAdminOtp()
+                                }
+                            },
+                            enabled = secondsLeft == 0,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Resend OTP", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFB42318),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val (allowed, lockMsg) = WorkoraSecurityManager.checkLoginBruteForceAllowed(
+                        context,
+                        "super_admin_panel_gate"
+                    )
+                    if (!allowed) {
+                        errorMessage = lockMsg
+                        return@Button
+                    }
+
+                    if (gateStep == 1) {
+                        if (isFirstTimePinSetup) {
+                            if (pinInput.length != 6 || pinInput != confirmPinInput) {
+                                errorMessage = "Dono box mein barabar 6-digit PIN dalein!"
+                                return@Button
+                            }
+                            val saltedPinHash = WorkoraSecurityManager.hashPasswordSecure("AdminPin#$pinInput")
+                            WorkoraSecurityManager.saveEncryptedSecret(
+                                context,
+                                "super_admin_master_pin_hash",
+                                saltedPinHash
+                            )
+                            isFirstTimePinSetup = false
+                            dispatchAdminOtp()
+                        } else {
+                            if (pinInput.length != 6) {
+                                errorMessage = "Kripya 6-digit ka Admin PIN dalein!"
+                                return@Button
+                            }
+                            val currentHash = WorkoraSecurityManager.readEncryptedSecret(
+                                context,
+                                "super_admin_master_pin_hash",
+                                ""
+                            )
+                            val isPinValid = WorkoraSecurityManager.verifyPasswordSecure(
+                                "AdminPin#$pinInput",
+                                currentHash
+                            )
+                            if (!isPinValid) {
+                                WorkoraSecurityManager.recordLoginAttempt(
+                                    context,
+                                    "super_admin_panel_gate",
+                                    isSuccess = false
+                                )
+                                WorkoraSecurityManager.recordAdminAuditLog(
+                                    context,
+                                    "ankitah994@gmail.com",
+                                    "FAILED_ADMIN_PIN_ATTEMPT",
+                                    "AdminPanelGate"
+                                )
+                                errorMessage = "Galat Admin PIN! Unauthorized access blocked."
+                                return@Button
+                            }
+
+                            dispatchAdminOtp()
+                        }
+                    } else {
+                        val (otpOk, otpMsg) = WorkoraRealOtpEngine.verifyRealOtp(
+                            context = context,
+                            phoneOrEmail = "6265798340",
+                            emailOptional = "ankitah994@gmail.com",
+                            enteredOtp = otpInput
+                        )
+                        if (otpOk) {
+                            WorkoraSecurityManager.recordLoginAttempt(
+                                context,
+                                "super_admin_panel_gate",
+                                isSuccess = true
+                            )
+                            WorkoraSecurityManager.recordAdminAuditLog(
+                                context,
+                                "ankitah994@gmail.com",
+                                "SUPER_ADMIN_PANEL_UNLOCKED",
+                                "AdminDashboardScreen"
+                            )
+                            Toast.makeText(
+                                context,
+                                "Super Admin Security Verified ✓",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            onAdminVerifiedSuccess()
+                        } else {
+                            WorkoraSecurityManager.recordLoginAttempt(
+                                context,
+                                "super_admin_panel_gate",
+                                isSuccess = false
+                            )
+                            errorMessage = otpMsg
+                        }
+                    }
+                },
+                enabled = !isSendingOtp,
+                colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+            ) {
+                if (isSendingOtp) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (gateStep == 1) Icons.Default.VerifiedUser else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (gateStep == 1) {
+                            if (isFirstTimePinSetup) "Save Admin PIN & Send OTP →" else "Verify PIN & Send Admin OTP →"
+                        } else {
+                            "Verify Admin OTP & Unlock Panel ✓"
+                        },
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+        }
+    )
+}
 
 @Composable
 fun AccountSelectScreen(
@@ -68,19 +478,24 @@ fun AccountSelectScreen(
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
+    // Sync Global Theme Mode (Default = "System")
+    LaunchedEffect(Unit) {
+        WorkoraThemeManager.syncFromPrefs(context)
+    }
+    val screenBg = WorkoraThemeManager.bgColor(context)
+    val cardBg = WorkoraThemeManager.surfaceColor(context)
     val deepNavy = Color(0xFF072A5E)
-    val brandBlue = Color(0xFF083D91)
+    val brandBlue = WorkoraThemeManager.accentBlue(context)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF0F172A)
-    val textMuted = Color(0xFF475569)
-    val cardBorder = Color(0xFFE2E8F0)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val cardBorder = WorkoraThemeManager.borderColor(context)
 
-    // Both cards are unselected (null -> White) initially!
-    // When user clicks one, it turns Blue and moves to Language Selection step.
     var selectedRole by remember { mutableStateOf<UserRole?>(null) }
     var showLanguageStep by remember { mutableStateOf(false) }
     var clickedLanguage by remember { mutableStateOf<String?>(null) }
 
+    var showAdminSecurityGate by remember { mutableStateOf(false) }
     var isAdminDashboardOpen by remember { mutableStateOf(false) }
 
     val loggedEmail = remember {
@@ -96,7 +511,6 @@ fun AccountSelectScreen(
                 authPrefs.getString("saved_user_role", "") == "ADMIN"
     }
 
-    // Smooth transition from Role click (Blue highlight) -> Language Selection step
     LaunchedEffect(selectedRole) {
         if (selectedRole != null && !showLanguageStep) {
             delay(220)
@@ -104,7 +518,6 @@ fun AccountSelectScreen(
         }
     }
 
-    // Smooth transition after Language click (Blue highlight) -> Enter App Dashboard
     LaunchedEffect(clickedLanguage) {
         val lang = clickedLanguage
         val role = selectedRole
@@ -149,9 +562,8 @@ fun AccountSelectScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(screenBg)
     ) {
-        // Bottom Decorative Navy + Orange Waves (Matches Image 1)
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -178,7 +590,7 @@ fun AccountSelectScreen(
                 lineTo(0f, h)
                 close()
             }
-            drawPath(path = navyWave, color = brandBlue)
+            drawPath(path = navyWave, color = Color(0xFF083D91))
         }
 
         Column(
@@ -205,21 +617,20 @@ fun AccountSelectScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = deepNavy
+                            tint = brandBlue
                         )
                     }
                     Text(
                         text = "Back",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = deepNavy
+                        color = brandBlue
                     )
                 }
             } else {
                 Spacer(modifier = Modifier.height(36.dp))
             }
 
-            // Top Orange Helmet Logo
             WorkoraHelmetLogo(size = 76.dp, showHalo = false)
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -243,7 +654,6 @@ fun AccountSelectScreen(
             Spacer(modifier = Modifier.height(36.dp))
 
             if (!showLanguageStep) {
-                // ==================== STEP 1: WHAT DO YOU WANT TO DO? ====================
                 Text(
                     text = "What do you want to do?",
                     fontSize = 21.sp,
@@ -254,14 +664,13 @@ fun AccountSelectScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // CARD 1: I want to Hire (White by default, turns Blue ONLY when clicked!)
                 val isHireSelected = selectedRole == UserRole.CUSTOMER
                 Card(
                     onClick = { selectedRole = UserRole.CUSTOMER },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isHireSelected) deepNavy else Color.White
+                        containerColor = if (isHireSelected) deepNavy else cardBg
                     ),
                     border = BorderStroke(
                         width = 1.2.dp,
@@ -322,14 +731,13 @@ fun AccountSelectScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // CARD 2: I want to Work (White by default, turns Blue ONLY when clicked!)
                 val isWorkSelected = selectedRole == UserRole.LABOUR
                 Card(
                     onClick = { selectedRole = UserRole.LABOUR },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isWorkSelected) deepNavy else Color.White
+                        containerColor = if (isWorkSelected) deepNavy else cardBg
                     ),
                     border = BorderStroke(
                         width = 1.2.dp,
@@ -388,11 +796,10 @@ fun AccountSelectScreen(
                     }
                 }
 
-                // Super Admin Entry Button (Only for Verified Admin)
                 if (isVerifiedAdmin) {
                     Spacer(modifier = Modifier.height(20.dp))
                     Button(
-                        onClick = { isAdminDashboardOpen = true },
+                        onClick = { showAdminSecurityGate = true },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
@@ -407,15 +814,14 @@ fun AccountSelectScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Open Workora Super Admin Panel",
-                            fontSize = 14.sp,
+                            text = "🔐 Open Workora Super Admin Panel (PIN + OTP)",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
                         )
                     }
                 }
             } else {
-                // ==================== STEP 2: LANGUAGE SELECTION (AFTER ROLE SELECTION) ====================
                 Text(
                     text = "Choose Your Language\nअपनी भाषा चुनें",
                     fontSize = 21.sp,
@@ -427,14 +833,13 @@ fun AccountSelectScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Option 1: हिन्दी (Hindi) - White by default, turns Blue when clicked
                 val isHindiSelected = clickedLanguage == "Hindi"
                 Card(
                     onClick = { clickedLanguage = "Hindi" },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isHindiSelected) deepNavy else Color.White
+                        containerColor = if (isHindiSelected) deepNavy else cardBg
                     ),
                     border = BorderStroke(
                         width = 1.2.dp,
@@ -491,14 +896,13 @@ fun AccountSelectScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Option 2: English - White by default, turns Blue when clicked
                 val isEnglishSelected = clickedLanguage == "English"
                 Card(
                     onClick = { clickedLanguage = "English" },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isEnglishSelected) deepNavy else Color.White
+                        containerColor = if (isEnglishSelected) deepNavy else cardBg
                     ),
                     border = BorderStroke(
                         width = 1.2.dp,
@@ -556,5 +960,15 @@ fun AccountSelectScreen(
 
             Spacer(modifier = Modifier.height(160.dp))
         }
+    }
+
+    if (showAdminSecurityGate) {
+        WorkoraAdminSecurityGateDialog(
+            onDismiss = { showAdminSecurityGate = false },
+            onAdminVerifiedSuccess = {
+                showAdminSecurityGate = false
+                isAdminDashboardOpen = true
+            }
+        )
     }
 }
