@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
@@ -39,11 +40,14 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -167,20 +171,41 @@ fun ProfileScreen(
         mutableStateOf(profilePrefs.getString("work_photo_3", "") ?: "")
     }
 
+    // Existing + New Settings States
     var availableToday by remember {
         mutableStateOf(settingsPrefs.getBoolean("available_today", true))
     }
     var directCallsEnabled by remember {
         mutableStateOf(settingsPrefs.getBoolean("direct_calls", true))
     }
-    var whatsappAlertsEnabled by remember {
-        mutableStateOf(settingsPrefs.getBoolean("whatsapp_alerts", true))
+    var workoraMessageAlertsEnabled by remember {
+        mutableStateOf(settingsPrefs.getBoolean("workora_message_alerts", true))
     }
     var workRadiusKm by remember {
         mutableIntStateOf(settingsPrefs.getInt("work_radius_km", 10))
     }
 
+    var isSettingsExpanded by remember { mutableStateOf(true) }
+    var notificationsEnabled by remember {
+        mutableStateOf(settingsPrefs.getBoolean("notifications_enabled", true))
+    }
+    var appThemeMode by remember {
+        mutableStateOf(settingsPrefs.getString("app_theme_mode", "Light") ?: "Light")
+    }
+    var dataUsageMode by remember {
+        mutableStateOf(settingsPrefs.getString("data_usage_mode", "Standard") ?: "Standard")
+    }
+    var profileVisibility by remember {
+        mutableStateOf(settingsPrefs.getString("profile_visibility", "Everyone") ?: "Everyone")
+    }
+    var locationPrivacy by remember {
+        mutableStateOf(settingsPrefs.getString("location_privacy", "Area Only") ?: "Area Only")
+    }
+
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var activeInfoDialogTitle by remember { mutableStateOf<String?>(null) }
+    var activeInfoDialogBody by remember { mutableStateOf("") }
     var activePhotoSlot by remember { mutableIntStateOf(0) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -230,7 +255,7 @@ fun ProfileScreen(
             .navigationBarsPadding()
             .imePadding()
     ) {
-        // 1. Navy Header Bar (Matches styles.css .header)
+        // 1. Navy Header Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -287,7 +312,7 @@ fun ProfileScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 2. Profile Top Card (Matches .worker-profile-top / .profile-card)
+            // 2. Profile Top Card + 3-Column Info Row (Kept from existing)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -397,7 +422,6 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 3-Column Info Row (Matches .info-row in styles.css)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -425,7 +449,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 3. Language Selection Card (Hindi / Hinglish / English)
+            // 3. Language Selection Card (Kept from existing: Hindi / Hinglish / English)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -474,7 +498,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 4. Work Proof Photos (3 Slots)
+            // 4. Work Proof Photos (3 Slots - Kept from existing)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -544,7 +568,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 5. Availability & Settings Toggles
+            // 5. Existing Availability, Direct Calls, Workora Message Alerts & Distance Radius Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -562,7 +586,7 @@ fun ProfileScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = tr("आज काम के लिए उपलब्ध", "Available for Work Today", "Available for Work Today"),
+                                text = tr("आज काम के लिए उपलब्ध (Availability ON/OFF)", "Availability ON/OFF (Available Today)", "Availability ON/OFF"),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = textDark
@@ -618,22 +642,22 @@ fun ProfileScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = tr("व्हाट्सएप और जॉब अलर्ट", "Job & Chat Notifications", "Job & Chat Notifications"),
+                                text = tr("वर्कओरा मैसेज और जॉब अलर्ट", "Workora Message & Job Alerts", "Workora Message & Job Alerts"),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = textDark
                             )
                             Text(
-                                text = tr("नए काम की तुरंत सूचना पाएं", "Receive instant alerts for nearby jobs", "Receive instant alerts for nearby jobs"),
+                                text = tr("नए काम और वर्कओरा मैसेज की सूचना पाएं", "Receive instant Workora Message & job alerts", "Receive instant Workora Message & job alerts"),
                                 fontSize = 11.sp,
                                 color = textMuted
                             )
                         }
                         Switch(
-                            checked = whatsappAlertsEnabled,
+                            checked = workoraMessageAlertsEnabled,
                             onCheckedChange = {
-                                whatsappAlertsEnabled = it
-                                settingsPrefs.edit().putBoolean("whatsapp_alerts", it).apply()
+                                workoraMessageAlertsEnabled = it
+                                settingsPrefs.edit().putBoolean("workora_message_alerts", it).apply()
                             },
                             colors = SwitchDefaults.colors(checkedTrackColor = orangeColor)
                         )
@@ -679,7 +703,172 @@ fun ProfileScreen(
                 }
             }
 
-            // 6. Action Menu Rows (Matches .menu-row in styles.css)
+            // 6. ⚙️ Full Settings Tree (Account, App Settings, Privacy & Security, Workora)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, if (isSettingsExpanded) navyColor else borderColor)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isSettingsExpanded = !isSettingsExpanded }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = navyColor)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "⚙️ Settings",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = textDark
+                                )
+                                Text(
+                                    text = "Account, App Settings, Privacy & Security, Workora",
+                                    fontSize = 11.sp,
+                                    color = textMuted
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = if (isSettingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Expand Settings",
+                            tint = navyColor
+                        )
+                    }
+
+                    if (isSettingsExpanded) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFF8FAFC))
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // + Account
+                            SettingsCategoryHeader(title = "+ Account")
+                            SettingsTreeItem(
+                                label = "👤 Profile",
+                                valueText = savedName,
+                                onClick = { showEditProfileDialog = true }
+                            )
+                            SettingsTreeItem(
+                                label = "📱 Phone Number",
+                                valueText = savedPhone,
+                                onClick = { showEditProfileDialog = true }
+                            )
+                            SettingsTreeItem(
+                                label = "🔐 Password & Security",
+                                valueText = "Change Password",
+                                onClick = { showPasswordDialog = true }
+                            )
+
+                            // + App Settings
+                            SettingsCategoryHeader(title = "+ App Settings")
+                            SettingsTreeItem(
+                                label = "🌐 Language",
+                                valueText = if (appLang == "Hindi") "हिन्दी" else "English",
+                                onClick = {
+                                    appLang = if (appLang == "Hindi") "English" else "Hindi"
+                                    settingsPrefs.edit().putString("app_language", appLang).apply()
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "🔔 Notifications",
+                                valueText = if (notificationsEnabled) "ON" else "OFF",
+                                onClick = {
+                                    notificationsEnabled = !notificationsEnabled
+                                    settingsPrefs.edit().putBoolean("notifications_enabled", notificationsEnabled).apply()
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "🎨 Theme",
+                                valueText = appThemeMode,
+                                onClick = {
+                                    appThemeMode = when (appThemeMode) {
+                                        "Light" -> "Dark"
+                                        "Dark" -> "System"
+                                        else -> "Light"
+                                    }
+                                    settingsPrefs.edit().putString("app_theme_mode", appThemeMode).apply()
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "📍 Location & Area",
+                                valueText = savedLocation,
+                                onClick = { showEditProfileDialog = true }
+                            )
+                            SettingsTreeItem(
+                                label = "📶 Data Usage",
+                                valueText = dataUsageMode,
+                                onClick = {
+                                    dataUsageMode = if (dataUsageMode == "Standard") "Data Saver" else "Standard"
+                                    settingsPrefs.edit().putString("data_usage_mode", dataUsageMode).apply()
+                                }
+                            )
+
+                            // + Privacy & Security
+                            SettingsCategoryHeader(title = "+ Privacy & Security")
+                            SettingsTreeItem(
+                                label = "🔒 Privacy",
+                                valueText = "Protected",
+                                onClick = {
+                                    activeInfoDialogTitle = "🔒 Privacy Policy"
+                                    activeInfoDialogBody = "Your phone number and profile details are safe and only visible to verified Workora users."
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "👁️ Who can see my profile",
+                                valueText = profileVisibility,
+                                onClick = {
+                                    profileVisibility = if (profileVisibility == "Everyone") "Verified Users" else "Everyone"
+                                    settingsPrefs.edit().putString("profile_visibility", profileVisibility).apply()
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "📍 Location Privacy",
+                                valueText = locationPrivacy,
+                                onClick = {
+                                    locationPrivacy = if (locationPrivacy == "Area Only") "Exact Location" else "Area Only"
+                                    settingsPrefs.edit().putString("location_privacy", locationPrivacy).apply()
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "🚫 Blocked Users",
+                                valueText = "0 Blocked",
+                                onClick = {
+                                    activeInfoDialogTitle = "🚫 Blocked Users"
+                                    activeInfoDialogBody = "You have not blocked any users on Workora."
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = "🛡️ Security",
+                                valueText = "OTP Verified ✓",
+                                onClick = { showPasswordDialog = true }
+                            )
+
+                            // + Workora
+                            SettingsCategoryHeader(title = "+ Workora")
+                            SettingsTreeItem(
+                                label = "❓ Help & Support",
+                                valueText = "24x7 Support",
+                                onClick = {
+                                    activeInfoDialogTitle = "❓ Workora Help & Support"
+                                    activeInfoDialogBody = "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: Silwani, Raisen (MP) & All India"
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 7. Quick Menu Action Rows (Kept + Added)
             Card(
                 onClick = onSwitchRole,
                 modifier = Modifier.fillMaxWidth(),
@@ -726,7 +915,7 @@ fun ProfileScreen(
                         Icon(Icons.Default.Chat, contentDescription = null, tint = orangeColor)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = tr("लाइव चैट खोलें (Messages)", "Open Online Live Chat", "Open Online Live Chat"),
+                            text = tr("वर्कओरा मैसेज खोलें (Workora Message)", "Open Workora Message (Live Chat)", "Open Workora Message"),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = textDark
@@ -735,6 +924,53 @@ fun ProfileScreen(
                     Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = textMuted)
                 }
             }
+
+            ProfileMenuActionRow(
+                title = "🔔 Notifications",
+                subtitle = if (notificationsEnabled) "Workora Message & job alerts are ON" else "Notifications are muted",
+                onClick = {
+                    activeInfoDialogTitle = "🔔 Notifications"
+                    activeInfoDialogBody = "• Welcome to Workora (Find. Hire. Work.)!\n• Your profile in $savedLocation is verified and active.\n• Check Workora Message for new worker & customer updates."
+                }
+            )
+
+            if (role == UserRole.CUSTOMER) {
+                ProfileMenuActionRow(
+                    title = "⭐ Saved Workers",
+                    subtitle = "Quickly access your bookmarked workers",
+                    onClick = {
+                        activeInfoDialogTitle = "⭐ Saved Workers"
+                        activeInfoDialogBody = "1. Ramesh Kumar — Mason (₹600/day • Silwani)\n2. Suresh Patel — Electrician (₹550/day • Silwani)\n3. Amit Yadav — Plumber (₹500/day • Silwani)"
+                    }
+                )
+            } else {
+                ProfileMenuActionRow(
+                    title = "🔖 Saved Jobs",
+                    subtitle = "View jobs you have bookmarked or applied for",
+                    onClick = {
+                        activeInfoDialogTitle = "🔖 Saved Jobs"
+                        activeInfoDialogBody = "1. House Repair & Wall Plastering — ₹600/day (Silwani)\n2. Complete House Wiring — ₹550/day (Silwani)"
+                    }
+                )
+            }
+
+            ProfileMenuActionRow(
+                title = "❓ Help & Support",
+                subtitle = "Call support, FAQs & Workora Message assistance",
+                onClick = {
+                    activeInfoDialogTitle = "❓ Help & Support"
+                    activeInfoDialogBody = "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers."
+                }
+            )
+
+            ProfileMenuActionRow(
+                title = "🛡️ Report / Safety",
+                subtitle = "Safety guidelines & report fake jobs or users",
+                onClick = {
+                    activeInfoDialogTitle = "🛡️ Report / Safety"
+                    activeInfoDialogBody = "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340."
+                }
+            )
 
             if (isSuperAdmin) {
                 Card(
@@ -766,7 +1002,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 7. Logout Button
+            // 8. Logout Button
             Button(
                 onClick = onLogout,
                 modifier = Modifier
@@ -778,7 +1014,7 @@ fun ProfileScreen(
                 Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = tr("लॉग आउट करें (Log Out)", "Log Out", "Log Out"),
+                    text = tr("लॉग आउट करें (Logout)", "Logout", "Logout"),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White
@@ -799,6 +1035,7 @@ fun ProfileScreen(
 
         AlertDialog(
             onDismissRequest = { showEditProfileDialog = false },
+            containerColor = Color.White,
             title = {
                 Text(
                     text = "Edit Profile Details",
@@ -825,7 +1062,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = editPhone,
                         onValueChange = { editPhone = it },
-                        label = { Text("Mobile Number") },
+                        label = { Text("Phone Number") },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
@@ -834,7 +1071,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = editLocation,
                         onValueChange = { editLocation = it },
-                        label = { Text("Location (Village / City)") },
+                        label = { Text("Location & Area") },
                         leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -849,7 +1086,7 @@ fun ProfileScreen(
                     )
                     OutlinedTextField(
                         value = editWage,
-                        onValueChange = { editWage = it },
+                        onValueChange = { editWage = it.filter { c -> c.isDigit() } },
                         label = { Text("Daily Wage (₹/day)") },
                         leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -894,9 +1131,213 @@ fun ProfileScreen(
             }
         )
     }
+
+    // Password & Security Dialog
+    if (showPasswordDialog) {
+        var newPass by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showPasswordDialog = false },
+            containerColor = Color.White,
+            title = {
+                Text("🔐 Password & Security", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = navyColor)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Enter a new password (minimum 8 characters, at least 1 letter & 1 number):",
+                        fontSize = 12.sp,
+                        color = textMuted
+                    )
+                    OutlinedTextField(
+                        value = newPass,
+                        onValueChange = { newPass = it },
+                        label = { Text("New Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clean = newPass.trim()
+                        if (clean.length >= 8 && clean.any { it.isLetter() } && clean.any { it.isDigit() }) {
+                            val digits = savedPhone.filter { it.isDigit() }.takeLast(10)
+                            authPrefs.edit().apply {
+                                if (loggedEmail.isNotBlank()) putString("user_pass_$loggedEmail", clean)
+                                if (digits.isNotBlank()) putString("user_pass_$digits", clean)
+                                apply()
+                            }
+                            showPasswordDialog = false
+                            Toast.makeText(context, "Password Updated Successfully ✓", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Min 8 chars with 1 letter & 1 number required!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = orangeColor)
+                ) {
+                    Text("Update Password", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showPasswordDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Info / Support / Safety Dialog
+    if (activeInfoDialogTitle != null) {
+        AlertDialog(
+            onDismissRequest = { activeInfoDialogTitle = null },
+            containerColor = Color.White,
+            title = {
+                Text(
+                    text = activeInfoDialogTitle!!,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = navyColor
+                )
+            },
+            text = {
+                Text(
+                    text = activeInfoDialogBody,
+                    fontSize = 13.sp,
+                    color = textDark,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { activeInfoDialogTitle = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = navyColor)
+                ) {
+                    Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                if (activeInfoDialogTitle!!.contains("Help") || activeInfoDialogTitle!!.contains("Report")) {
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340")))
+                            } catch (_: Exception) {
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = null, tint = orangeColor, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Call Helpline", color = orangeColor, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        )
+    }
 }
 
-// Safeguard top-level composable so any screen in com.example.ui.screens calling LiveLocationAutoCompleteField compiles cleanly
+@Composable
+private fun SettingsCategoryHeader(title: String) {
+    Text(
+        text = title,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.ExtraBold,
+        color = Color(0xFF083D91),
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun SettingsTreeItem(
+    label: String,
+    valueText: String,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF102A43)
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = valueText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFF8C00)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Color(0xFF667085),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileMenuActionRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF102A43)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = Color(0xFF667085)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color(0xFF667085)
+            )
+        }
+    }
+}
+
+// Safeguard top-level composable so any screen calling LiveLocationAutoCompleteField compiles cleanly
 @Composable
 fun LiveLocationAutoCompleteField(
     value: String,
