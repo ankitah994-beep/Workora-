@@ -127,7 +127,6 @@ object WorkoraThemeManager {
 
     fun syncFromPrefs(context: Context): String {
         val prefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
-        // Normal default is strictly "System"
         val saved = prefs.getString(KEY_THEME_MODE, "System") ?: "System"
         val validMode = if (saved in listOf("System", "Light", "Dark")) saved else "System"
         if (!isInitialized || currentMode != validMode) {
@@ -166,7 +165,7 @@ object WorkoraThemeManager {
         return when (currentMode) {
             "Dark" -> true
             "Light" -> false
-            else -> sysDark // "System" Default Mode
+            else -> sysDark
         }
     }
 
@@ -1782,7 +1781,11 @@ fun ProfileScreen(
                                 textMuted = textMuted,
                                 onClick = {
                                     activeInfoDialogTitle = tr("❓ Workora सहायता और सपोर्ट", "❓ Workora Help & Support", "❓ Workora Help & Support")
-                                    activeInfoDialogBody = "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: Silwani, Raisen (MP) & All India"
+                                    activeInfoDialogBody = tr(
+                                        "काम पर रखने, काम खोजने या Workora मैसेज में किसी भी सहायता के लिए:\n• हेल्पलाइन: +91 6265798340\n• ईमेल: ankitah994@gmail.com\n• सेवा क्षेत्र: $savedLocation और संपूर्ण भारत",
+                                        "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: $savedLocation & All India",
+                                        "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: $savedLocation & All India"
+                                    )
                                 }
                             )
                         }
@@ -1859,8 +1862,12 @@ fun ProfileScreen(
                 textDark = textDark,
                 textMuted = textMuted,
                 onClick = {
-                    activeInfoDialogTitle = tr("🔔 नोटिफिकेशन", "🔔 Notifications", "🔔 Notifications")
-                    activeInfoDialogBody = "• Welcome to Workora (Find. Hire. Work.)!\n• Your profile in $savedLocation is verified and active.\n• Check Workora Message for new worker & customer updates."
+                    activeInfoDialogTitle = tr("🔔 लाइव नोटिफिकेशन सेंटर", "🔔 Live Notification Center", "🔔 Live Notification Center")
+                    activeInfoDialogBody = tr(
+                        "🟢 नया काम अलर्ट ($savedLocation):\n• राजमिस्त्री और इलेक्ट्रीशियन की आवश्यकता (₹600/दिन) — अभी उपलब्ध।\n\n💬 Workora मैसेज अपडेट:\n• आपके क्षेत्र ($savedLocation) के सत्यापित ग्राहक और कारीगर ऑनलाइन हैं।\n\n🛡️ सुरक्षा और प्रोफाइल अलर्ट:\n• आपकी प्रोफाइल ($savedName) 100% रियल OTP से सत्यापित और सक्रिय है।",
+                        "🟢 New Job Alert ($savedLocation):\n• Mason & Electrician work available (₹600/day).\n\n💬 Workora Message Update:\n• Verified customers and workers in $savedLocation are online.\n\n🛡️ Security & Profile Alert:\n• Your profile ($savedName) is 100% Real-OTP verified and active.",
+                        "🟢 New Job Alert ($savedLocation):\n• Mason & Electrician work available (₹600/day).\n\n💬 Workora Message Update:\n• Verified customers and workers in $savedLocation are online.\n\n🛡️ Security & Profile Alert:\n• Your profile ($savedName) is 100% Real-OTP verified and active."
+                    )
                 }
             )
 
@@ -1874,7 +1881,11 @@ fun ProfileScreen(
                     textMuted = textMuted,
                     onClick = {
                         activeInfoDialogTitle = tr("⭐ सेव किए गए कारीगर", "⭐ Saved Workers", "⭐ Saved Workers")
-                        activeInfoDialogBody = "1. Ramesh Kumar — Mason (₹600/day • Silwani)\n2. Suresh Patel — Electrician (₹550/day • Silwani)\n3. Amit Yadav — Plumber (₹500/day • Silwani)"
+                        activeInfoDialogBody = tr(
+                            "1. रमेश कुमार — राजमिस्त्री (₹600/दिन • $savedLocation)\n2. सुरेश पटेल — इलेक्ट्रीशियन (₹550/दिन • $savedLocation)\n3. अमित यादव — प्लंबर (₹500/दिन • $savedLocation)",
+                            "1. Ramesh Kumar — Mason (₹600/day • $savedLocation)\n2. Suresh Patel — Electrician (₹550/day • $savedLocation)\n3. Amit Yadav — Plumber (₹500/day • $savedLocation)",
+                            "1. Ramesh Kumar — Mason (₹600/day • $savedLocation)\n2. Suresh Patel — Electrician (₹550/day • $savedLocation)\n3. Amit Yadav — Plumber (₹500/day • $savedLocation)"
+                        )
                     }
                 )
             } else {
@@ -1887,7 +1898,11 @@ fun ProfileScreen(
                     textMuted = textMuted,
                     onClick = {
                         activeInfoDialogTitle = tr("🔖 सेव किए गए काम", "🔖 Saved Jobs", "🔖 Saved Jobs")
-                        activeInfoDialogBody = "1. House Repair & Wall Plastering — ₹600/day (Silwani)\n2. Complete House Wiring — ₹550/day (Silwani)"
+                        activeInfoDialogBody = tr(
+                            "1. मकान मरम्मत और प्लास्टर का काम — ₹600/दिन ($savedLocation)\n2. हाउस वायरिंग और पंखा फिटिंग — ₹550/दिन ($savedLocation)",
+                            "1. House Repair & Wall Plastering — ₹600/day ($savedLocation)\n2. Complete House Wiring — ₹550/day ($savedLocation)",
+                            "1. House Repair & Wall Plastering — ₹600/day ($savedLocation)\n2. Complete House Wiring — ₹550/day ($savedLocation)"
+                        )
                     }
                 )
             }
@@ -1901,7 +1916,11 @@ fun ProfileScreen(
                 textMuted = textMuted,
                 onClick = {
                     activeInfoDialogTitle = tr("❓ सहायता और सपोर्ट", "❓ Help & Support", "❓ Help & Support")
-                    activeInfoDialogBody = "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers."
+                    activeInfoDialogBody = tr(
+                        "Workora पर किसी भी सहायता के लिए:\n\n• हेल्पलाइन नंबर: +91 6265798340\n• सपोर्ट ईमेल: ankitah994@gmail.com\n• कारीगर या ग्राहक से सीधे बात करने के लिए Workora मैसेज का उपयोग करें।",
+                        "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers.",
+                        "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers."
+                    )
                 }
             )
 
@@ -1914,7 +1933,11 @@ fun ProfileScreen(
                 textMuted = textMuted,
                 onClick = {
                     activeInfoDialogTitle = tr("🛡️ रिपोर्ट और सुरक्षा", "🛡️ Report / Safety", "🛡️ Report / Safety")
-                    activeInfoDialogBody = "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340."
+                    activeInfoDialogBody = tr(
+                        "• काम पर जाने से पहले कॉल या Workora मैसेज पर पूरी जानकारी ज़रूर कन्फर्म करें।\n• किसी को भी रजिस्ट्रेशन या काम के नाम पर एडवांस पैसे न दें।\n• सुरक्षा हेल्पलाइन: +91 6265798340",
+                        "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340.",
+                        "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340."
+                    )
                 }
             )
 
@@ -2186,7 +2209,7 @@ fun ProfileScreen(
                     onClick = { activeInfoDialogTitle = null },
                     colors = ButtonDefaults.buttonColors(containerColor = navyColor)
                 ) {
-                    Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(tr("ठीक है (OK)", "OK", "OK"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -2201,7 +2224,7 @@ fun ProfileScreen(
                     ) {
                         Icon(Icons.Default.Phone, contentDescription = null, tint = orangeColor, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Call Helpline", color = orangeColor, fontWeight = FontWeight.Bold)
+                        Text(tr("कॉल करें", "Call Helpline", "Call Helpline"), color = orangeColor, fontWeight = FontWeight.Bold)
                     }
                 }
             }
