@@ -16,3 +16,60 @@
 local.properties
 .env
 debug.keystore
+# =====================================================================
+# WORKORA PRODUCTION SECURITY .GITIGNORE
+# Protects .env, API Secrets, Signing Keystores, and DB Backups
+# =====================================================================
+
+# 1. Environment Variables & Secret Configs (NEVER COMMIT TO GITHUB)
+.env
+.env.*
+*.env
+!.env.example
+secrets.properties
+local.properties
+secure.properties
+
+# 2. Android Signing Keystores & Certificates
+*.jks
+*.keystore
+*.pem
+*.p12
+*.key
+*.crt
+google-services.json.bak
+service-account*.json
+firebase-adminsdk*.json
+
+# 3. PostgreSQL Database Backups & Dumps
+*.sql.gz
+*.dump
+*.bak
+backups/
+db_backups/
+pg_backup_*
+
+# 4. Android / Gradle Build Artifacts
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+app/build/
+build/
+
+# 5. Node.js / Backend Dependencies & Logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+pids
+*.pid
+*.seed
+*.pid.lock
