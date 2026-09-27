@@ -50,7 +50,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -102,14 +101,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 
 private const val LABOUR_DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
@@ -437,7 +434,6 @@ fun LabourDashboardScreen(
     val borderLight = Color(0xFFE5E7EB)
     val greenTrusted = Color(0xFF22A06B)
 
-    // Live Admin Branding States (Synced with Admin Panel "Edit App")
     var liveAppName by remember {
         mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA")
     }
@@ -452,7 +448,6 @@ fun LabourDashboardScreen(
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
     var showLocationModal by remember { mutableStateOf(false) }
-    var locationSearchInput by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
 
     // 5-Icon Bottom Navigation State:
@@ -474,8 +469,6 @@ fun LabourDashboardScreen(
     var availExperience by remember { mutableStateOf("5 Years Experience") }
     val availWorkPhotos = remember { mutableStateListOf<String>() }
     var availWorkArea by remember { mutableStateOf(currentRealLocation) }
-    val liveAreaSuggestions = remember { mutableStateListOf<String>() }
-    var isFetchingAreaSuggestions by remember { mutableStateOf(false) }
     var availMaxDistance by remember { mutableStateOf("15 KM") }
     var availDailyRate by remember {
         mutableStateOf(profilePrefs.getString("user_rate", "600") ?: "600")
@@ -499,61 +492,6 @@ fun LabourDashboardScreen(
             if (encoded.isNotBlank()) {
                 availWorkPhotos.add(encoded)
                 Toast.makeText(context, "Work Photo ${availWorkPhotos.size}/5 added ✓", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun fetchLiveAreaSuggestions(query: String) {
-        val clean = query.trim()
-        if (clean.length < 2) {
-            liveAreaSuggestions.clear()
-            return
-        }
-        isFetchingAreaSuggestions = true
-        CoroutineScope(Dispatchers.IO).launch {
-            val suggestions = mutableListOf<String>()
-            val presetLocal = listOf(
-                "Silwani, Raisen (MP)",
-                "Raisen, Madhya Pradesh",
-                "Begamganj, Raisen (MP)",
-                "Gairatganj, Raisen (MP)",
-                "Bareli, Raisen (MP)",
-                "Udaipura, Raisen (MP)",
-                "Bhopal, Madhya Pradesh",
-                "Sagar, Madhya Pradesh",
-                "Vidisha, Madhya Pradesh",
-                "Indore, Madhya Pradesh"
-            ).filter { it.contains(clean, ignoreCase = true) }
-            suggestions.addAll(presetLocal)
-
-            try {
-                val encoded = URLEncoder.encode("$clean, India", "UTF-8")
-                val url = URL("https://nominatim.openstreetmap.org/search?q=$encoded&format=json&addressdetails=1&limit=5")
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    setRequestProperty("User-Agent", "WorkoraAndroidApp/1.0")
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                }
-                if (conn.responseCode in 200..299) {
-                    val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    val arr = JSONArray(text)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.getJSONObject(i)
-                        val display = obj.optString("display_name", "")
-                        val shortName = display.split(",").take(3).joinToString(", ").trim()
-                        if (shortName.isNotBlank() && !suggestions.contains(shortName)) {
-                            suggestions.add(shortName)
-                        }
-                    }
-                }
-                conn.disconnect()
-            } catch (_: Exception) {
-            }
-
-            withContext(Dispatchers.Main) {
-                liveAreaSuggestions.clear()
-                liveAreaSuggestions.addAll(suggestions.take(6))
-                isFetchingAreaSuggestions = false
             }
         }
     }
@@ -620,7 +558,6 @@ fun LabourDashboardScreen(
     fun loadCustomerPostedJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 0. Sync Admin App Branding Live from Firebase /app_branding
                 val bConn = URL("$LABOUR_DB_URL/app_branding.json").openConnection() as HttpURLConnection
                 if (bConn.responseCode in 200..299) {
                     val bResp = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
@@ -641,7 +578,6 @@ fun LabourDashboardScreen(
                 }
                 bConn.disconnect()
 
-                // 1. Sync Jobs
                 val conn = URL("$LABOUR_DB_URL/jobs.json").openConnection() as HttpURLConnection
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
@@ -852,7 +788,7 @@ fun LabourDashboardScreen(
                                             color = textDark
                                         )
                                         Text(
-                                            text = "Tap to change work area",
+                                            text = "Tap to change work area (Live GPS & Search)",
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -866,6 +802,7 @@ fun LabourDashboardScreen(
                             }
                         }
 
+                        // Clean Hero Banner (No duplicate Post Availability button here)
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
@@ -888,7 +825,7 @@ fun LabourDashboardScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Post Your Work\nAvailability",
+                                            text = "Find Daily Work\nNear You",
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = textDark,
@@ -896,7 +833,7 @@ fun LabourDashboardScreen(
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "Let nearby customers find\nand hire you directly.",
+                                            text = "Connect directly with nearby\ncustomers & get daily wages.",
                                             fontSize = 12.sp,
                                             color = Color(0xFF475569),
                                             lineHeight = 16.sp
@@ -904,32 +841,21 @@ fun LabourDashboardScreen(
                                         Spacer(modifier = Modifier.height(14.dp))
 
                                         Button(
-                                            onClick = {
-                                                availWorkArea = currentRealLocation
-                                                bottomNavIndex = 2
-                                            },
+                                            onClick = { bottomNavIndex = 1 },
                                             shape = RoundedCornerShape(22.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = deepNavy),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                             modifier = Modifier.height(38.dp)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(18.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color.White),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Add,
-                                                    contentDescription = null,
-                                                    tint = brandOrange,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(15.dp)
+                                            )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Post Availability",
+                                                text = "Explore Jobs",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
@@ -1007,7 +933,7 @@ fun LabourDashboardScreen(
                         }
 
                         Card(
-                            onClick = { bottomNavIndex = 2 },
+                            onClick = onOpenProfile,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
@@ -1045,7 +971,7 @@ fun LabourDashboardScreen(
                                             color = textDark
                                         )
                                         Text(
-                                            text = "Tap to update your availability, rate & photos.",
+                                            text = "Your profile is active and visible to customers.",
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -1095,7 +1021,7 @@ fun LabourDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔎 FIND JOBS ====================
+                // ==================== 1: 🔎 FIND JOBS (CLEAN HEADER WITHOUT DUPLICATE POST BUTTON) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1109,38 +1035,21 @@ fun LabourDashboardScreen(
                             .fillMaxWidth()
                             .background(Color.White)
                             .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { bottomNavIndex = 0 }) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = textDark
-                                )
-                            }
-                            Text(
-                                text = "Find Jobs",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = textDark
+                        IconButton(onClick = { bottomNavIndex = 0 }) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = textDark
                             )
                         }
-                        Button(
-                            onClick = {
-                                availWorkArea = currentRealLocation
-                                bottomNavIndex = 2
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Post Availability", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
+                        Text(
+                            text = "Find Jobs",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = textDark
+                        )
                     }
 
                     Column(
@@ -1279,7 +1188,7 @@ fun LabourDashboardScreen(
             }
 
             2 -> {
-                // ==================== 2: ➕ POST AVAILABILITY (FULL 12-POINT SCREEN) ====================
+                // ==================== 2: ➕ POST AVAILABILITY (OPENED ONLY FROM BOTTOM '+' ICON) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1462,64 +1371,18 @@ fun LabourDashboardScreen(
                                 }
                             }
 
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                OutlinedTextField(
-                                    value = availWorkArea,
-                                    onValueChange = {
-                                        availWorkArea = it
-                                        fetchLiveAreaSuggestions(it)
-                                    },
-                                    label = { Text("5. Work Area / Location (गाँव या शहर)") },
-                                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = brandOrange) },
-                                    trailingIcon = {
-                                        IconButton(
-                                            onClick = {
-                                                availWorkArea = currentRealLocation
-                                                liveAreaSuggestions.clear()
-                                            }
-                                        ) {
-                                            Icon(Icons.Default.MyLocation, contentDescription = "Current Location", tint = deepNavy)
-                                        }
-                                    },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                if (isFetchingAreaSuggestions) {
-                                    Text("Searching locations...", fontSize = 11.sp, color = deepNavy)
-                                }
-
-                                if (liveAreaSuggestions.isNotEmpty()) {
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                                        border = BorderStroke(1.dp, Color(0xFFBAE6FD))
-                                    ) {
-                                        Column(modifier = Modifier.padding(6.dp)) {
-                                            liveAreaSuggestions.forEach { suggestion ->
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            availWorkArea = suggestion
-                                                            currentRealLocation = suggestion
-                                                            profilePrefs.edit().putString("user_location", suggestion).apply()
-                                                            liveAreaSuggestions.clear()
-                                                        }
-                                                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = deepNavy, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(suggestion, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textDark)
-                                                }
-                                            }
-                                        }
+                            // 5. Work Area / Location using Real Live Auto-Suggest Component
+                            LiveLocationAutoCompleteField(
+                                value = availWorkArea,
+                                onValueChange = {
+                                    availWorkArea = it
+                                    if (it.length > 3) {
+                                        currentRealLocation = it
+                                        profilePrefs.edit().putString("user_location", it).apply()
                                     }
-                                }
-                            }
+                                },
+                                label = "5. Work Area / Location (Live Auto-Suggest)"
+                            )
 
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
@@ -1645,6 +1508,7 @@ fun LabourDashboardScreen(
                                     val profilePic = availWorkPhotos.firstOrNull()
                                         ?: (profilePrefs.getString("profile_photo_base64", "") ?: "")
 
+                                    currentRealLocation = finalArea
                                     profilePrefs.edit().apply {
                                         putString("user_skill", availWorkCategory)
                                         putString("user_rate", rateInt.toString())
@@ -1725,7 +1589,7 @@ fun LabourDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY WORK (WORKER ACTIVITY TAB) ====================
+                // ==================== 3: 📋 MY WORK (CLEAN HEADER WITHOUT DUPLICATE BUTTON) ====================
                 val myAppliedJobs = liveAvailableJobs.filter { appliedJobIds.contains(it.id) }
 
                 Column(
@@ -1741,41 +1605,23 @@ fun LabourDashboardScreen(
                             .fillMaxWidth()
                             .background(deepNavy)
                             .padding(horizontal = 12.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { bottomNavIndex = 0 }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                            }
-                            Column {
-                                Text(
-                                    text = "My Work",
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "Your active availability & applied jobs",
-                                    fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.85f)
-                                )
-                            }
+                        IconButton(onClick = { bottomNavIndex = 0 }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                         }
-
-                        Button(
-                            onClick = {
-                                availWorkArea = currentRealLocation
-                                bottomNavIndex = 2
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Update", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Column {
+                            Text(
+                                text = "My Work",
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Your active availability & applied jobs",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
                         }
                     }
 
@@ -1915,7 +1761,7 @@ fun LabourDashboardScreen(
         }
 
         // ==================== 5-ICON LABOUR BOTTOM NAVIGATION BAR ====================
-        // 🏠 Home | 🔎 Find Jobs | ➕ Post Availability (Prominent Orange) | 📋 My Work | 👤 Profile
+        // ONLY PLACE WITH '+' POST AVAILABILITY BUTTON
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1977,6 +1823,7 @@ fun LabourDashboardScreen(
                     )
                 }
 
+                // THE ONLY '+' POST AVAILABILITY BUTTON IN THE APP
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -2128,63 +1975,18 @@ fun LabourDashboardScreen(
         )
     }
 
+    // Real Live Location Picker Modal
     if (showLocationModal) {
-        val locations = listOf(
-            "Silwani, Raisen (MP)",
-            "Raisen, Madhya Pradesh",
-            "Begamganj, Raisen (MP)",
-            "Gairatganj, Raisen (MP)",
-            "Bareli, Raisen (MP)",
-            "Bhopal, Madhya Pradesh"
-        )
-        AlertDialog(
-            onDismissRequest = { showLocationModal = false },
-            title = { Text("Select Work Area", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = locationSearchInput,
-                        onValueChange = {
-                            locationSearchInput = it
-                            fetchLiveAreaSuggestions(it)
-                        },
-                        placeholder = { Text("Type village or city...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (locationSearchInput.isNotBlank()) {
-                        Button(
-                            onClick = {
-                                currentRealLocation = locationSearchInput.trim()
-                                availWorkArea = currentRealLocation
-                                profilePrefs.edit().putString("user_location", currentRealLocation).apply()
-                                showLocationModal = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Set '${locationSearchInput.trim()}'", color = Color.White)
-                        }
-                    }
-                    (liveAreaSuggestions + locations).distinct().take(7).forEach { loc ->
-                        Text(
-                            text = "📍 $loc",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    currentRealLocation = loc
-                                    availWorkArea = loc
-                                    profilePrefs.edit().putString("user_location", loc).apply()
-                                    showLocationModal = false
-                                }
-                                .padding(vertical = 8.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {}
+        WorkoraLiveLocationModal(
+            currentLocation = currentRealLocation,
+            onDismiss = { showLocationModal = false },
+            onLocationSelected = { selectedLoc ->
+                currentRealLocation = selectedLoc
+                availWorkArea = selectedLoc
+                profilePrefs.edit().putString("user_location", selectedLoc).apply()
+                showLocationModal = false
+                Toast.makeText(context, "Work Area set to $selectedLoc ✓", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 }
