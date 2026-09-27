@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
@@ -135,6 +134,22 @@ data class ExactWorkerItem(
     val phone: String = "+91 9876543210",
     val photoBase64: String = "",
     val shirtColor: Color = Color(0xFF083D91)
+)
+
+data class CustomerMyJobEntry(
+    val key: String,
+    val id: Long,
+    val title: String,
+    val category: String,
+    val description: String,
+    val dailyRate: Int,
+    val budgetType: String,
+    val location: String,
+    val preferredDate: String,
+    val numberOfDays: String,
+    val workersNeeded: Int,
+    val workTime: String,
+    val status: String
 )
 
 private fun decodeWorkerPhoto(base64Str: String): ImageBitmap? {
@@ -515,17 +530,17 @@ fun CustomerDashboardScreen(
     var showLocationModal by remember { mutableStateOf(false) }
     var locationSearchInput by remember { mutableStateOf("") }
 
-    // 0 = Home View, 1 = Available Workers View, 2 = Full "+ Post a Job" Form View
+    // 5-Icon Bottom Navigation State:
+    // 0 = 🏠 Home | 1 = 🔍 Find Workers | 2 = ➕ Post Job | 3 = 📋 My Jobs | 4 = 👤 Profile
     var bottomNavIndex by remember { mutableIntStateOf(0) }
 
-    // Selected Worker for "View Profile" Modal
     var viewingWorkerProfile by remember { mutableStateOf<ExactWorkerItem?>(null) }
 
     // ==================== CUSTOMER - POST A JOB (ALL 13 FIELDS) ====================
     var jobWorkName by remember { mutableStateOf("") }
     var jobCategory by remember { mutableStateOf("Mason") }
     var jobDescription by remember { mutableStateOf("") }
-    val jobWorkPhotos = remember { mutableStateListOf<String>() } // 1-5 photos
+    val jobWorkPhotos = remember { mutableStateListOf<String>() }
     var jobWorkLocation by remember { mutableStateOf(currentRealLocation) }
     val liveLocationSuggestions = remember { mutableStateListOf<String>() }
     var isFetchingLocationSuggestions by remember { mutableStateOf(false) }
@@ -533,7 +548,7 @@ fun CustomerDashboardScreen(
     var jobNumberOfDays by remember { mutableStateOf("3") }
     var jobNumberOfWorkers by remember { mutableStateOf("2") }
     var jobRateOrBudget by remember { mutableStateOf("600") }
-    var jobBudgetType by remember { mutableStateOf("Per Day (₹/day)") } // Per Day or Total Budget
+    var jobBudgetType by remember { mutableStateOf("Per Day (₹/day)") }
     var jobWorkTime by remember { mutableStateOf("9:00 AM – 6:00 PM") }
     var jobSpecialRequirement by remember { mutableStateOf("") }
     var jobAbout by remember { mutableStateOf("") }
@@ -543,6 +558,26 @@ fun CustomerDashboardScreen(
         "Mason", "Labour", "Painter", "Electrician", "Plumber",
         "Carpenter", "Cleaner", "Farm Worker", "Tile Worker", "Other"
     )
+
+    val myPostedJobsList = remember {
+        mutableStateListOf(
+            CustomerMyJobEntry(
+                key = "my_job_1",
+                id = 101L,
+                title = "House Repair & Wall Plastering",
+                category = "Mason",
+                description = "Boundary wall plastering and brickwork needed at Silwani.",
+                dailyRate = 600,
+                budgetType = "Per Day (₹/day)",
+                location = currentRealLocation,
+                preferredDate = "Tomorrow Morning",
+                numberOfDays = "3",
+                workersNeeded = 2,
+                workTime = "9:00 AM – 6:00 PM",
+                status = "ACTIVE"
+            )
+        )
+    }
 
     val jobPhotoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -676,8 +711,7 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // Sync any live worker availability posts from Firebase /workers
-    fun loadLiveWorkersFromFirebase() {
+    fun loadLiveWorkersAndMyJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val conn = URL("$CUSTOMER_DB_URL/workers.json").openConnection() as HttpURLConnection
@@ -729,13 +763,57 @@ fun CustomerDashboardScreen(
                     }
                 }
                 conn.disconnect()
+
+                val jConn = URL("$CUSTOMER_DB_URL/jobs.json").openConnection() as HttpURLConnection
+                if (jConn.responseCode in 200..299) {
+                    val jResp = BufferedReader(InputStreamReader(jConn.inputStream)).use { it.readText() }
+                    if (jResp.isNotBlank() && jResp != "null" && jResp.startsWith("{")) {
+                        val root = JSONObject(jResp)
+                        val keys = root.keys()
+                        val loadedJobs = mutableListOf<CustomerMyJobEntry>()
+                        while (keys.hasNext()) {
+                            val k = keys.next()
+                            val obj = root.optJSONObject(k) ?: continue
+                            val title = obj.optString("title", "")
+                            if (title.isNotBlank()) {
+                                loadedJobs.add(
+                                    CustomerMyJobEntry(
+                                        key = k,
+                                        id = obj.optLong("id", System.currentTimeMillis()),
+                                        title = title,
+                                        category = obj.optString("category", "Mason"),
+                                        description = obj.optString("description", ""),
+                                        dailyRate = obj.optInt("dailyRate", 600),
+                                        budgetType = obj.optString("budgetType", "Per Day (₹/day)"),
+                                        location = obj.optString("location", currentRealLocation),
+                                        preferredDate = obj.optString("preferredDate", "Today"),
+                                        numberOfDays = obj.optString("numberOfDays", "2"),
+                                        workersNeeded = obj.optInt("workersNeeded", 1),
+                                        workTime = obj.optString("workTime", "9:00 AM – 6:00 PM"),
+                                        status = obj.optString("status", "ACTIVE")
+                                    )
+                                )
+                            }
+                        }
+                        if (loadedJobs.isNotEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                loadedJobs.sortedByDescending { it.id }.forEach { cj ->
+                                    if (myPostedJobsList.none { it.id == cj.id }) {
+                                        myPostedJobsList.add(0, cj)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                jConn.disconnect()
             } catch (_: Exception) {
             }
         }
     }
 
     LaunchedEffect(Unit) {
-        loadLiveWorkersFromFirebase()
+        loadLiveWorkersAndMyJobsFromFirebase()
     }
 
     val filteredWorkers = exactWorkers.filter { w ->
@@ -757,14 +835,14 @@ fun CustomerDashboardScreen(
     ) {
         when (bottomNavIndex) {
             0 -> {
-                // ==================== TAB 0: CUSTOMER HOME SCREEN ====================
+                // ==================== 0: 🏠 HOME ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
                         .navigationBarsPadding()
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = 90.dp)
+                        .padding(bottom = 96.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -805,10 +883,16 @@ fun CustomerDashboardScreen(
                                     modifier = Modifier.size(23.dp)
                                 )
                             }
-                            IconButton(onClick = onSwitchRole) {
+                            // Menu / Settings inside Profile
+                            IconButton(
+                                onClick = {
+                                    onOpenProfile()
+                                    onNavigateToProfile()
+                                }
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Menu,
-                                    contentDescription = "Switch Role",
+                                    contentDescription = "Menu & Settings",
                                     tint = textDark,
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -930,7 +1014,7 @@ fun CustomerDashboardScreen(
                                             }
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Post a Job",
+                                                text = "Post Job",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
@@ -1060,7 +1144,6 @@ fun CustomerDashboardScreen(
                             }
                         }
 
-                        // Available Workers Section on Home
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1074,7 +1157,7 @@ fun CustomerDashboardScreen(
                                     color = textDark
                                 )
                                 Text(
-                                    text = "View All >",
+                                    text = "Find Workers >",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = deepNavy,
@@ -1102,14 +1185,14 @@ fun CustomerDashboardScreen(
             }
 
             1 -> {
-                // ==================== TAB 1: AVAILABLE WORKERS LIST SCREEN ====================
+                // ==================== 1: 🔍 FIND WORKERS ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
                         .navigationBarsPadding()
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = 90.dp)
+                        .padding(bottom = 96.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -1128,7 +1211,7 @@ fun CustomerDashboardScreen(
                                 )
                             }
                             Text(
-                                text = "Available Workers",
+                                text = "Find Workers",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = textDark
@@ -1146,7 +1229,7 @@ fun CustomerDashboardScreen(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Post a Job", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Post Job", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
 
@@ -1258,7 +1341,7 @@ fun CustomerDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${filteredWorkers.size} Workers Available",
+                                text = "${filteredWorkers.size} Workers Found",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = textDark
@@ -1268,7 +1351,7 @@ fun CustomerDashboardScreen(
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = brandOrange,
-                                modifier = Modifier.clickable { loadLiveWorkersFromFirebase() }
+                                modifier = Modifier.clickable { loadLiveWorkersAndMyJobsFromFirebase() }
                             )
                         }
 
@@ -1290,8 +1373,8 @@ fun CustomerDashboardScreen(
                 }
             }
 
-            else -> {
-                // ==================== TAB 2: CUSTOMER "+ POST A JOB" FULL 13-POINT SCREEN ====================
+            2 -> {
+                // ==================== 2: ➕ POST JOB (FULL 13-POINT SCREEN) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1301,7 +1384,6 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 100.dp)
                 ) {
-                    // Deep Navy Top Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1342,7 +1424,6 @@ fun CustomerDashboardScreen(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            // 1. Work Name
                             OutlinedTextField(
                                 value = jobWorkName,
                                 onValueChange = { jobWorkName = it },
@@ -1353,7 +1434,6 @@ fun CustomerDashboardScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // 2. Category (10 Options)
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
                                     text = "2. Select Work Category (श्रेणी चुनें)",
@@ -1386,7 +1466,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 3. Work Description
                             OutlinedTextField(
                                 value = jobDescription,
                                 onValueChange = { jobDescription = it },
@@ -1397,7 +1476,6 @@ fun CustomerDashboardScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // 4. Work Photos (1-5 Photos Upload)
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1479,7 +1557,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 5. Work Location with Live Location Auto-Suggest System
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedTextField(
                                     value = jobWorkLocation,
@@ -1539,7 +1616,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 6. Preferred Date & 7. Number of Days
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1565,7 +1641,6 @@ fun CustomerDashboardScreen(
                                 )
                             }
 
-                            // 8. Number of Workers & 9. Rate / Budget
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1591,7 +1666,6 @@ fun CustomerDashboardScreen(
                                 )
                             }
 
-                            // Budget Type Toggle (Per Day vs Total Budget)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1618,7 +1692,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
 
-                            // 10. Work Time
                             OutlinedTextField(
                                 value = jobWorkTime,
                                 onValueChange = { jobWorkTime = it },
@@ -1629,7 +1702,6 @@ fun CustomerDashboardScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // 11. Special Requirement
                             OutlinedTextField(
                                 value = jobSpecialRequirement,
                                 onValueChange = { jobSpecialRequirement = it },
@@ -1640,7 +1712,6 @@ fun CustomerDashboardScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // 12. About
                             OutlinedTextField(
                                 value = jobAbout,
                                 onValueChange = { jobAbout = it },
@@ -1651,7 +1722,6 @@ fun CustomerDashboardScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // 13. Large "Post Job" Button
                             Button(
                                 onClick = {
                                     val cleanTitle = jobWorkName.trim().ifBlank { "$jobCategory Work Needed" }
@@ -1681,17 +1751,35 @@ fun CustomerDashboardScreen(
                                         jobWorkTime
                                     )
 
-                                    // Also save rich job object directly to Firebase /jobs so LabourDashboard sees all 13 fields immediately
+                                    val newJobId = System.currentTimeMillis()
+                                    myPostedJobsList.add(
+                                        0,
+                                        CustomerMyJobEntry(
+                                            key = "job_$newJobId",
+                                            id = newJobId,
+                                            title = cleanTitle,
+                                            category = jobCategory,
+                                            description = fullCombinedDesc,
+                                            dailyRate = wageInt,
+                                            budgetType = jobBudgetType,
+                                            location = finalLoc,
+                                            preferredDate = jobPreferredDate,
+                                            numberOfDays = daysCount,
+                                            workersNeeded = workersCount,
+                                            workTime = jobWorkTime,
+                                            status = "ACTIVE"
+                                        )
+                                    )
+
                                     CoroutineScope(Dispatchers.IO).launch {
                                         try {
-                                            val jobId = System.currentTimeMillis()
-                                            val conn = (URL("$CUSTOMER_DB_URL/jobs/job_$jobId.json").openConnection() as HttpURLConnection).apply {
+                                            val conn = (URL("$CUSTOMER_DB_URL/jobs/job_$newJobId.json").openConnection() as HttpURLConnection).apply {
                                                 requestMethod = "PUT"
                                                 setRequestProperty("Content-Type", "application/json")
                                                 doOutput = true
                                             }
                                             val json = JSONObject().apply {
-                                                put("id", jobId)
+                                                put("id", newJobId)
                                                 put("title", cleanTitle)
                                                 put("category", jobCategory)
                                                 put("description", fullCombinedDesc)
@@ -1723,10 +1811,10 @@ fun CustomerDashboardScreen(
                                             jobSpecialRequirement = ""
                                             jobAbout = ""
                                             jobWorkPhotos.clear()
-                                            bottomNavIndex = 0
+                                            bottomNavIndex = 3 // Go directly to 📋 My Jobs after posting
                                             Toast.makeText(
                                                 context,
-                                                "Job Posted Live! Available workers can now Apply ✓",
+                                                "Job Posted Live! Added to My Jobs ✓",
                                                 Toast.LENGTH_LONG
                                             ).show()
                                         }
@@ -1756,6 +1844,161 @@ fun CustomerDashboardScreen(
                     }
                 }
             }
+
+            else -> {
+                // ==================== 3: 📋 MY JOBS (ACTIVITY TAB) ====================
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 96.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(deepNavy)
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { bottomNavIndex = 0 }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                            }
+                            Column {
+                                Text(
+                                    text = "My Jobs",
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Track your posted requirements & worker responses",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                jobWorkLocation = currentRealLocation
+                                bottomNavIndex = 2
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Post Job", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        myPostedJobsList.forEach { myJob ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, borderLight),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = myJob.title,
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = textDark
+                                            )
+                                            Text(
+                                                text = "${myJob.category} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = deepNavy
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .background(Color(0xFFDCFCE7), shape = RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = myJob.status,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = greenTrusted
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = "📍 ${myJob.location} • 🗓️ ${myJob.preferredDate} (${myJob.workTime})",
+                                        fontSize = 12.sp,
+                                        color = textMuted
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "₹${myJob.dailyRate} (${myJob.budgetType})",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = brandOrange
+                                        )
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = onOpenChat,
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = BorderStroke(1.dp, deepNavy),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Text("Chat", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = deepNavy)
+                                            }
+                                            Button(
+                                                onClick = {
+                                                    onCompleteJob(myJob.id)
+                                                    Toast.makeText(context, "Job marked Completed ✓", Toast.LENGTH_SHORT).show()
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = greenTrusted),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Text("Complete ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Floating Online Live Chat Pill Button
@@ -1769,7 +2012,7 @@ fun CustomerDashboardScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
-                    .padding(end = 16.dp, bottom = 74.dp)
+                    .padding(end = 16.dp, bottom = 78.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Chat,
@@ -1787,115 +2030,158 @@ fun CustomerDashboardScreen(
             }
         }
 
-        // ==================== BOTTOM NAVIGATION BAR (HOME, SEARCH, + POST A JOB, PROFILE) ====================
+        // ==================== 5-ICON CUSTOMER BOTTOM NAVIGATION BAR ====================
+        // 🏠 Home | 🔍 Find Workers | ➕ Post Job (Prominent Orange) | 📋 My Jobs | 👤 Profile
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding(),
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                    .padding(vertical = 8.dp, horizontal = 6.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 1. 🏠 Home
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { bottomNavIndex = 0 }
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { bottomNavIndex = 0 }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Home,
                         contentDescription = "Home",
                         tint = if (bottomNavIndex == 0) deepNavy else textMuted,
-                        modifier = Modifier.size(23.dp)
+                        modifier = Modifier.size(22.dp)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Home",
                         fontSize = 10.sp,
-                        fontWeight = if (bottomNavIndex == 0) FontWeight.Bold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 0) deepNavy else textMuted
+                        fontWeight = if (bottomNavIndex == 0) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 0) deepNavy else textMuted,
+                        maxLines = 1
                     )
                 }
 
+                // 2. 🔍 Find Workers
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { bottomNavIndex = 1 }
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { bottomNavIndex = 1 }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
+                        contentDescription = "Find Workers",
                         tint = if (bottomNavIndex == 1) deepNavy else textMuted,
-                        modifier = Modifier.size(23.dp)
+                        modifier = Modifier.size(22.dp)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Search",
+                        text = "Find Workers",
                         fontSize = 10.sp,
-                        fontWeight = if (bottomNavIndex == 1) FontWeight.Bold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 1) deepNavy else textMuted
+                        fontWeight = if (bottomNavIndex == 1) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 1) deepNavy else textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // "+" Button -> Post a Job
+                // 3. ➕ Post Job (Prominent Orange Center Button)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable {
-                        jobWorkLocation = currentRealLocation
-                        bottomNavIndex = 2
-                    }
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .clickable {
+                            jobWorkLocation = currentRealLocation
+                            bottomNavIndex = 2
+                        }
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
-                            .background(if (bottomNavIndex == 2) deepNavy else brandOrange),
+                            .background(brandOrange),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Post a Job",
+                            contentDescription = "Post Job",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Post a Job",
+                        text = "Post Job",
                         fontSize = 10.sp,
-                        fontWeight = if (bottomNavIndex == 2) FontWeight.ExtraBold else FontWeight.Bold,
-                        color = if (bottomNavIndex == 2) deepNavy else brandOrange
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (bottomNavIndex == 2) deepNavy else brandOrange,
+                        maxLines = 1
                     )
                 }
 
+                // 4. 📋 My Jobs
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable {
-                        onOpenProfile()
-                        onNavigateToProfile()
-                    }
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { bottomNavIndex = 3 }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "My Jobs",
+                        tint = if (bottomNavIndex == 3) deepNavy else textMuted,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "My Jobs",
+                        fontSize = 10.sp,
+                        fontWeight = if (bottomNavIndex == 3) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 3) deepNavy else textMuted,
+                        maxLines = 1
+                    )
+                }
+
+                // 5. 👤 Profile
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            onOpenProfile()
+                            onNavigateToProfile()
+                        }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Profile",
                         tint = textMuted,
-                        modifier = Modifier.size(23.dp)
+                        modifier = Modifier.size(22.dp)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Profile",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
-                        color = textMuted
+                        color = textMuted,
+                        maxLines = 1
                     )
                 }
             }
         }
     }
 
-    // ==================== WORKER FULL PROFILE MODAL ("View Profile" Button Action) ====================
+    // Worker Full Profile Dialog
     if (viewingWorkerProfile != null) {
         val w = viewingWorkerProfile!!
         AlertDialog(
@@ -1969,7 +2255,7 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // Location Picker Dialog with Live Search
+    // Location Picker Dialog
     if (showLocationModal) {
         val locations = listOf(
             "Silwani, Raisen (MP)",
@@ -2031,7 +2317,6 @@ fun CustomerDashboardScreen(
     }
 }
 
-// Customer Worker Card with Photo, Name, Work Type, Experience, Rate, Area, Rating, Availability + "View Profile" / "Hire" buttons
 @Composable
 private fun CustomerWorkerRichCard(
     worker: ExactWorkerItem,
@@ -2156,7 +2441,6 @@ private fun CustomerWorkerRichCard(
                 }
             }
 
-            // Action Buttons: "View Profile" and "Hire"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
