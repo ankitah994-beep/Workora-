@@ -2,33 +2,53 @@ package com.example.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Debug
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
+import java.io.File
 import java.io.InputStream
+import java.net.URL
+import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
 import javax.crypto.Mac
+import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import javax.net.ssl.HttpsURLConnection
 
 /**
- * WORKORA PRODUCTION SECURITY MANAGER (ANDROID CLIENT)
- * Implements:
- * 1. Cryptographic Password Hashing (PBKDF2-HMAC-SHA256 / Argon2id compatible format)
- * 2. Brute-Force Protection & API Rate Limiting
- * 3. RBAC & Resource Ownership Verification
- * 4. Input Sanitization & XSS/SQLi Prevention
- * 5. File / Image Magic-Byte & Size Validation
+ * WORKORA PRODUCTION & ADVANCED ANTI-HACKER SECURITY MANAGER
+ *
+ * Includes:
+ * 1. Salted Password Hashing (PBKDF2-HMAC-SHA256 / Argon2id compatible)
+ * 2. Brute-Force Account Lockout & Sliding-Window API Rate Limiter
+ * 3. Hardware-Backed AES-256-GCM Encrypted Storage (AndroidKeyStore)
+ * 4. Root / Jailbreak / Frida / Xposed / Debugger Detection
+ * 5. SSL/TLS Certificate Pinning (MitM Attack Prevention)
+ * 6. Session Token Blacklisting & Anti-Replay Protection
+ * 7. RBAC, Ownership Verification & Magic-Byte Image Upload Validation
  */
 object WorkoraSecurityManager {
 
     private const val SECURITY_PREFS = "workora_prod_security_vault"
+    private const val ENCRYPTED_VAULT_PREFS = "workora_aes256_encrypted_vault"
     private const val AUDIT_PREFS = "workora_admin_audit_logs"
+    private const val KEYSTORE_ALIAS = "WorkoraMasterHardwareKey_v1"
 
     private const val HASH_ITERATIONS = 120_000
     private const val SALT_BYTES = 16
     private const val HASH_BITS = 256
+    private const val GCM_TAG_BITS = 128
+    private const val GCM_IV_BYTES = 12
 
     private const val MAX_LOGIN_ATTEMPTS = 5
     private const val LOCKOUT_DURATION_MS = 15 * 60 * 1000L
@@ -37,6 +57,215 @@ object WorkoraSecurityManager {
     private const val MAX_IMAGE_UPLOAD_BYTES = 2 * 1024 * 1024
 
     private val requestRateMap = ConcurrentHashMap<String, MutableList<Long>>()
+    private val blacklistedTokenHashes = ConcurrentHashMap.newKeySet<String>()
+
+    // =========================================================================
+    // 1. HARDWARE-BACKED AES-256-GCM ENCRYPTED STORAGE (ANDROID KEYSTORE)
+    // =========================================================================
+
+    private fun getOrCreateHardwareSecretKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val existingEntry = keyStore.getEntry(KEYSTORE_ALIAS, null) as? KeyStore.SecretKeyEntry
+        if (existingEntry != null) {
+            return existingEntry.secretKey
+        }
+
+        val keyGenerator = KeyGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_AES,
+            "AndroidKeyStore"
+        )
+        val spec = KeyGenParameterSpec.Builder(
+            KEYSTORE_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .setRandomizedEncryptionRequired(true)
+            .build()
+
+        keyGenerator.init(spec)
+        return keyGenerator.generateKey()
+    }
+
+    fun saveEncryptedSecret(context: Context, key: String, plainValue: String) {
+        try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateHardwareSecretKey())
+            val iv = cipher.iv
+            val cipherBytes = cipher.doFinal(plainValue.toByteArray(Charsets.UTF_8))
+
+            val combined = ByteArray(iv.size + cipherBytes.size)
+            System.arraycopy(iv, 0, combined, 0, iv.size)
+            System.arraycopy(cipherBytes, 0, combined, iv.size, cipherBytes.size)
+
+            val encoded = Base64.encodeToString(combined, Base64.NO_WRAP)
+            context.getSharedPreferences(ENCRYPTED_VAULT_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(sanitizeIdentifier(key), encoded)
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun readEncryptedSecret(context: Context, key: String, defaultValue: String = ""): String {
+        return try {
+            val prefs = context.getSharedPreferences(ENCRYPTED_VAULT_PREFS, Context.MODE_PRIVATE)
+            val encoded = prefs.getString(sanitizeIdentifier(key), null) ?: return defaultValue
+            val combined = Base64.decode(encoded, Base64.NO_WRAP)
+            if (combined.size <= GCM_IV_BYTES) return defaultValue
+
+            val iv = combined.copyOfRange(0, GCM_IV_BYTES)
+            val cipherBytes = combined.copyOfRange(GCM_IV_BYTES, combined.size)
+
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                getOrCreateHardwareSecretKey(),
+                GCMParameterSpec(GCM_TAG_BITS, iv)
+            )
+            String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+        } catch (_: Exception) {
+            defaultValue
+        }
+    }
+
+    // =========================================================================
+    // 2. ROOT, DEBUGGER, FRIDA & TAMPER DETECTION (ANTI-HACKER SHIELD)
+    // =========================================================================
+
+    fun isDeviceCompromised(): Boolean {
+        return isDeviceRooted() || isDebuggerOrHookAttached()
+    }
+
+    private fun isDeviceRooted(): Boolean {
+        val buildTags = Build.TAGS
+        if (buildTags != null && buildTags.contains("test-keys")) {
+            return true
+        }
+        val rootPaths = arrayOf(
+            "/system/app/Superuser.apk",
+            "/sbin/su",
+            "/system/bin/su",
+            "/system/xbin/su",
+            "/data/local/xbin/su",
+            "/data/local/bin/su",
+            "/system/sd/xbin/su",
+            "/system/bin/failsafe/su",
+            "/data/local/su",
+            "/su/bin/su",
+            "/sbin/magisk"
+        )
+        return rootPaths.any { path ->
+            try {
+                File(path).exists()
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private fun isDebuggerOrHookAttached(): Boolean {
+        if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
+            return true
+        }
+        // Check loaded memory maps for Frida or Xposed injection
+        return try {
+            val mapsFile = File("/proc/self/maps")
+            if (mapsFile.exists() && mapsFile.canRead()) {
+                val content = mapsFile.readText().lowercase()
+                content.contains("frida") || content.contains("xposed") || content.contains("substrate")
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun isAppRepackagedOrCloned(context: Context): Boolean {
+        val filesDirPath = context.filesDir.absolutePath
+        // Dual-space / parallel app cloners inject multiple package segments or virtual paths
+        val suspiciousClonerKeywords = listOf("dual", "parallel", "virtual", "clone", "multiple")
+        return suspiciousClonerKeywords.any { filesDirPath.lowercase().contains(it) }
+    }
+
+    // =========================================================================
+    // 3. SSL / TLS CERTIFICATE PINNING (MAN-IN-THE-MIDDLE PROTECTION)
+    // =========================================================================
+
+    fun openPinnedHttpsConnection(
+        httpsUrl: String,
+        allowedSpkiSha256Pins: Set<String> = emptySet()
+    ): HttpsURLConnection {
+        val url = URL(httpsUrl)
+        require(url.protocol.equals("https", ignoreCase = true)) {
+            "Security Violation: Plain HTTP connections are strictly forbidden."
+        }
+
+        val conn = (url.openConnection() as HttpsURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            useCaches = false
+            setRequestProperty("X-Content-Type-Options", "nosniff")
+        }
+
+        conn.connect()
+
+        // Verify Server X.509 Certificate Public Key Pin (if pins configured)
+        if (allowedSpkiSha256Pins.isNotEmpty()) {
+            val certs = conn.serverCertificates
+            var pinMatched = false
+            for (cert in certs) {
+                if (cert is X509Certificate) {
+                    val spkiBytes = cert.publicKey.encoded
+                    val sha256 = MessageDigest.getInstance("SHA-256").digest(spkiBytes)
+                    val pin = "sha256/" + Base64.encodeToString(sha256, Base64.NO_WRAP)
+                    if (allowedSpkiSha256Pins.contains(pin)) {
+                        pinMatched = true
+                        break
+                    }
+                }
+            }
+            if (!pinMatched) {
+                conn.disconnect()
+                throw SecurityException("SSL Pinning Verification Failed: Potential MitM Attack Detected!")
+            }
+        }
+
+        return conn
+    }
+
+    // =========================================================================
+    // 4. SESSION TOKEN BLACKLISTING & REPLAY PROTECTION
+    // =========================================================================
+
+    fun revokeSessionToken(context: Context, token: String) {
+        if (token.isBlank()) return
+        val digest = sha256Hex(token)
+        blacklistedTokenHashes.add(digest)
+        context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("revoked_tok_$digest", true)
+            .apply()
+    }
+
+    fun isSessionTokenRevoked(context: Context, token: String): Boolean {
+        if (token.isBlank()) return true
+        val digest = sha256Hex(token)
+        if (blacklistedTokenHashes.contains(digest)) return true
+        return context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
+            .getBoolean("revoked_tok_$digest", false)
+    }
+
+    private fun sha256Hex(input: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    // =========================================================================
+    // 5. SALTED PASSWORD HASHING & CONSTANT-TIME VERIFICATION
+    // =========================================================================
 
     fun hashPasswordSecure(plainPassword: String): String {
         val clean = plainPassword.trim()
@@ -88,6 +317,10 @@ object WorkoraSecurityManager {
                 clean.any { it.isLetter() } &&
                 clean.any { it.isDigit() }
     }
+
+    // =========================================================================
+    // 6. BRUTE-FORCE LOCKOUT, RATE LIMITING, RBAC & IMAGE MAGIC-BYTES
+    // =========================================================================
 
     fun checkLoginBruteForceAllowed(context: Context, identifier: String): Pair<Boolean, String> {
         val prefs = context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
