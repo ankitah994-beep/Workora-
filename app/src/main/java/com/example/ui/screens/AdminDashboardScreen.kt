@@ -35,19 +35,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -162,7 +157,7 @@ fun AdminDashboardScreen(
     val greenColor = Color(0xFF22A06B)
     val redColor = Color(0xFFB42318)
 
-    // 0 = ✏️ Edit App (Default open so Admin immediately sees App Edit options!)
+    // 0 = ✏️ Edit App (Default open)
     // 1 = 👥 Workers & Users
     // 2 = 📋 Live Jobs
     // 3 = 📍 Area Service ON/OFF
@@ -224,10 +219,10 @@ fun AdminDashboardScreen(
     var isLoadingCloud by remember { mutableStateOf(false) }
 
     var newStateName by remember { mutableStateOf("Madhya Pradesh") }
-    var newAreaKeywords by remember { mutableStateOf("Silwani, Raisen, Bhopal") }
+    var newAreaKeywords by remember { mutableStateOf("") }
 
     var broadcastTitle by remember { mutableStateOf("Workora Special Update") }
-    var broadcastMessage by remember { mutableStateOf("New daily wage jobs are now open in Silwani & Raisen!") }
+    var broadcastMessage by remember { mutableStateOf("New daily wage jobs are now open in your area!") }
     var maintenanceMode by remember {
         mutableStateOf(settingsPrefs.getBoolean("maintenance_mode", false))
     }
@@ -249,6 +244,7 @@ fun AdminDashboardScreen(
                             editBannerSubtext = obj.optString("banner_subtext", editBannerSubtext)
                             editHelplinePhone = obj.optString("helpline_phone", editHelplinePhone)
                             editDefaultCategories = obj.optString("app_categories", editDefaultCategories)
+                            editDefaultLocation = obj.optString("default_location", editDefaultLocation)
                         }
                     }
                 }
@@ -331,7 +327,7 @@ fun AdminDashboardScreen(
                                 AdminAreaControlRow(
                                     key = k,
                                     stateName = o.optString("stateName", "MP"),
-                                    areaKeywords = o.optString("areaKeywords", "Silwani"),
+                                    areaKeywords = o.optString("areaKeywords", ""),
                                     isServiceEnabled = o.optBoolean("isServiceEnabled", true)
                                 )
                             )
@@ -526,7 +522,6 @@ fun AdminDashboardScreen(
                                 }
                             }
 
-                            // App Logo Upload Row
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -652,13 +647,11 @@ fun AdminDashboardScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            OutlinedTextField(
+                            // 8. Default App Location using Real Live Auto-Suggest Component
+                            LiveLocationAutoCompleteField(
                                 value = editDefaultLocation,
                                 onValueChange = { editDefaultLocation = it },
-                                label = { Text("8. Default App Location") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
+                                label = "8. Default App Location (Live Auto-Suggest)"
                             )
 
                             Button(
@@ -946,61 +939,62 @@ fun AdminDashboardScreen(
                                 color = deepNavy
                             )
 
-                            Row(
+                            OutlinedTextField(
+                                value = newStateName,
+                                onValueChange = { newStateName = it },
+                                label = { Text("State / Region Name") },
+                                singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                OutlinedTextField(
-                                    value = newStateName,
-                                    onValueChange = { newStateName = it },
-                                    label = { Text("State / District Name") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                OutlinedTextField(
-                                    value = newAreaKeywords,
-                                    onValueChange = { newAreaKeywords = it },
-                                    label = { Text("Cities / Villages (Comma separated)") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1.3f)
-                                )
-                                Button(
-                                    onClick = {
-                                        if (newStateName.isNotBlank()) {
-                                            val key = "area_${System.currentTimeMillis()}"
-                                            val item = AdminAreaControlRow(
-                                                key = key,
-                                                stateName = newStateName.trim(),
-                                                areaKeywords = newAreaKeywords.trim(),
-                                                isServiceEnabled = true
-                                            )
-                                            areaControls.add(0, item)
-                                            CoroutineScope(Dispatchers.IO).launch {
-                                                try {
-                                                    val conn = (URL("$ADMIN_FIREBASE_URL/area_controls/$key.json").openConnection() as HttpURLConnection).apply {
-                                                        requestMethod = "PUT"
-                                                        setRequestProperty("Content-Type", "application/json")
-                                                        doOutput = true
-                                                    }
-                                                    val json = JSONObject().apply {
-                                                        put("stateName", item.stateName)
-                                                        put("areaKeywords", item.areaKeywords)
-                                                        put("isServiceEnabled", true)
-                                                    }
-                                                    OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
-                                                    conn.responseCode
-                                                    conn.disconnect()
-                                                } catch (_: Exception) {
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            // Live Location Auto-Suggest for Area Control
+                            LiveLocationAutoCompleteField(
+                                value = newAreaKeywords,
+                                onValueChange = { newAreaKeywords = it },
+                                label = "Search Village / Tehsil / City (Live Auto-Suggest)"
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (newStateName.isNotBlank() && newAreaKeywords.isNotBlank()) {
+                                        val key = "area_${System.currentTimeMillis()}"
+                                        val item = AdminAreaControlRow(
+                                            key = key,
+                                            stateName = newStateName.trim(),
+                                            areaKeywords = newAreaKeywords.trim(),
+                                            isServiceEnabled = true
+                                        )
+                                        areaControls.add(0, item)
+                                        newAreaKeywords = ""
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            try {
+                                                val conn = (URL("$ADMIN_FIREBASE_URL/area_controls/$key.json").openConnection() as HttpURLConnection).apply {
+                                                    requestMethod = "PUT"
+                                                    setRequestProperty("Content-Type", "application/json")
+                                                    doOutput = true
                                                 }
+                                                val json = JSONObject().apply {
+                                                    put("stateName", item.stateName)
+                                                    put("areaKeywords", item.areaKeywords)
+                                                    put("isServiceEnabled", true)
+                                                }
+                                                OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
+                                                conn.responseCode
+                                                conn.disconnect()
+                                            } catch (_: Exception) {
                                             }
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                                    modifier = Modifier.height(54.dp)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
-                                    Text("Add Area", color = Color.White, fontWeight = FontWeight.Bold)
-                                }
+                                        Toast.makeText(context, "Service Area Added ✓", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add Service Area ✓", color = Color.White, fontWeight = FontWeight.ExtraBold)
                             }
 
                             areaControls.forEachIndexed { idx, area ->
