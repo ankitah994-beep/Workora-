@@ -49,7 +49,6 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -89,6 +88,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -147,6 +147,25 @@ private fun encodeLabourPhotoUri(context: Context, uri: Uri): String {
         if (bytes != null) Base64.encodeToString(bytes, Base64.NO_WRAP) else ""
     } catch (_: Exception) {
         ""
+    }
+}
+
+private fun translateLabourCategory(cat: String, lang: String): String {
+    if (lang != "Hindi") return cat
+    return when (cat) {
+        "All" -> "सभी (All)"
+        "Mason" -> "राजमिस्त्री"
+        "Electrician" -> "इलेक्ट्रीशियन"
+        "Plumber" -> "प्लंबर"
+        "Painter" -> "पेंटर"
+        "Carpenter" -> "बढ़ई"
+        "Labour" -> "मज़दूर"
+        "Cleaner" -> "सफाईकर्मी"
+        "Farm Worker" -> "कृषि मज़दूर"
+        "Tile Worker" -> "टाइल्स मिस्त्री"
+        "More" -> "अन्य"
+        "Other" -> "अन्य"
+        else -> cat
     }
 }
 
@@ -426,13 +445,28 @@ fun LabourDashboardScreen(
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
+
+    // Sync Global Theme Mode (Default = "System")
+    LaunchedEffect(Unit) {
+        WorkoraThemeManager.syncFromPrefs(context)
+    }
+    val isDark = WorkoraThemeManager.isDark(context)
+    val bgColor = WorkoraThemeManager.bgColor(context)
+    val cardColor = WorkoraThemeManager.surfaceColor(context)
+    val subtleBgColor = WorkoraThemeManager.subtleSurfaceColor(context)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val borderLight = WorkoraThemeManager.borderColor(context)
+    val accentBlue = WorkoraThemeManager.accentBlue(context)
 
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF102A43)
-    val textMuted = Color(0xFF667085)
-    val borderLight = Color(0xFFE5E7EB)
     val greenTrusted = Color(0xFF22A06B)
+
+    // Live Language Reader
+    val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
+    fun tr(hi: String, en: String): String = if (appLang == "Hindi") hi else en
 
     var liveAppName by remember {
         mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA")
@@ -688,7 +722,7 @@ fun LabourDashboardScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
+            .background(bgColor)
     ) {
         when (bottomNavIndex) {
             0 -> {
@@ -701,10 +735,11 @@ fun LabourDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
+                    // Top Header (3-Lines Menu Icon Removed + Global Theme Synced!)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White)
+                            .background(cardColor)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -724,30 +759,20 @@ fun LabourDashboardScreen(
                                     letterSpacing = 0.5.sp
                                 )
                                 Text(
-                                    text = liveAppTagline,
+                                    text = tr("रोज़ाना काम पाएं और कमाएं", liveAppTagline),
                                     fontSize = 11.sp,
                                     color = textMuted
                                 )
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onOpenProfile) {
-                                Icon(
-                                    imageVector = Icons.Default.Notifications,
-                                    contentDescription = "Notifications",
-                                    tint = textDark,
-                                    modifier = Modifier.size(23.dp)
-                                )
-                            }
-                            IconButton(onClick = onOpenProfile) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menu & Settings",
-                                    tint = textDark,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                        IconButton(onClick = onOpenProfile) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = textDark,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
 
@@ -761,7 +786,7 @@ fun LabourDashboardScreen(
                             onClick = { showLocationModal = true },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
                             border = BorderStroke(1.dp, borderLight),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
@@ -788,7 +813,10 @@ fun LabourDashboardScreen(
                                             color = textDark
                                         )
                                         Text(
-                                            text = "Tap to change work area (Live GPS & Search)",
+                                            text = tr(
+                                                "काम का क्षेत्र बदलने के लिए टैप करें (Live GPS & Search)",
+                                                "Tap to change work area (Live GPS & Search)"
+                                            ),
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -802,7 +830,6 @@ fun LabourDashboardScreen(
                             }
                         }
 
-                        // Clean Hero Banner (No duplicate Post Availability button here)
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
@@ -813,7 +840,11 @@ fun LabourDashboardScreen(
                                     .fillMaxWidth()
                                     .background(
                                         Brush.horizontalGradient(
-                                            colors = listOf(Color(0xFFE0F2FE), Color(0xFFDBEAFE))
+                                            colors = if (isDark) {
+                                                listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                                            } else {
+                                                listOf(Color(0xFFE0F2FE), Color(0xFFDBEAFE))
+                                            }
                                         )
                                     )
                                     .padding(horizontal = 16.dp, vertical = 16.dp)
@@ -825,7 +856,7 @@ fun LabourDashboardScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Find Daily Work\nNear You",
+                                            text = tr("अपने पास रोज़ाना\nकाम खोजें", "Find Daily Work\nNear You"),
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = textDark,
@@ -833,9 +864,12 @@ fun LabourDashboardScreen(
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "Connect directly with nearby\ncustomers & get daily wages.",
+                                            text = tr(
+                                                "सीधे ग्राहकों से जुड़ें और\nरोज़ाना दिहाड़ी पाएं।",
+                                                "Connect directly with nearby\ncustomers & get daily wages."
+                                            ),
                                             fontSize = 12.sp,
-                                            color = Color(0xFF475569),
+                                            color = textMuted,
                                             lineHeight = 16.sp
                                         )
                                         Spacer(modifier = Modifier.height(14.dp))
@@ -855,7 +889,7 @@ fun LabourDashboardScreen(
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Explore Jobs",
+                                                text = tr("काम खोजें", "Explore Jobs"),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
@@ -875,16 +909,16 @@ fun LabourDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Find Jobs by Category",
+                                    text = tr("श्रेणी के अनुसार काम खोजें", "Find Jobs by Category"),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark
                                 )
                                 Text(
-                                    text = "View All >",
+                                    text = tr("सभी देखें >", "View All >"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = deepNavy,
+                                    color = accentBlue,
                                     modifier = Modifier.clickable {
                                         onCategorySelected("All")
                                         bottomNavIndex = 1
@@ -908,7 +942,7 @@ fun LabourDashboardScreen(
                                                 .weight(1f)
                                                 .height(90.dp),
                                             shape = RoundedCornerShape(14.dp),
-                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            colors = CardDefaults.cardColors(containerColor = cardColor),
                                             border = BorderStroke(1.dp, borderLight),
                                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                         ) {
@@ -920,7 +954,7 @@ fun LabourDashboardScreen(
                                                 ExactLabourCategoryIconBox(category = catName)
                                                 Spacer(modifier = Modifier.height(6.dp))
                                                 Text(
-                                                    text = catName,
+                                                    text = translateLabourCategory(catName, appLang),
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = textDark
@@ -936,8 +970,10 @@ fun LabourDashboardScreen(
                             onClick = onOpenProfile,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                            border = BorderStroke(1.dp, Color(0xFFE0F2FE)),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF0F9FF)
+                            ),
+                            border = BorderStroke(1.dp, if (isDark) borderLight else Color(0xFFE0F2FE)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Row(
@@ -965,13 +1001,16 @@ fun LabourDashboardScreen(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(
-                                            text = "Verified & Trusted Worker Profile",
+                                            text = tr("सत्यापित और भरोसेमंद कारीगर प्रोफाइल", "Verified & Trusted Worker Profile"),
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = textDark
                                         )
                                         Text(
-                                            text = "Your profile is active and visible to customers.",
+                                            text = tr(
+                                                "आपकी प्रोफाइल सक्रिय है और ग्राहकों को दिख रही है।",
+                                                "Your profile is active and visible to customers."
+                                            ),
                                             fontSize = 11.sp,
                                             color = textMuted
                                         )
@@ -992,16 +1031,16 @@ fun LabourDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Available Jobs Near You (${filteredJobs.size})",
+                                    text = tr("आपके पास उपलब्ध काम (${filteredJobs.size})", "Available Jobs Near You (${filteredJobs.size})"),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark
                                 )
                                 Text(
-                                    text = "Find Jobs >",
+                                    text = tr("काम खोजें >", "Find Jobs >"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = deepNavy,
+                                    color = accentBlue,
                                     modifier = Modifier.clickable { bottomNavIndex = 1 }
                                 )
                             }
@@ -1010,6 +1049,12 @@ fun LabourDashboardScreen(
                                 val isApplied = appliedJobIds.contains(job.id)
                                 LabourJobActionCard(
                                     job = job,
+                                    appLang = appLang,
+                                    cardColor = cardColor,
+                                    borderColor = borderLight,
+                                    textDark = textDark,
+                                    textMuted = textMuted,
+                                    accentBlue = accentBlue,
                                     isApplied = isApplied,
                                     onViewDetails = { viewingJobDetails = job },
                                     onApplyClick = { applyToCustomerJob(job) }
@@ -1021,7 +1066,7 @@ fun LabourDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔎 FIND JOBS (CLEAN HEADER WITHOUT DUPLICATE POST BUTTON) ====================
+                // ==================== 1: 🔎 FIND JOBS ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1033,7 +1078,7 @@ fun LabourDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White)
+                            .background(cardColor)
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1045,7 +1090,7 @@ fun LabourDashboardScreen(
                             )
                         }
                         Text(
-                            text = "Find Jobs",
+                            text = tr("काम खोजें", "Find Jobs"),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textDark
@@ -1062,7 +1107,7 @@ fun LabourDashboardScreen(
                             onClick = { showLocationModal = true },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
                             border = BorderStroke(1.dp, borderLight)
                         ) {
                             Row(
@@ -1076,7 +1121,7 @@ fun LabourDashboardScreen(
                                     Icon(
                                         imageVector = Icons.Default.LocationOn,
                                         contentDescription = null,
-                                        tint = deepNavy,
+                                        tint = accentBlue,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1088,10 +1133,10 @@ fun LabourDashboardScreen(
                                     )
                                 }
                                 Text(
-                                    text = "Change",
+                                    text = tr("बदलें", "Change"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = deepNavy
+                                    color = accentBlue
                                 )
                             }
                         }
@@ -1099,11 +1144,12 @@ fun LabourDashboardScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
+                            textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                             placeholder = {
                                 Text(
-                                    text = "Search jobs by work, skill or location...",
+                                    text = tr("काम, हुनर या लोकेशन से खोजें...", "Search jobs by work, skill or location..."),
                                     fontSize = 13.sp,
-                                    color = Color(0xFF94A3B8)
+                                    color = textMuted
                                 )
                             },
                             leadingIcon = {
@@ -1118,10 +1164,10 @@ fun LabourDashboardScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = deepNavy,
+                                focusedBorderColor = accentBlue,
                                 unfocusedBorderColor = borderLight,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
+                                focusedContainerColor = cardColor,
+                                unfocusedContainerColor = cardColor
                             )
                         )
 
@@ -1138,14 +1184,14 @@ fun LabourDashboardScreen(
                                     onClick = { onCategorySelected(cat) },
                                     shape = RoundedCornerShape(20.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isSelected) deepNavy else Color.White
+                                        containerColor = if (isSelected) deepNavy else cardColor
                                     ),
                                     border = BorderStroke(1.dp, if (isSelected) deepNavy else borderLight),
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                                     modifier = Modifier.height(36.dp)
                                 ) {
                                     Text(
-                                        text = cat,
+                                        text = translateLabourCategory(cat, appLang),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color.White else textDark
@@ -1160,13 +1206,13 @@ fun LabourDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${filteredJobs.size} Jobs Found",
+                                text = tr("${filteredJobs.size} काम मिले", "${filteredJobs.size} Jobs Found"),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = textDark
                             )
                             Text(
-                                text = "Refresh ↻",
+                                text = tr("रिफ्रेश ↻", "Refresh ↻"),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = brandOrange,
@@ -1178,6 +1224,12 @@ fun LabourDashboardScreen(
                             val isApplied = appliedJobIds.contains(job.id)
                             LabourJobActionCard(
                                 job = job,
+                                appLang = appLang,
+                                cardColor = cardColor,
+                                borderColor = borderLight,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                accentBlue = accentBlue,
                                 isApplied = isApplied,
                                 onViewDetails = { viewingJobDetails = job },
                                 onApplyClick = { applyToCustomerJob(job) }
@@ -1188,7 +1240,7 @@ fun LabourDashboardScreen(
             }
 
             2 -> {
-                // ==================== 2: ➕ POST AVAILABILITY (OPENED ONLY FROM BOTTOM '+' ICON) ====================
+                // ==================== 2: ➕ POST AVAILABILITY ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1201,7 +1253,7 @@ fun LabourDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(deepNavy)
+                            .background(if (isDark) Color(0xFF0F172A) else deepNavy)
                             .padding(horizontal = 12.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1210,13 +1262,16 @@ fun LabourDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = "Post Work Availability",
+                                text = tr("काम की उपलब्धता पोस्ट करें", "Post Work Availability"),
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
                             Text(
-                                text = "Customers will see your card and hire you directly",
+                                text = tr(
+                                    "ग्राहक आपका कार्ड देखकर सीधे आपको काम पर रख सकेंगे",
+                                    "Customers will see your card and hire you directly"
+                                ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
                             )
@@ -1228,7 +1283,7 @@ fun LabourDashboardScreen(
                             .fillMaxWidth()
                             .padding(16.dp),
                         shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = cardColor),
                         border = BorderStroke(1.dp, borderLight),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
@@ -1255,12 +1310,12 @@ fun LabourDashboardScreen(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(20.dp))
-                                                .background(if (isSelected) deepNavy else Color(0xFFF1F5F9))
+                                                .background(if (isSelected) deepNavy else subtleBgColor)
                                                 .clickable { availWorkCategory = cat }
                                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                                         ) {
                                             Text(
-                                                text = cat,
+                                                text = translateLabourCategory(cat, appLang),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (isSelected) Color.White else textDark
@@ -1273,6 +1328,7 @@ fun LabourDashboardScreen(
                             OutlinedTextField(
                                 value = availSkills,
                                 onValueChange = { availSkills = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("2. Skills (आप क्या-क्या काम जानते हैं)") },
                                 placeholder = { Text("e.g. Plastering, Brickwork, Tile Fitting") },
                                 singleLine = true,
@@ -1283,6 +1339,7 @@ fun LabourDashboardScreen(
                             OutlinedTextField(
                                 value = availExperience,
                                 onValueChange = { availExperience = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("3. Experience (काम का अनुभव)") },
                                 placeholder = { Text("e.g. 5 Years Experience") },
                                 singleLine = true,
@@ -1327,7 +1384,7 @@ fun LabourDashboardScreen(
                                             modifier = Modifier
                                                 .size(74.dp)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(Color(0xFFF1F5F9))
+                                                .background(subtleBgColor)
                                         ) {
                                             if (bmp != null) {
                                                 Image(
@@ -1357,7 +1414,7 @@ fun LabourDashboardScreen(
                                             modifier = Modifier
                                                 .size(74.dp)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(Color(0xFFFFF0DE))
+                                                .background(brandOrange.copy(alpha = 0.15f))
                                                 .clickable { workPhotoPicker.launch("image/*") },
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -1371,7 +1428,6 @@ fun LabourDashboardScreen(
                                 }
                             }
 
-                            // 5. Work Area / Location using Real Live Auto-Suggest Component
                             LiveLocationAutoCompleteField(
                                 value = availWorkArea,
                                 onValueChange = {
@@ -1403,7 +1459,7 @@ fun LabourDashboardScreen(
                                             shape = RoundedCornerShape(10.dp),
                                             border = BorderStroke(1.dp, if (selected) brandOrange else borderLight),
                                             colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (selected) Color(0xFFFFF0DE) else Color.White
+                                                containerColor = if (selected) brandOrange.copy(alpha = 0.15f) else cardColor
                                             ),
                                             contentPadding = PaddingValues(0.dp)
                                         ) {
@@ -1425,6 +1481,7 @@ fun LabourDashboardScreen(
                                 OutlinedTextField(
                                     value = availDailyRate,
                                     onValueChange = { availDailyRate = it.filter { c -> c.isDigit() } },
+                                    textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                     label = { Text("7. Daily Rate (₹/day)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -1435,6 +1492,7 @@ fun LabourDashboardScreen(
                                 OutlinedTextField(
                                     value = availFromDate,
                                     onValueChange = { availFromDate = it },
+                                    textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                     label = { Text("8. Available From") },
                                     placeholder = { Text("Today / Tomorrow") },
                                     singleLine = true,
@@ -1446,6 +1504,7 @@ fun LabourDashboardScreen(
                             OutlinedTextField(
                                 value = availDays,
                                 onValueChange = { availDays = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("9. Available Days (किन दिनों में उपलब्ध हैं)") },
                                 placeholder = { Text("e.g. All 7 Days / Mon to Sat") },
                                 singleLine = true,
@@ -1470,9 +1529,9 @@ fun LabourDashboardScreen(
                                             onClick = { availTeamSize = tSize },
                                             modifier = Modifier.weight(1f).height(38.dp),
                                             shape = RoundedCornerShape(10.dp),
-                                            border = BorderStroke(1.dp, if (selected) deepNavy else borderLight),
+                                            border = BorderStroke(1.dp, if (selected) accentBlue else borderLight),
                                             colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (selected) Color(0xFFE0F2FE) else Color.White
+                                                containerColor = if (selected) accentBlue.copy(alpha = 0.15f) else cardColor
                                             ),
                                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                         ) {
@@ -1480,7 +1539,7 @@ fun LabourDashboardScreen(
                                                 text = tSize,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (selected) deepNavy else textDark,
+                                                color = if (selected) accentBlue else textDark,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -1492,6 +1551,7 @@ fun LabourDashboardScreen(
                             OutlinedTextField(
                                 value = availShortDescription,
                                 onValueChange = { availShortDescription = it },
+                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("11. Short Description (अपने काम का विवरण)") },
                                 placeholder = { Text("Tell customers about your work quality and tools...") },
                                 minLines = 3,
@@ -1576,7 +1636,7 @@ fun LabourDashboardScreen(
                                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "12. Post Availability ✓",
+                                        text = tr("12. उपलब्धता पोस्ट करें ✓", "12. Post Availability ✓"),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color.White
@@ -1589,7 +1649,7 @@ fun LabourDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY WORK (CLEAN HEADER WITHOUT DUPLICATE BUTTON) ====================
+                // ==================== 3: 📋 MY WORK ====================
                 val myAppliedJobs = liveAvailableJobs.filter { appliedJobIds.contains(it.id) }
 
                 Column(
@@ -1603,7 +1663,7 @@ fun LabourDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(deepNavy)
+                            .background(if (isDark) Color(0xFF0F172A) else deepNavy)
                             .padding(horizontal = 12.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1612,13 +1672,16 @@ fun LabourDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = "My Work",
+                                text = tr("मेरा काम (My Work)", "My Work"),
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
                             Text(
-                                text = "Your active availability & applied jobs",
+                                text = tr(
+                                    "आपकी सक्रिय उपलब्धता और अप्लाई किए गए काम",
+                                    "Your active availability & applied jobs"
+                                ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
                             )
@@ -1634,7 +1697,7 @@ fun LabourDashboardScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
                             border = BorderStroke(1.2.dp, greenTrusted)
                         ) {
                             Column(
@@ -1649,10 +1712,10 @@ fun LabourDashboardScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "My Posted Availability",
+                                        text = tr("मेरी पोस्ट की गई उपलब्धता", "My Posted Availability"),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = deepNavy
+                                        color = accentBlue
                                     )
                                     Box(
                                         modifier = Modifier
@@ -1660,7 +1723,7 @@ fun LabourDashboardScreen(
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = "ACTIVE",
+                                            text = tr("सक्रिय", "ACTIVE"),
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = greenTrusted
@@ -1668,7 +1731,7 @@ fun LabourDashboardScreen(
                                     }
                                 }
                                 Text(
-                                    text = "$availWorkCategory • ₹$availDailyRate/day • $availExperience",
+                                    text = "${translateLabourCategory(availWorkCategory, appLang)} • ₹$availDailyRate/day • $availExperience",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = textDark
@@ -1682,7 +1745,7 @@ fun LabourDashboardScreen(
                         }
 
                         Text(
-                            text = "Applied / Interested Jobs (${myAppliedJobs.size})",
+                            text = tr("अप्लाई किए गए काम (${myAppliedJobs.size})", "Applied / Interested Jobs (${myAppliedJobs.size})"),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textDark
@@ -1692,7 +1755,7 @@ fun LabourDashboardScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = cardColor),
                                 border = BorderStroke(1.dp, borderLight)
                             ) {
                                 Column(
@@ -1702,7 +1765,7 @@ fun LabourDashboardScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "No applied jobs yet.",
+                                        text = tr("अभी तक किसी काम के लिए अप्लाई नहीं किया है।", "No applied jobs yet."),
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = textDark
@@ -1712,7 +1775,7 @@ fun LabourDashboardScreen(
                                         onClick = { bottomNavIndex = 1 },
                                         colors = ButtonDefaults.buttonColors(containerColor = deepNavy)
                                     ) {
-                                        Text("Find Jobs Near You", color = Color.White, fontWeight = FontWeight.Bold)
+                                        Text(tr("पास के काम खोजें", "Find Jobs Near You"), color = Color.White, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1720,6 +1783,12 @@ fun LabourDashboardScreen(
                             myAppliedJobs.forEach { job ->
                                 LabourJobActionCard(
                                     job = job,
+                                    appLang = appLang,
+                                    cardColor = cardColor,
+                                    borderColor = borderLight,
+                                    textDark = textDark,
+                                    textMuted = textMuted,
+                                    accentBlue = accentBlue,
                                     isApplied = true,
                                     onViewDetails = { viewingJobDetails = job },
                                     onApplyClick = { onOpenChat() }
@@ -1752,7 +1821,7 @@ fun LabourDashboardScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Workora Message",
+                    text = tr("Workora मैसेज", "Workora Message"),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -1761,14 +1830,13 @@ fun LabourDashboardScreen(
         }
 
         // ==================== 5-ICON LABOUR BOTTOM NAVIGATION BAR ====================
-        // ONLY PLACE WITH '+' POST AVAILABILITY BUTTON
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding(),
             shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Row(
@@ -1787,15 +1855,15 @@ fun LabourDashboardScreen(
                     Icon(
                         imageVector = Icons.Default.Home,
                         contentDescription = "Home",
-                        tint = if (bottomNavIndex == 0) deepNavy else textMuted,
+                        tint = if (bottomNavIndex == 0) accentBlue else textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Home",
+                        text = tr("होम", "Home"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 0) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 0) deepNavy else textMuted,
+                        color = if (bottomNavIndex == 0) accentBlue else textMuted,
                         maxLines = 1
                     )
                 }
@@ -1809,21 +1877,20 @@ fun LabourDashboardScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Find Jobs",
-                        tint = if (bottomNavIndex == 1) deepNavy else textMuted,
+                        tint = if (bottomNavIndex == 1) accentBlue else textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Find Jobs",
+                        text = tr("काम खोजें", "Find Jobs"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 1) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 1) deepNavy else textMuted,
+                        color = if (bottomNavIndex == 1) accentBlue else textMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // THE ONLY '+' POST AVAILABILITY BUTTON IN THE APP
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -1849,10 +1916,10 @@ fun LabourDashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Post Availability",
+                        text = tr("उपलब्धता डालें", "Post Availability"),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (bottomNavIndex == 2) deepNavy else brandOrange,
+                        color = if (bottomNavIndex == 2) accentBlue else brandOrange,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1867,15 +1934,15 @@ fun LabourDashboardScreen(
                     Icon(
                         imageVector = Icons.Default.DateRange,
                         contentDescription = "My Work",
-                        tint = if (bottomNavIndex == 3) deepNavy else textMuted,
+                        tint = if (bottomNavIndex == 3) accentBlue else textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "My Work",
+                        text = tr("मेरा काम", "My Work"),
                         fontSize = 10.sp,
                         fontWeight = if (bottomNavIndex == 3) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (bottomNavIndex == 3) deepNavy else textMuted,
+                        color = if (bottomNavIndex == 3) accentBlue else textMuted,
                         maxLines = 1
                     )
                 }
@@ -1894,7 +1961,7 @@ fun LabourDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Profile",
+                        text = tr("प्रोफाइल", "Profile"),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = textMuted,
@@ -1910,7 +1977,7 @@ fun LabourDashboardScreen(
         val isApplied = appliedJobIds.contains(j.id)
         AlertDialog(
             onDismissRequest = { viewingJobDetails = null },
-            containerColor = Color.White,
+            containerColor = cardColor,
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1919,16 +1986,16 @@ fun LabourDashboardScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(j.title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = textDark)
-                        Text("${j.category} • Posted by ${j.customerName}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = brandOrange)
+                        Text("${translateLabourCategory(j.category, appLang)} • Posted by ${j.customerName}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = brandOrange)
                     }
                     IconButton(onClick = { viewingJobDetails = null }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
                     }
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("• Rate / Budget: ₹${j.dailyRate} (${j.budgetType})", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = deepNavy)
+                    Text("• Rate / Budget: ₹${j.dailyRate} (${j.budgetType})", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accentBlue)
                     Text("• Location: ${j.location}", fontSize = 12.sp, color = textDark, fontWeight = FontWeight.SemiBold)
                     Text("• Preferred Date: ${j.preferredDate} (${j.numberOfDays} Days)", fontSize = 12.sp, color = textDark)
                     Text("• Workers Needed: ${j.workersNeeded} Worker(s) • Time: ${j.workTime}", fontSize = 12.sp, color = textDark)
@@ -1952,7 +2019,7 @@ fun LabourDashboardScreen(
                     )
                 ) {
                     Text(
-                        text = if (isApplied) "Applied ✓" else "Apply / Interested ✓",
+                        text = if (isApplied) tr("अप्लाई हो गया ✓", "Applied ✓") else tr("अप्लाई करें ✓", "Apply / Interested ✓"),
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
@@ -1967,15 +2034,14 @@ fun LabourDashboardScreen(
                         }
                     }
                 ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, tint = deepNavy, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Call", color = deepNavy, fontWeight = FontWeight.Bold)
+                    Text(tr("कॉल करें", "Call"), color = accentBlue, fontWeight = FontWeight.Bold)
                 }
             }
         )
     }
 
-    // Real Live Location Picker Modal
     if (showLocationModal) {
         WorkoraLiveLocationModal(
             currentLocation = currentRealLocation,
@@ -1994,22 +2060,27 @@ fun LabourDashboardScreen(
 @Composable
 private fun LabourJobActionCard(
     job: WorkoraLabourJobItem,
+    appLang: String,
+    cardColor: Color,
+    borderColor: Color,
+    textDark: Color,
+    textMuted: Color,
+    accentBlue: Color,
     isApplied: Boolean,
     onViewDetails: () -> Unit,
     onApplyClick: () -> Unit
 ) {
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
-    val textDark = Color(0xFF102A43)
-    val textMuted = Color(0xFF667085)
     val greenTrusted = Color(0xFF22A06B)
+    val isHindi = appLang == "Hindi"
 
     Card(
         onClick = onViewDetails,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, if (isApplied) greenTrusted else Color(0xFFE5E7EB)),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        border = BorderStroke(1.dp, if (isApplied) greenTrusted else borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -2052,10 +2123,10 @@ private fun LabourJobActionCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${job.category} • ${job.workersNeeded} Worker(s) • ${job.numberOfDays} Days",
+                            text = "${translateLabourCategory(job.category, appLang)} • ${job.workersNeeded} Worker(s) • ${job.numberOfDays} Days",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = deepNavy
+                            color = accentBlue
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -2078,10 +2149,10 @@ private fun LabourJobActionCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "₹${job.dailyRate}/day",
+                        text = if (isHindi) "₹${job.dailyRate}/दिन" else "₹${job.dailyRate}/day",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = deepNavy
+                        color = accentBlue
                     )
                     Text(
                         text = job.workTime,
@@ -2101,14 +2172,14 @@ private fun LabourJobActionCard(
                         .weight(1f)
                         .height(40.dp),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.2.dp, deepNavy),
+                    border = BorderStroke(1.2.dp, accentBlue),
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = "View Details",
+                        text = if (isHindi) "जानकारी देखें" else "View Details",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = deepNavy
+                        color = accentBlue
                     )
                 }
 
@@ -2124,7 +2195,11 @@ private fun LabourJobActionCard(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = if (isApplied) "Interested Sent ✓" else "Apply / Interested",
+                        text = if (isApplied) {
+                            if (isHindi) "रुचि भेजी गई ✓" else "Interested Sent ✓"
+                        } else {
+                            if (isHindi) "अप्लाई करें / रुचि दिखाएं" else "Apply / Interested"
+                        },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
