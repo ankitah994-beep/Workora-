@@ -154,7 +154,11 @@ private fun encodeLabourPhotoUri(context: Context, uri: Uri): String {
 }
 
 @Composable
-private fun ExactLabourWLogo(size: Dp = 44.dp) {
+private fun ExactLabourWLogo(
+    customLogoBase64: String = "",
+    size: Dp = 44.dp
+) {
+    val customBmp = remember(customLogoBase64) { decodeLabourBase64Photo(customLogoBase64) }
     Box(
         modifier = Modifier
             .size(size)
@@ -162,26 +166,35 @@ private fun ExactLabourWLogo(size: Dp = 44.dp) {
             .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            drawCircle(
-                color = Color(0xFFFF8C00),
-                radius = w * 0.46f,
-                style = Stroke(width = w * 0.08f)
+        if (customBmp != null) {
+            Image(
+                bitmap = customBmp,
+                contentDescription = "App Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
-            val path = Path().apply {
-                moveTo(w * 0.26f, h * 0.36f)
-                lineTo(w * 0.38f, h * 0.66f)
-                lineTo(w * 0.50f, h * 0.46f)
-                lineTo(w * 0.62f, h * 0.66f)
-                lineTo(w * 0.74f, h * 0.36f)
+        } else {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = this.size.width
+                val h = this.size.height
+                drawCircle(
+                    color = Color(0xFFFF8C00),
+                    radius = w * 0.46f,
+                    style = Stroke(width = w * 0.08f)
+                )
+                val path = Path().apply {
+                    moveTo(w * 0.26f, h * 0.36f)
+                    lineTo(w * 0.38f, h * 0.66f)
+                    lineTo(w * 0.50f, h * 0.46f)
+                    lineTo(w * 0.62f, h * 0.66f)
+                    lineTo(w * 0.74f, h * 0.36f)
+                }
+                drawPath(
+                    path = path,
+                    color = Color(0xFF083D91),
+                    style = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
+                )
             }
-            drawPath(
-                path = path,
-                color = Color(0xFF083D91),
-                style = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
-            )
         }
     }
 }
@@ -415,6 +428,7 @@ fun LabourDashboardScreen(
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
+    val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
@@ -422,6 +436,17 @@ fun LabourDashboardScreen(
     val textMuted = Color(0xFF667085)
     val borderLight = Color(0xFFE5E7EB)
     val greenTrusted = Color(0xFF22A06B)
+
+    // Live Admin Branding States (Synced with Admin Panel "Edit App")
+    var liveAppName by remember {
+        mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA")
+    }
+    var liveAppTagline by remember {
+        mutableStateOf(brandingPrefs.getString("app_tagline", "Find Daily Work & Earn") ?: "Find Daily Work & Earn")
+    }
+    var liveLogoBase64 by remember {
+        mutableStateOf(brandingPrefs.getString("logo_base64", "") ?: "")
+    }
 
     var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
@@ -595,6 +620,28 @@ fun LabourDashboardScreen(
     fun loadCustomerPostedJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // 0. Sync Admin App Branding Live from Firebase /app_branding
+                val bConn = URL("$LABOUR_DB_URL/app_branding.json").openConnection() as HttpURLConnection
+                if (bConn.responseCode in 200..299) {
+                    val bResp = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
+                    if (bResp.isNotBlank() && bResp != "null" && bResp.startsWith("{")) {
+                        val bObj = JSONObject(bResp)
+                        val cName = bObj.optString("app_name", liveAppName)
+                        val cTag = bObj.optString("app_tagline", liveAppTagline)
+                        brandingPrefs.edit().apply {
+                            putString("app_name", cName)
+                            putString("app_tagline", cTag)
+                            apply()
+                        }
+                        withContext(Dispatchers.Main) {
+                            liveAppName = cName
+                            liveAppTagline = cTag
+                        }
+                    }
+                }
+                bConn.disconnect()
+
+                // 1. Sync Jobs
                 val conn = URL("$LABOUR_DB_URL/jobs.json").openConnection() as HttpURLConnection
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
@@ -730,18 +777,18 @@ fun LabourDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { onSwitchRole() }
                         ) {
-                            ExactLabourWLogo(size = 44.dp)
+                            ExactLabourWLogo(customLogoBase64 = liveLogoBase64, size = 44.dp)
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "WORKORA",
+                                    text = liveAppName,
                                     fontSize = 19.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark,
                                     letterSpacing = 0.5.sp
                                 )
                                 Text(
-                                    text = "Find Daily Work & Earn",
+                                    text = liveAppTagline,
                                     fontSize = 11.sp,
                                     color = textMuted
                                 )
@@ -1868,6 +1915,7 @@ fun LabourDashboardScreen(
         }
 
         // ==================== 5-ICON LABOUR BOTTOM NAVIGATION BAR ====================
+        // 🏠 Home | 🔎 Find Jobs | ➕ Post Availability (Prominent Orange) | 📋 My Work | 👤 Profile
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
