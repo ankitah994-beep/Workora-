@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -128,6 +129,297 @@ data class WorkoraLabourJobItem(
     val customerName: String = "Customer",
     val customerPhone: String = "+91 6265798340"
 )
+
+data class WorkoraNotificationCardItem(
+    val id: String,
+    val type: String, // "JOB" | "MESSAGE" | "SECURITY"
+    val titleHi: String,
+    val titleEn: String,
+    val bodyHi: String,
+    val bodyEn: String,
+    val timeHi: String,
+    val timeEn: String,
+    val isUnread: Boolean = true
+)
+
+@Composable
+fun WorkoraLiveNotificationCenterDialog(
+    userLocation: String,
+    appLang: String,
+    onDismiss: () -> Unit,
+    onOpenChat: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val cardColor = WorkoraThemeManager.surfaceColor(context)
+    val subtleBg = WorkoraThemeManager.subtleSurfaceColor(context)
+    val textDark = WorkoraThemeManager.textPrimary(context)
+    val textMuted = WorkoraThemeManager.textSecondary(context)
+    val borderCol = WorkoraThemeManager.borderColor(context)
+    val accentBlue = WorkoraThemeManager.accentBlue(context)
+    val brandOrange = Color(0xFFFF8C00)
+    val greenTrusted = Color(0xFF22A06B)
+    val isHindi = appLang == "Hindi"
+
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 = All, 1 = Jobs, 2 = Messages
+
+    val notificationsList = remember(userLocation) {
+        mutableStateListOf(
+            WorkoraNotificationCardItem(
+                id = "n1",
+                type = "JOB",
+                titleHi = "नया काम उपलब्ध है ($userLocation)",
+                titleEn = "New Job Available ($userLocation)",
+                bodyHi = "राजमिस्त्री, इलेक्ट्रीशियन और प्लंबर का काम उपलब्ध है (₹550–₹600/दिन)।",
+                bodyEn = "Mason, Electrician & Plumber work available near $userLocation (₹550–₹600/day).",
+                timeHi = "अभी (Just now)",
+                timeEn = "Just now",
+                isUnread = true
+            ),
+            WorkoraNotificationCardItem(
+                id = "n2",
+                type = "MESSAGE",
+                titleHi = "Workora मैसेज और हायरिंग अपडेट",
+                titleEn = "Workora Message & Hiring Update",
+                bodyHi = "$userLocation के सत्यापित ग्राहक और कारीगर सीधे बात करने के लिए ऑनलाइन हैं।",
+                bodyEn = "Verified customers and workers in $userLocation are online for direct chat.",
+                timeHi = "10 मिनट पहले",
+                timeEn = "10 mins ago",
+                isUnread = true
+            ),
+            WorkoraNotificationCardItem(
+                id = "n3",
+                type = "SECURITY",
+                titleHi = "प्रोफाइल और सुरक्षा सत्यापित ✓",
+                titleEn = "Profile & Security Verified ✓",
+                bodyHi = "आपका Workora अकाउंट रियल 6-डिजिट OTP और सुरक्षा शील्ड से 100% सुरक्षित है।",
+                bodyEn = "Your Workora account is 100% protected with Real 6-Digit OTP & Security Shield.",
+                timeHi = "आज",
+                timeEn = "Today",
+                isUnread = false
+            )
+        )
+    }
+
+    val filteredList = notificationsList.filter { item ->
+        when (selectedTab) {
+            1 -> item.type == "JOB"
+            2 -> item.type == "MESSAGE"
+            else -> true
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardColor,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(brandOrange.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = null,
+                            tint = brandOrange,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = if (isHindi) "नोटिफिकेशन सेंटर" else "Notification Center",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = textDark
+                        )
+                        Text(
+                            text = "📍 $userLocation",
+                            fontSize = 11.sp,
+                            color = textMuted
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        0 to if (isHindi) "सभी (${notificationsList.size})" else "All (${notificationsList.size})",
+                        1 to if (isHindi) "काम (Jobs)" else "Jobs",
+                        2 to if (isHindi) "मैसेज" else "Messages"
+                    ).forEach { (idx, tabTitle) ->
+                        val active = selectedTab == idx
+                        Button(
+                            onClick = { selectedTab = idx },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (active) Color(0xFF083D91) else subtleBg
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = tabTitle,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (active) Color.White else textDark
+                            )
+                        }
+                    }
+                }
+
+                if (filteredList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isHindi) "कोई नया नोटिफिकेशन नहीं है।" else "No new notifications.",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textMuted
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        filteredList.forEach { item ->
+                            val iconTint = when (item.type) {
+                                "JOB" -> accentBlue
+                                "MESSAGE" -> brandOrange
+                                else -> greenTrusted
+                            }
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = subtleBg),
+                                border = BorderStroke(1.dp, if (item.isUnread) iconTint.copy(alpha = 0.5f) else borderCol)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                imageVector = when (item.type) {
+                                                    "JOB" -> Icons.Default.Build
+                                                    "MESSAGE" -> Icons.Default.Chat
+                                                    else -> Icons.Default.VerifiedUser
+                                                },
+                                                contentDescription = null,
+                                                tint = iconTint,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = if (isHindi) item.titleHi else item.titleEn,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = textDark,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Text(
+                                            text = if (isHindi) item.timeHi else item.timeEn,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = brandOrange
+                                        )
+                                    }
+
+                                    Text(
+                                        text = if (isHindi) item.bodyHi else item.bodyEn,
+                                        fontSize = 12.sp,
+                                        color = textMuted,
+                                        lineHeight = 17.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onDismiss()
+                    onOpenChat()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isHindi) "Workora मैसेज खोलें" else "Open Workora Message",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = {
+                    notificationsList.clear()
+                    Toast.makeText(
+                        context,
+                        if (isHindi) "सभी नोटिफिकेशन साफ़ किए गए ✓" else "All notifications cleared ✓",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, borderCol)
+            ) {
+                Text(
+                    text = if (isHindi) "सभी हटाएं" else "Clear All",
+                    color = textDark,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    )
+}
 
 private fun decodeLabourBase64Photo(base64Str: String): ImageBitmap? {
     if (base64Str.isBlank()) return null
@@ -482,6 +774,7 @@ fun LabourDashboardScreen(
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
     var showLocationModal by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     // 5-Icon Bottom Navigation State:
@@ -735,7 +1028,7 @@ fun LabourDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
-                    // Top Header (3-Lines Menu Icon Removed + Global Theme Synced!)
+                    // Top Header (Bell Icon now opens Live Notification Center!)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -766,13 +1059,22 @@ fun LabourDashboardScreen(
                             }
                         }
 
-                        IconButton(onClick = onOpenProfile) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = "Notifications",
-                                tint = textDark,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        IconButton(onClick = { showNotificationsDialog = true }) {
+                            Box {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = textDark,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(brandOrange)
+                                        .align(Alignment.TopEnd)
+                                )
+                            }
                         }
                     }
 
@@ -1970,6 +2272,16 @@ fun LabourDashboardScreen(
                 }
             }
         }
+    }
+
+    // Show Live Notification Center Dialog when Bell icon is clicked
+    if (showNotificationsDialog) {
+        WorkoraLiveNotificationCenterDialog(
+            userLocation = currentRealLocation,
+            appLang = appLang,
+            onDismiss = { showNotificationsDialog = false },
+            onOpenChat = onOpenChat
+        )
     }
 
     if (viewingJobDetails != null) {
