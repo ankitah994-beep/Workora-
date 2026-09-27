@@ -547,7 +547,7 @@ fun CustomerDashboardScreen(
     val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
-    // Sync Global Theme Mode (Normal Default = "System")
+    // Sync Global Theme Mode (Default = "System")
     LaunchedEffect(Unit) {
         WorkoraThemeManager.syncFromPrefs(context)
     }
@@ -588,6 +588,7 @@ fun CustomerDashboardScreen(
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
     var showLocationModal by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
 
     // 5-Icon Bottom Navigation State:
     // 0 = 🏠 Home | 1 = 🔍 Find Workers | 2 = ➕ Post Job | 3 = 📋 My Jobs | 4 = 👤 Profile
@@ -872,7 +873,7 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
-                    // Top Header (3-Lines Menu Icon Removed + Global Theme Synced)
+                    // Top Header (Bell Icon now opens Live Notification Center!)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -903,13 +904,22 @@ fun CustomerDashboardScreen(
                             }
                         }
 
-                        IconButton(onClick = onOpenNotifications) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = "Notifications",
-                                tint = textDark,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        IconButton(onClick = { showNotificationsDialog = true }) {
+                            Box {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = textDark,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(brandOrange)
+                                        .align(Alignment.TopEnd)
+                                )
+                            }
                         }
                     }
 
@@ -2136,6 +2146,16 @@ fun CustomerDashboardScreen(
                 }
             }
         }
+    }
+
+    // Show Live Notification Center Dialog when Bell icon is clicked
+    if (showNotificationsDialog) {
+        WorkoraLiveNotificationCenterDialog(
+            userLocation = currentRealLocation,
+            appLang = appLang,
+            onDismiss = { showNotificationsDialog = false },
+            onOpenChat = onOpenChat
+        )
     }
 
     if (viewingWorkerProfile != null) {
