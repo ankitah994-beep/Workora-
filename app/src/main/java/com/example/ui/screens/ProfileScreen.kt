@@ -1,8 +1,13 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.location.Geocoder
+import android.location.LocationManager
 import android.net.Uri
 import android.util.Base64
 import android.widget.Toast
@@ -38,6 +43,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -45,8 +51,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -56,6 +64,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -64,8 +73,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,7 +92,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.model.UserRole
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.util.Locale
 
 private fun decodeBase64ToBitmap(base64Str: String): ImageBitmap? {
     if (base64Str.isBlank()) return null
@@ -102,6 +127,646 @@ private fun encodeUriToBase64(context: Context, uri: Uri): String {
     } catch (_: Exception) {
         ""
     }
+}
+
+// ==================== MASTER REAL-TIME INDIA LOCATION AUTO-SUGGEST ENGINE ====================
+// Uses 3 real live sources (NO fake hardcoded locations):
+// 1. Android Native Geocoder (Google Play Services on device)
+// 2. Photon OpenStreetMap Real-Time Autocomplete API
+// 3. Nominatim OpenStreetMap India Search API
+@Suppress("DEPRECATION")
+suspend fun searchRealLiveLocationsIndia(context: Context, rawQuery: String): List<String> {
+    val cleanQuery = rawQuery.trim()
+    if (cleanQuery.length < 2) return emptyList()
+
+    return withContext(Dispatchers.IO) {
+        val results = LinkedHashSet<String>()
+
+        // Engine 1: Android Native Geocoder (Fastest & most accurate for Indian villages/cities)
+        try {
+            if (Geocoder.isPresent()) {
+                val geocoder = Geocoder(context, Locale("en", "IN"))
+                val addresses = geocoder.getFromLocationName("$cleanQuery, India", 6)
+                addresses?.forEach { addr ->
+                    val parts = mutableListOf<String>()
+                    val locality = addr.locality ?: addr.subLocality ?: addr.featureName
+                    val subAdmin = addr.subAdminArea
+                    val state = addr.adminArea
+                    if (!locality.isNullOrBlank()) parts.add(locality.trim())
+                    if (!subAdmin.isNullOrBlank() && !parts.contains(subAdmin.trim())) parts.add(subAdmin.trim())
+                    if (!state.isNullOrBlank() && !parts.contains(state.trim())) parts.add(state.trim())
+                    val formatted = parts.joinToString(", ")
+                    if (formatted.length > 3) {
+                        results.add(formatted)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+
+        // Engine 2: Photon Live Autocomplete API (No strict rate limits, instant village/town/city suggestions)
+        try {
+            val encoded = URLEncoder.encode("$cleanQuery India", "UTF-8")
+            val url = URL("https://photon.komoot.io/api/?q=$encoded&limit=8")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "WorkoraApp/2.0 (Android)")
+                connectTimeout = 4500
+                readTimeout = 4500
+            }
+            if (conn.responseCode in 200..299) {
+                val jsonText = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                val root = JSONObject(jsonText)
+                val features = root.optJSONArray("features")
+                if (features != null) {
+                    for (i in 0 until features.length()) {
+                        val props = features.getJSONObject(i).optJSONObject("properties") ?: continue
+                        val country = props.optString("country", "")
+                        if (country.isNotBlank() && !country.equals("India", ignoreCase = true) && !country.equals("भारत", ignoreCase = true)) {
+                            continue
+                        }
+                        val name = props.optString("name", "")
+                        val city = props.optString("city", "")
+                        val county = props.optString("county", "")
+                        val district = props.optString("district", "")
+                        val state = props.optString("state", "")
+
+                        val parts = mutableListOf<String>()
+                        if (name.isNotBlank()) parts.add(name.trim())
+                        val mid = city.ifBlank { district.ifBlank { county } }.trim()
+                        if (mid.isNotBlank() && !parts.any { it.equals(mid, ignoreCase = true) }) {
+                            parts.add(mid)
+                        }
+                        if (state.isNotBlank() && !parts.any { it.equals(state, ignoreCase = true) }) {
+                            parts.add(state.trim())
+                        }
+                        val combined = parts.joinToString(", ")
+                        if (combined.length > 3) {
+                            results.add(combined)
+                        }
+                    }
+                }
+            }
+            conn.disconnect()
+        } catch (_: Exception) {
+        }
+
+        // Engine 3: OpenStreetMap Nominatim India Fallback
+        if (results.size < 4) {
+            try {
+                val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
+                val url = URL("https://nominatim.openstreetmap.org/search?q=$encoded&countrycodes=in&format=json&addressdetails=1&limit=6")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "WorkoraMobileApp/2.0 (ankitah994@gmail.com)")
+                    setRequestProperty("Accept-Language", "en-IN,en")
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                }
+                if (conn.responseCode in 200..299) {
+                    val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                    val arr = JSONArray(text)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val display = obj.optString("display_name", "")
+                        val cleanDisplay = display.split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() && !it.equals("India", ignoreCase = true) && !it.all { c -> c.isDigit() } }
+                            .take(3)
+                            .joinToString(", ")
+                        if (cleanDisplay.length > 3) {
+                            results.add(cleanDisplay)
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (_: Exception) {
+            }
+        }
+
+        results.take(8).toList()
+    }
+}
+
+// Live GPS Reverse Geocoder (Gets actual village/city from phone's GPS coordinates)
+@SuppressLint("MissingPermission")
+@Suppress("DEPRECATION")
+fun detectRealGpsLocationAddress(
+    context: Context,
+    onResult: (String?) -> Unit
+) {
+    CoroutineScope(Dispatchers.IO).launch {
+        var detectedAddress: String? = null
+        try {
+            val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            val providers = listOf(
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.PASSIVE_PROVIDER
+            )
+            var bestLoc: android.location.Location? = null
+            for (p in providers) {
+                val loc = try { lm.getLastKnownLocation(p) } catch (_: Exception) { null }
+                if (loc != null && (bestLoc == null || loc.time > bestLoc.time)) {
+                    bestLoc = loc
+                }
+            }
+
+            if (bestLoc != null) {
+                val lat = bestLoc.latitude
+                val lon = bestLoc.longitude
+
+                // Try Android Geocoder first
+                try {
+                    if (Geocoder.isPresent()) {
+                        val geocoder = Geocoder(context, Locale("en", "IN"))
+                        val list = geocoder.getFromLocation(lat, lon, 1)
+                        if (!list.isNullOrEmpty()) {
+                            val a = list[0]
+                            val parts = listOfNotNull(
+                                a.locality ?: a.subLocality ?: a.featureName,
+                                a.subAdminArea,
+                                a.adminArea
+                            ).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                            if (parts.isNotEmpty()) {
+                                detectedAddress = parts.joinToString(", ")
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+
+                // Fallback to Nominatim Reverse Geocode
+                if (detectedAddress.isNullOrBlank()) {
+                    val url = URL("https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=14&addressdetails=1")
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        setRequestProperty("User-Agent", "WorkoraMobileApp/2.0")
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                    }
+                    if (conn.responseCode in 200..299) {
+                        val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                        val obj = JSONObject(resp)
+                        val addr = obj.optJSONObject("address")
+                        if (addr != null) {
+                            val villageOrCity = addr.optString("city").ifBlank {
+                                addr.optString("town").ifBlank {
+                                    addr.optString("village").ifBlank {
+                                        addr.optString("suburb")
+                                    }
+                                }
+                            }
+                            val district = addr.optString("state_district").ifBlank { addr.optString("county") }
+                            val state = addr.optString("state")
+                            val parts = listOf(villageOrCity, district, state).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                            if (parts.isNotEmpty()) {
+                                detectedAddress = parts.joinToString(", ")
+                            }
+                        }
+                    }
+                    conn.disconnect()
+                }
+            }
+        } catch (_: Exception) {
+        }
+
+        withContext(Dispatchers.Main) {
+            onResult(detectedAddress)
+        }
+    }
+}
+
+// Reusable Live Location Auto-Complete Field used across all Workora forms (Post Job, Post Availability, SignUp, Profile)
+@Composable
+fun LiveLocationAutoCompleteField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String = "Village / City / Area Location",
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val deepNavy = Color(0xFF083D91)
+    val brandOrange = Color(0xFFFF8C00)
+    val textDark = Color(0xFF102A43)
+
+    val liveSuggestions = remember { mutableStateListOf<String>() }
+    var isSearching by remember { mutableStateOf(false) }
+    var shouldSearchOnTyping by remember { mutableStateOf(false) }
+    var isDetectingGps by remember { mutableStateOf(false) }
+
+    val gpsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            isDetectingGps = true
+            detectRealGpsLocationAddress(context) { address ->
+                isDetectingGps = false
+                if (!address.isNullOrBlank()) {
+                    shouldSearchOnTyping = false
+                    liveSuggestions.clear()
+                    onValueChange(address)
+                    Toast.makeText(context, "Live GPS Location: $address ✓", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Turn ON Phone GPS & try again", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            Toast.makeText(context, "Location permission required for GPS", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Debounced automatic live search when user types
+    LaunchedEffect(value, shouldSearchOnTyping) {
+        if (!shouldSearchOnTyping) return@LaunchedEffect
+        val query = value.trim()
+        if (query.length < 2) {
+            liveSuggestions.clear()
+            isSearching = false
+            return@LaunchedEffect
+        }
+        isSearching = true
+        delay(300) // Wait 300ms for user to finish typing letters
+        val fetched = searchRealLiveLocationsIndia(context, query)
+        liveSuggestions.clear()
+        liveSuggestions.addAll(fetched)
+        isSearching = false
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { newText ->
+                shouldSearchOnTyping = true
+                onValueChange(newText)
+            },
+            label = { Text(label) },
+            placeholder = { Text("Type any village, tehsil, city or district...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = brandOrange
+                )
+            },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (value.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                shouldSearchOnTyping = false
+                                liveSuggestions.clear()
+                                onValueChange("")
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            val hasFine = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+                            val hasCoarse = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                            if (hasFine || hasCoarse) {
+                                isDetectingGps = true
+                                detectRealGpsLocationAddress(context) { address ->
+                                    isDetectingGps = false
+                                    if (!address.isNullOrBlank()) {
+                                        shouldSearchOnTyping = false
+                                        liveSuggestions.clear()
+                                        onValueChange(address)
+                                        Toast.makeText(context, "Live GPS: $address ✓", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Please turn ON phone GPS", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } else {
+                                gpsPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                        }
+                    ) {
+                        if (isDetectingGps) {
+                            CircularProgressIndicator(
+                                color = deepNavy,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.MyLocation,
+                                contentDescription = "Detect Live GPS",
+                                tint = deepNavy
+                            )
+                        }
+                    }
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        if (isSearching) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 6.dp)
+            ) {
+                CircularProgressIndicator(
+                    color = brandOrange,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Searching live locations for '${value.trim()}'...",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = deepNavy
+                )
+            }
+        }
+
+        if (liveSuggestions.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
+                border = BorderStroke(1.dp, Color(0xFFBAE6FD)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            ) {
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    liveSuggestions.forEach { suggestion ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    shouldSearchOnTyping = false
+                                    liveSuggestions.clear()
+                                    onValueChange(suggestion)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = brandOrange,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = suggestion,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textDark
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Reusable Live Location Picker Modal (Used when tapping Top Location Bar on Customer & Labour Dashboards)
+@Composable
+fun WorkoraLiveLocationModal(
+    currentLocation: String,
+    onDismiss: () -> Unit,
+    onLocationSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val deepNavy = Color(0xFF083D91)
+    val brandOrange = Color(0xFFFF8C00)
+    val textDark = Color(0xFF102A43)
+
+    var queryText by remember { mutableStateOf("") }
+    val liveResults = remember { mutableStateListOf<String>() }
+    var isSearching by remember { mutableStateOf(false) }
+    var isGettingGps by remember { mutableStateOf(false) }
+
+    val gpsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            isGettingGps = true
+            detectRealGpsLocationAddress(context) { addr ->
+                isGettingGps = false
+                if (!addr.isNullOrBlank()) {
+                    onLocationSelected(addr)
+                } else {
+                    Toast.makeText(context, "Please enable phone GPS", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(queryText) {
+        val clean = queryText.trim()
+        if (clean.length < 2) {
+            liveResults.clear()
+            isSearching = false
+            return@LaunchedEffect
+        }
+        isSearching = true
+        delay(300)
+        val fetched = searchRealLiveLocationsIndia(context, clean)
+        liveResults.clear()
+        liveResults.addAll(fetched)
+        isSearching = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Select Live Location",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = deepNavy
+                    )
+                    Text(
+                        text = "Current: $currentLocation",
+                        fontSize = 11.sp,
+                        color = Color(0xFF667085)
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Use Live GPS Button
+                OutlinedButton(
+                    onClick = {
+                        val hasFine = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        val hasCoarse = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (hasFine || hasCoarse) {
+                            isGettingGps = true
+                            detectRealGpsLocationAddress(context) { addr ->
+                                isGettingGps = false
+                                if (!addr.isNullOrBlank()) {
+                                    onLocationSelected(addr)
+                                } else {
+                                    Toast.makeText(context, "Turn ON GPS and try again", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } else {
+                            gpsPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.2.dp, deepNavy)
+                ) {
+                    if (isGettingGps) {
+                        CircularProgressIndicator(color = deepNavy, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Detecting GPS Location...", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = deepNavy)
+                    } else {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = brandOrange, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use Current Live GPS Location", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = deepNavy)
+                    }
+                }
+
+                // Search Box for Live Autocomplete
+                OutlinedTextField(
+                    value = queryText,
+                    onValueChange = { queryText = it },
+                    placeholder = { Text("Type village, tehsil, city or pin code...") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = deepNavy)
+                    },
+                    trailingIcon = {
+                        if (queryText.isNotEmpty()) {
+                            IconButton(onClick = { queryText = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                if (isSearching) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        CircularProgressIndicator(color = brandOrange, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Searching real locations in India...", fontSize = 12.sp, color = deepNavy, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                if (liveResults.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(210.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        liveResults.forEach { locName ->
+                            Card(
+                                onClick = { onLocationSelected(locName) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = brandOrange,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = locName,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = textDark
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (queryText.trim().length >= 2 && !isSearching) {
+                    Button(
+                        onClick = { onLocationSelected(queryText.trim()) },
+                        colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Use '${queryText.trim()}'", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Text(
+                        text = "Type at least 2 letters above to see live village, town & city suggestions.",
+                        fontSize = 11.sp,
+                        color = Color(0xFF667085)
+                    )
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }
 
 @Composable
@@ -171,7 +836,6 @@ fun ProfileScreen(
         mutableStateOf(profilePrefs.getString("work_photo_3", "") ?: "")
     }
 
-    // Existing + New Settings States
     var availableToday by remember {
         mutableStateOf(settingsPrefs.getBoolean("available_today", true))
     }
@@ -203,6 +867,7 @@ fun ProfileScreen(
     }
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showLiveLocationModal by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var activeInfoDialogTitle by remember { mutableStateOf<String?>(null) }
     var activeInfoDialogBody by remember { mutableStateOf("") }
@@ -255,7 +920,6 @@ fun ProfileScreen(
             .navigationBarsPadding()
             .imePadding()
     ) {
-        // 1. Navy Header Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -312,7 +976,7 @@ fun ProfileScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 2. Profile Top Card + 3-Column Info Row (Kept from existing)
+            // Profile Summary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -388,18 +1052,22 @@ fun ProfileScreen(
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { showLiveLocationModal = true }
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.LocationOn,
                                     contentDescription = null,
-                                    tint = textMuted,
+                                    tint = orangeColor,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = savedLocation,
+                                    text = "$savedLocation (Tap to change)",
                                     fontSize = 12.sp,
-                                    color = textMuted
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = navyColor
                                 )
                             }
 
@@ -449,7 +1117,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 3. Language Selection Card (Kept from existing: Hindi / Hinglish / English)
+            // Language Selection Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -498,7 +1166,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 4. Work Proof Photos (3 Slots - Kept from existing)
+            // Work Proof Photos
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -568,7 +1236,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 5. Existing Availability, Direct Calls, Workora Message Alerts & Distance Radius Card
+            // Availability, Direct Calls, Workora Message Alerts & Distance Radius Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -703,7 +1371,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 6. ⚙️ Full Settings Tree (Account, App Settings, Privacy & Security, Workora)
+            // ⚙️ Full Settings Tree
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -751,7 +1419,6 @@ fun ProfileScreen(
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // + Account
                             SettingsCategoryHeader(title = "+ Account")
                             SettingsTreeItem(
                                 label = "👤 Profile",
@@ -769,7 +1436,6 @@ fun ProfileScreen(
                                 onClick = { showPasswordDialog = true }
                             )
 
-                            // + App Settings
                             SettingsCategoryHeader(title = "+ App Settings")
                             SettingsTreeItem(
                                 label = "🌐 Language",
@@ -802,7 +1468,7 @@ fun ProfileScreen(
                             SettingsTreeItem(
                                 label = "📍 Location & Area",
                                 valueText = savedLocation,
-                                onClick = { showEditProfileDialog = true }
+                                onClick = { showLiveLocationModal = true }
                             )
                             SettingsTreeItem(
                                 label = "📶 Data Usage",
@@ -813,7 +1479,6 @@ fun ProfileScreen(
                                 }
                             )
 
-                            // + Privacy & Security
                             SettingsCategoryHeader(title = "+ Privacy & Security")
                             SettingsTreeItem(
                                 label = "🔒 Privacy",
@@ -853,7 +1518,6 @@ fun ProfileScreen(
                                 onClick = { showPasswordDialog = true }
                             )
 
-                            // + Workora
                             SettingsCategoryHeader(title = "+ Workora")
                             SettingsTreeItem(
                                 label = "❓ Help & Support",
@@ -868,7 +1532,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 7. Quick Menu Action Rows (Kept + Added)
+            // Quick Menu Action Rows
             Card(
                 onClick = onSwitchRole,
                 modifier = Modifier.fillMaxWidth(),
@@ -915,7 +1579,7 @@ fun ProfileScreen(
                         Icon(Icons.Default.Chat, contentDescription = null, tint = orangeColor)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = tr("वर्कओरा मैसेज खोलें (Workora Message)", "Open Workora Message (Live Chat)", "Open Workora Message"),
+                            text = tr("वर्कओरा मैसेज खोलें (Workora Message)", "Open Workora Message", "Open Workora Message"),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = textDark
@@ -1002,7 +1666,6 @@ fun ProfileScreen(
                 }
             }
 
-            // 8. Logout Button
             Button(
                 onClick = onLogout,
                 modifier = Modifier
@@ -1025,7 +1688,22 @@ fun ProfileScreen(
         }
     }
 
-    // Edit Profile Dialog
+    // Live Location Picker Modal
+    if (showLiveLocationModal) {
+        WorkoraLiveLocationModal(
+            currentLocation = savedLocation,
+            onDismiss = { showLiveLocationModal = false },
+            onLocationSelected = { newLoc ->
+                savedLocation = newLoc
+                profilePrefs.edit().putString("user_location", newLoc).apply()
+                onUpdateProfile(savedName, savedPhone, newLoc)
+                showLiveLocationModal = false
+                Toast.makeText(context, "Location updated to $newLoc ✓", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // Edit Profile Dialog with Live Location AutoComplete
     if (showEditProfileDialog) {
         var editName by remember { mutableStateOf(savedName) }
         var editPhone by remember { mutableStateOf(savedPhone) }
@@ -1068,13 +1746,10 @@ fun ProfileScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
+                    LiveLocationAutoCompleteField(
                         value = editLocation,
                         onValueChange = { editLocation = it },
-                        label = { Text("Location & Area") },
-                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        label = "Location & Area (Live Search)"
                     )
                     OutlinedTextField(
                         value = editSkill,
@@ -1132,7 +1807,6 @@ fun ProfileScreen(
         )
     }
 
-    // Password & Security Dialog
     if (showPasswordDialog) {
         var newPass by remember { mutableStateOf("") }
         AlertDialog(
@@ -1187,7 +1861,6 @@ fun ProfileScreen(
         )
     }
 
-    // Info / Support / Safety Dialog
     if (activeInfoDialogTitle != null) {
         AlertDialog(
             onDismissRequest = { activeInfoDialogTitle = null },
@@ -1335,29 +2008,4 @@ private fun ProfileMenuActionRow(
             )
         }
     }
-}
-
-// Safeguard top-level composable so any screen calling LiveLocationAutoCompleteField compiles cleanly
-@Composable
-fun LiveLocationAutoCompleteField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String = "Village / City Location",
-    modifier: Modifier = Modifier
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = null,
-                tint = Color(0xFFFF8C00)
-            )
-        },
-        singleLine = true,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    )
 }
