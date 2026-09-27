@@ -755,6 +755,7 @@ fun LabourDashboardScreen(
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
     val greenTrusted = Color(0xFF22A06B)
+    val redCancel = Color(0xFFB42318)
 
     // Live Language Reader
     val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
@@ -787,6 +788,11 @@ fun LabourDashboardScreen(
     }
 
     var viewingJobDetails by remember { mutableStateOf<WorkoraLabourJobItem?>(null) }
+    var jobToCancelApplyConfirm by remember { mutableStateOf<WorkoraLabourJobItem?>(null) }
+
+    var isMyPostedAvailabilityActive by remember {
+        mutableStateOf(settingsPrefs.getBoolean("available_today", true))
+    }
 
     // ==================== LABOUR - POST WORK AVAILABILITY (ALL 12 FIELDS) ====================
     var availWorkCategory by remember {
@@ -916,7 +922,8 @@ fun LabourDashboardScreen(
                             val k = keys.next()
                             val obj = root.optJSONObject(k) ?: continue
                             val title = obj.optString("title", "")
-                            if (title.isNotBlank()) {
+                            val statusStr = obj.optString("status", "OPEN")
+                            if (title.isNotBlank() && statusStr != "CANCELLED") {
                                 loaded.add(
                                     WorkoraLabourJobItem(
                                         key = k,
@@ -981,10 +988,11 @@ fun LabourDashboardScreen(
         }
         val workerName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
         val workerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
+        val cleanPhoneKey = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val appKey = "app_${System.currentTimeMillis()}"
+                val appKey = "app_$cleanPhoneKey"
                 val conn = (URL("$LABOUR_DB_URL/job_applications/${job.key}/$appKey.json").openConnection() as HttpURLConnection).apply {
                     requestMethod = "PUT"
                     setRequestProperty("Content-Type", "application/json")
@@ -1007,8 +1015,37 @@ fun LabourDashboardScreen(
         }
         Toast.makeText(
             context,
-            "Applied / Interested sent to ${job.customerName}! ✓",
+            tr("${job.customerName} को काम की रुचि भेजी गई ✓", "Applied / Interested sent to ${job.customerName}! ✓"),
             Toast.LENGTH_LONG
+        ).show()
+    }
+
+    fun cancelAppliedJob(job: WorkoraLabourJobItem) {
+        appliedJobIds.remove(job.id)
+        profilePrefs.edit()
+            .putStringSet("applied_job_ids", appliedJobIds.map { it.toString() }.toSet())
+            .apply()
+
+        val workerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
+        val cleanPhoneKey = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val appKey = "app_$cleanPhoneKey"
+                val delConn = (URL("$LABOUR_DB_URL/job_applications/${job.key}/$appKey.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "DELETE"
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                }
+                delConn.responseCode
+                delConn.disconnect()
+            } catch (_: Exception) {
+            }
+        }
+        Toast.makeText(
+            context,
+            tr("काम का आवेदन सफलतापूर्वक रद्द (Cancel) कर दिया गया ✓", "Job Application Cancelled Successfully ✓"),
+            Toast.LENGTH_SHORT
         ).show()
     }
 
@@ -1028,7 +1065,6 @@ fun LabourDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
-                    // Top Header (Bell Icon now opens Live Notification Center!)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1359,7 +1395,10 @@ fun LabourDashboardScreen(
                                     accentBlue = accentBlue,
                                     isApplied = isApplied,
                                     onViewDetails = { viewingJobDetails = job },
-                                    onApplyClick = { applyToCustomerJob(job) }
+                                    onApplyClick = { applyToCustomerJob(job) },
+                                    onCancelApplyClick = if (isApplied) {
+                                        { jobToCancelApplyConfirm = job }
+                                    } else null
                                 )
                             }
                         }
@@ -1534,7 +1573,10 @@ fun LabourDashboardScreen(
                                 accentBlue = accentBlue,
                                 isApplied = isApplied,
                                 onViewDetails = { viewingJobDetails = job },
-                                onApplyClick = { applyToCustomerJob(job) }
+                                onApplyClick = { applyToCustomerJob(job) },
+                                onCancelApplyClick = if (isApplied) {
+                                    { jobToCancelApplyConfirm = job }
+                                } else null
                             )
                         }
                     }
@@ -1871,6 +1913,8 @@ fun LabourDashboardScreen(
                                         ?: (profilePrefs.getString("profile_photo_base64", "") ?: "")
 
                                     currentRealLocation = finalArea
+                                    isMyPostedAvailabilityActive = true
+                                    settingsPrefs.edit().putBoolean("available_today", true).apply()
                                     profilePrefs.edit().apply {
                                         putString("user_skill", availWorkCategory)
                                         putString("user_rate", rateInt.toString())
@@ -1951,7 +1995,7 @@ fun LabourDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY WORK ====================
+                // ==================== 3: 📋 MY WORK (WITH CANCEL APPLY & AVAILABILITY CONTROL) ====================
                 val myAppliedJobs = liveAvailableJobs.filter { appliedJobIds.contains(it.id) }
 
                 Column(
@@ -1981,8 +2025,8 @@ fun LabourDashboardScreen(
                             )
                             Text(
                                 text = tr(
-                                    "आपकी सक्रिय उपलब्धता और अप्लाई किए गए काम",
-                                    "Your active availability & applied jobs"
+                                    "अपनी उपलब्धता और अप्लाई किए गए काम मैनेज या रद्द करें",
+                                    "Manage or cancel your availability & applied jobs"
                                 ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
@@ -2000,13 +2044,16 @@ fun LabourDashboardScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = cardColor),
-                            border = BorderStroke(1.2.dp, greenTrusted)
+                            border = BorderStroke(
+                                1.2.dp,
+                                if (isMyPostedAvailabilityActive) greenTrusted else borderLight
+                            )
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -2021,14 +2068,17 @@ fun LabourDashboardScreen(
                                     )
                                     Box(
                                         modifier = Modifier
-                                            .background(Color(0xFFDCFCE7), shape = RoundedCornerShape(8.dp))
+                                            .background(
+                                                if (isMyPostedAvailabilityActive) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = tr("सक्रिय", "ACTIVE"),
+                                            text = if (isMyPostedAvailabilityActive) tr("सक्रिय", "ACTIVE") else tr("बंद (PAUSED)", "PAUSED"),
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = greenTrusted
+                                            color = if (isMyPostedAvailabilityActive) greenTrusted else redCancel
                                         )
                                     }
                                 }
@@ -2043,6 +2093,65 @@ fun LabourDashboardScreen(
                                     fontSize = 12.sp,
                                     color = textMuted
                                 )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { bottomNavIndex = 2 },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(36.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, accentBlue),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text(
+                                            text = tr("बदलें (Edit)", "Edit Availability"),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = accentBlue
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            isMyPostedAvailabilityActive = !isMyPostedAvailabilityActive
+                                            settingsPrefs.edit()
+                                                .putBoolean("available_today", isMyPostedAvailabilityActive)
+                                                .apply()
+                                            Toast.makeText(
+                                                context,
+                                                if (isMyPostedAvailabilityActive) {
+                                                    tr("उपलब्धता फिर से चालू कर दी गई ✓", "Availability Activated ✓")
+                                                } else {
+                                                    tr("उपलब्धता रोक / रद्द कर दी गई ✓", "Availability Paused / Cancelled ✓")
+                                                },
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(36.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isMyPostedAvailabilityActive) redCancel else greenTrusted
+                                        ),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isMyPostedAvailabilityActive) {
+                                                tr("उपलब्धता रद्द करें ✕", "Cancel / Pause ✕")
+                                            } else {
+                                                tr("चालू करें ✓", "Activate ✓")
+                                            },
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -2093,7 +2202,8 @@ fun LabourDashboardScreen(
                                     accentBlue = accentBlue,
                                     isApplied = true,
                                     onViewDetails = { viewingJobDetails = job },
-                                    onApplyClick = { onOpenChat() }
+                                    onApplyClick = { onOpenChat() },
+                                    onCancelApplyClick = { jobToCancelApplyConfirm = job }
                                 )
                             }
                         }
@@ -2274,7 +2384,53 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Show Live Notification Center Dialog when Bell icon is clicked
+    // Confirmation Dialog for Cancelling an Applied Job
+    if (jobToCancelApplyConfirm != null) {
+        val targetJob = jobToCancelApplyConfirm!!
+        AlertDialog(
+            onDismissRequest = { jobToCancelApplyConfirm = null },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = tr("आवेदन रद्द (Cancel) करें?", "Cancel Job Application?"),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = redCancel
+                )
+            },
+            text = {
+                Text(
+                    text = tr(
+                        "क्या आप वाकई '${targetJob.title}' के लिए अपना आवेदन रद्द (Cancel) करना चाहते हैं?",
+                        "Are you sure you want to cancel your application for '${targetJob.title}'?"
+                    ),
+                    fontSize = 13.sp,
+                    color = textDark
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        cancelAppliedJob(targetJob)
+                        jobToCancelApplyConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = redCancel)
+                ) {
+                    Text(
+                        text = tr("हाँ, रद्द करें ✕", "Yes, Cancel ✕"),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { jobToCancelApplyConfirm = null }) {
+                    Text(tr("वापस जाएं", "Keep Applied"), color = textDark, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     if (showNotificationsDialog) {
         WorkoraLiveNotificationCenterDialog(
             userLocation = currentRealLocation,
@@ -2321,20 +2477,34 @@ fun LabourDashboardScreen(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        applyToCustomerJob(j)
-                        viewingJobDetails = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isApplied) greenTrusted else brandOrange
-                    )
-                ) {
-                    Text(
-                        text = if (isApplied) tr("अप्लाई हो गया ✓", "Applied ✓") else tr("अप्लाई करें ✓", "Apply / Interested ✓"),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                if (isApplied) {
+                    Button(
+                        onClick = {
+                            viewingJobDetails = null
+                            jobToCancelApplyConfirm = j
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = redCancel)
+                    ) {
+                        Text(
+                            text = tr("अप्लाई रद्द करें ✕", "Cancel Apply ✕"),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            applyToCustomerJob(j)
+                            viewingJobDetails = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
+                    ) {
+                        Text(
+                            text = tr("अप्लाई करें ✓", "Apply / Interested ✓"),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             },
             dismissButton = {
@@ -2380,11 +2550,13 @@ private fun LabourJobActionCard(
     accentBlue: Color,
     isApplied: Boolean,
     onViewDetails: () -> Unit,
-    onApplyClick: () -> Unit
+    onApplyClick: () -> Unit,
+    onCancelApplyClick: (() -> Unit)? = null
 ) {
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
     val greenTrusted = Color(0xFF22A06B)
+    val redCancel = Color(0xFFB42318)
     val isHindi = appLang == "Hindi"
 
     Card(
@@ -2474,48 +2646,109 @@ private fun LabourJobActionCard(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onViewDetails,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.2.dp, accentBlue),
-                    contentPadding = PaddingValues(0.dp)
+            if (isApplied && onCancelApplyClick != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (isHindi) "जानकारी देखें" else "View Details",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = accentBlue
-                    )
-                }
+                    OutlinedButton(
+                        onClick = onViewDetails,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.2.dp, accentBlue),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = if (isHindi) "जानकारी" else "View Details",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accentBlue,
+                            maxLines = 1
+                        )
+                    }
 
-                Button(
-                    onClick = onApplyClick,
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isApplied) greenTrusted else brandOrange
-                    ),
-                    contentPadding = PaddingValues(0.dp)
+                    Button(
+                        onClick = onApplyClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = greenTrusted),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = if (isHindi) "अप्लाई ✓" else "Applied ✓",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+
+                    Button(
+                        onClick = onCancelApplyClick,
+                        modifier = Modifier
+                            .weight(1.15f)
+                            .height(38.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = redCancel),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = if (isHindi) "रद्द करें ✕" else "Cancel Apply ✕",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = if (isApplied) {
-                            if (isHindi) "रुचि भेजी गई ✓" else "Interested Sent ✓"
-                        } else {
-                            if (isHindi) "अप्लाई करें / रुचि दिखाएं" else "Apply / Interested"
-                        },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
-                    )
+                    OutlinedButton(
+                        onClick = onViewDetails,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.2.dp, accentBlue),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = if (isHindi) "जानकारी देखें" else "View Details",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accentBlue
+                        )
+                    }
+
+                    Button(
+                        onClick = onApplyClick,
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isApplied) greenTrusted else brandOrange
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = if (isApplied) {
+                                if (isHindi) "रुचि भेजी गई ✓" else "Interested Sent ✓"
+                            } else {
+                                if (isHindi) "अप्लाई करें / रुचि दिखाएं" else "Apply / Interested"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }
