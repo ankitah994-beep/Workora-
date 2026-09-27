@@ -174,7 +174,11 @@ private fun encodeJobPhotoUri(context: Context, uri: Uri): String {
 }
 
 @Composable
-private fun ExactWorkoraWLogo(size: Dp = 44.dp) {
+private fun ExactWorkoraWLogo(
+    customLogoBase64: String = "",
+    size: Dp = 44.dp
+) {
+    val customBmp = remember(customLogoBase64) { decodeWorkerPhoto(customLogoBase64) }
     Box(
         modifier = Modifier
             .size(size)
@@ -182,26 +186,35 @@ private fun ExactWorkoraWLogo(size: Dp = 44.dp) {
             .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            drawCircle(
-                color = Color(0xFFFF8C00),
-                radius = w * 0.46f,
-                style = Stroke(width = w * 0.08f)
+        if (customBmp != null) {
+            Image(
+                bitmap = customBmp,
+                contentDescription = "App Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
-            val path = Path().apply {
-                moveTo(w * 0.26f, h * 0.36f)
-                lineTo(w * 0.38f, h * 0.66f)
-                lineTo(w * 0.50f, h * 0.46f)
-                lineTo(w * 0.62f, h * 0.66f)
-                lineTo(w * 0.74f, h * 0.36f)
+        } else {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = this.size.width
+                val h = this.size.height
+                drawCircle(
+                    color = Color(0xFFFF8C00),
+                    radius = w * 0.46f,
+                    style = Stroke(width = w * 0.08f)
+                )
+                val path = Path().apply {
+                    moveTo(w * 0.26f, h * 0.36f)
+                    lineTo(w * 0.38f, h * 0.66f)
+                    lineTo(w * 0.50f, h * 0.46f)
+                    lineTo(w * 0.62f, h * 0.66f)
+                    lineTo(w * 0.74f, h * 0.36f)
+                }
+                drawPath(
+                    path = path,
+                    color = Color(0xFF083D91),
+                    style = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
+                )
             }
-            drawPath(
-                path = path,
-                color = Color(0xFF083D91),
-                style = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
-            )
         }
     }
 }
@@ -516,6 +529,7 @@ fun CustomerDashboardScreen(
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
+    val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
 
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
@@ -523,6 +537,26 @@ fun CustomerDashboardScreen(
     val textMuted = Color(0xFF667085)
     val borderLight = Color(0xFFE5E7EB)
     val greenTrusted = Color(0xFF22A06B)
+
+    // Live Admin Branding States (Synced with Admin Panel "Edit App")
+    var liveAppName by remember {
+        mutableStateOf(brandingPrefs.getString("app_name", "WORKORA") ?: "WORKORA")
+    }
+    var liveAppTagline by remember {
+        mutableStateOf(brandingPrefs.getString("app_tagline", "Find & Hire Skilled Labour") ?: "Find & Hire Skilled Labour")
+    }
+    var liveBannerHeading by remember {
+        mutableStateOf(brandingPrefs.getString("banner_text", "Find Skilled\nWorkers Near You") ?: "Find Skilled\nWorkers Near You")
+    }
+    var liveBannerSubtext by remember {
+        mutableStateOf(brandingPrefs.getString("banner_subtext", "Get your work done easily\nand safely.") ?: "Get your work done easily\nand safely.")
+    }
+    var livePostBtnLabel by remember {
+        mutableStateOf(brandingPrefs.getString("post_btn_label", "Post Job") ?: "Post Job")
+    }
+    var liveLogoBase64 by remember {
+        mutableStateOf(brandingPrefs.getString("logo_base64", "") ?: "")
+    }
 
     var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
@@ -714,6 +748,37 @@ fun CustomerDashboardScreen(
     fun loadLiveWorkersAndMyJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // 0. Sync Admin App Branding Live from Firebase /app_branding
+                val bConn = URL("$CUSTOMER_DB_URL/app_branding.json").openConnection() as HttpURLConnection
+                if (bConn.responseCode in 200..299) {
+                    val bResp = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
+                    if (bResp.isNotBlank() && bResp != "null" && bResp.startsWith("{")) {
+                        val bObj = JSONObject(bResp)
+                        val cName = bObj.optString("app_name", liveAppName)
+                        val cTag = bObj.optString("app_tagline", liveAppTagline)
+                        val cHead = bObj.optString("banner_text", liveBannerHeading)
+                        val cSub = bObj.optString("banner_subtext", liveBannerSubtext)
+                        val cBtn = bObj.optString("post_btn_label", livePostBtnLabel)
+                        brandingPrefs.edit().apply {
+                            putString("app_name", cName)
+                            putString("app_tagline", cTag)
+                            putString("banner_text", cHead)
+                            putString("banner_subtext", cSub)
+                            putString("post_btn_label", cBtn)
+                            apply()
+                        }
+                        withContext(Dispatchers.Main) {
+                            liveAppName = cName
+                            liveAppTagline = cTag
+                            liveBannerHeading = cHead
+                            liveBannerSubtext = cSub
+                            livePostBtnLabel = cBtn
+                        }
+                    }
+                }
+                bConn.disconnect()
+
+                // 1. Sync Workers
                 val conn = URL("$CUSTOMER_DB_URL/workers.json").openConnection() as HttpURLConnection
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
@@ -764,6 +829,7 @@ fun CustomerDashboardScreen(
                 }
                 conn.disconnect()
 
+                // 2. Sync Jobs
                 val jConn = URL("$CUSTOMER_DB_URL/jobs.json").openConnection() as HttpURLConnection
                 if (jConn.responseCode in 200..299) {
                     val jResp = BufferedReader(InputStreamReader(jConn.inputStream)).use { it.readText() }
@@ -856,18 +922,18 @@ fun CustomerDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { onSwitchRole() }
                         ) {
-                            ExactWorkoraWLogo(size = 44.dp)
+                            ExactWorkoraWLogo(customLogoBase64 = liveLogoBase64, size = 44.dp)
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "WORKORA",
+                                    text = liveAppName,
                                     fontSize = 19.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark,
                                     letterSpacing = 0.5.sp
                                 )
                                 Text(
-                                    text = "Find & Hire Skilled Labour",
+                                    text = liveAppTagline,
                                     fontSize = 11.sp,
                                     color = textMuted
                                 )
@@ -972,7 +1038,7 @@ fun CustomerDashboardScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Find Skilled\nWorkers Near You",
+                                            text = liveBannerHeading,
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = textDark,
@@ -980,7 +1046,7 @@ fun CustomerDashboardScreen(
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "Get your work done easily\nand safely.",
+                                            text = liveBannerSubtext,
                                             fontSize = 12.sp,
                                             color = Color(0xFF475569),
                                             lineHeight = 16.sp
@@ -1013,7 +1079,7 @@ fun CustomerDashboardScreen(
                                             }
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Post Job",
+                                                text = livePostBtnLabel,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
