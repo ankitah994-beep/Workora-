@@ -1,153 +1,406 @@
 package com.example.ui.screens
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.example.model.User
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.Locale
+import com.example.model.JobApplication
+import com.example.model.JobPost
+import com.example.ui.theme.WorkoraOrange
 
-private val LabourNavyPrimary = Color(0xFF083D91)
-private val LabourDarkNavyBtn = Color(0xFF0B2345)
-private val LabourOrangeAccent = Color(0xFFFF8C00)
-private val LabourBgLight = Color(0xFFF8FAFC)
-private val LabourWhite = Color(0xFFFFFFFF)
-private val LabourMainText = Color(0xFF0B2345)
-private val LabourSecondaryText = Color(0xFF687280)
-private val LabourBorder = Color(0xFFE5EAF0)
-private val LabourSuccessGreen = Color(0xFF16A34A)
-private val LabourRateBadgeBg = Color(0xFFFEF9C3)
-private val LabourRateBadgeBorder = Color(0xFFFDE047)
-private val LabourRateTextOrange = Color(0xFFD97706)
-
-private const val LABOUR_FB_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
-
-internal data class LabourWorkRequestItem(
-    val id: String,
-    val title: String,
-    val category: String,
-    val description: String,
-    val customerName: String,
-    val customerPhone: String,
-    val location: String,
-    val stateName: String,
-    val dailyRate: Int,
-    val workersNeeded: Int,
-    val date: String,
-    val status: String,
-    val urgency: String
+private data class ExactLabourCardItem(
+    val name: String,
+    val trade: String,
+    val rating: Double,
+    val reviewsCount: Int,
+    val distanceKm: Int,
+    val dailyWage: Int,
+    val shirtColor: Color
 )
 
-private fun translateLabourCategory(category: String, isHindi: Boolean): String {
-    if (!isHindi) return category
-    return when (category.trim().lowercase(Locale.US)) {
-        "all" -> "सभी (All)"
-        "mason" -> "राजमिस्त्री (Mason)"
-        "electrician" -> "इलेक्ट्रीशियन (Electrician)"
-        "plumber" -> "प्लंबर (Plumber)"
-        "painter" -> "पेंटर (Painter)"
-        "carpenter" -> "बढ़ई (Carpenter)"
-        "general labour" -> "मजदूर (General Labour)"
-        "tile worker" -> "टाइल्स कारीगर (Tile Worker)"
-        "cleaner" -> "सफाई कर्मी (Cleaner)"
-        "farm worker" -> "कृषि मजदूर (Farm Worker)"
-        else -> category
-    }
-}
-
-private fun matchesLabourSmartSearch(req: LabourWorkRequestItem, rawQuery: String): Boolean {
-    val q = rawQuery.trim().lowercase(Locale.US)
-    if (q.isEmpty()) return true
-
-    val hindiCat = translateLabourCategory(req.category, true).lowercase(Locale.US)
-    val synonyms = when (req.category.trim().lowercase(Locale.US)) {
-        "mason" -> "राजमिस्त्री मिस्त्री प्लास्टर ईंट चुनाई mistri brick plaster"
-        "electrician" -> "इलेक्ट्रीशियन बिजली वायरिंग पंखा लाइट स्विच bijli wiring fan light"
-        "plumber" -> "प्लंबर नल पाइप टंकी फिटिंग मोटर nal pipe tank fitting"
-        "painter" -> "पेंटर पुट्टी पेंट रंगाई कलर putty paint color"
-        "carpenter" -> "बढ़ई फर्नीचर लकड़ी दरवाजा खिड़की badhai wood door furniture"
-        "general labour" -> "मजदूर लेबर हेल्पर लोडिंग खुदाई majdur labour helper"
-        "tile worker" -> "टाइल्स पत्थर मार्बल ग्रेनाइट फर्श tile tiles marble granite worker"
-        "cleaner" -> "सफाई क्लीनर झाड़ू पोछा टैंक safai cleaner cleaning"
-        "farm worker" -> "कृषि खेती किसान फसल कटाई kheti farm kisan"
-        else -> ""
-    }
-
-    val blob = buildString {
-        append(req.title.lowercase(Locale.US)).append(" ")
-        append(req.category.lowercase(Locale.US)).append(" ")
-        append(hindiCat).append(" ")
-        append(synonyms).append(" ")
-        append(req.description.lowercase(Locale.US)).append(" ")
-        append(req.customerName.lowercase(Locale.US)).append(" ")
-        append(req.customerPhone.lowercase(Locale.US)).append(" ")
-        append(req.location.lowercase(Locale.US)).append(" ")
-        append(req.stateName.lowercase(Locale.US)).append(" ")
-        append(req.dailyRate.toString()).append(" ")
-        append("work job kaam काम वर्कर")
-    }
-
-    if (blob.contains(q)) return true
-    val words = q.split("\\s+".toRegex()).filter { it.isNotBlank() }
-    return words.isNotEmpty() && words.all { blob.contains(it) }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <JobT, CatT, TabT> LabourDashboardScreen(
-    currentUser: User? = null,
-    jobs: List<JobT> = emptyList(),
-    applications: List<*> = emptyList<Any?>(),
-    selectedCategory: CatT,
-    onCategorySelected: (CatT) -> Unit = {},
-    activeTab: TabT,
-    onTabSelected: (TabT) -> Unit = {},
+private fun ExactLabourWLogo(size: Dp = 44.dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = this.size.width
+            val h = this.size.height
+            drawCircle(
+                color = Color(0xFFF59E0B),
+                radius = w * 0.46f,
+                style = Stroke(width = w * 0.08f)
+            )
+            val path = Path().apply {
+                moveTo(w * 0.26f, h * 0.36f)
+                lineTo(w * 0.38f, h * 0.66f)
+                lineTo(w * 0.50f, h * 0.46f)
+                lineTo(w * 0.62f, h * 0.66f)
+                lineTo(w * 0.74f, h * 0.36f)
+            }
+            drawPath(
+                path = path,
+                color = Color(0xFF1E3A8A),
+                style = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExactLabourBannerGraphic(size: Dp = 105.dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+
+        drawLine(
+            color = Color(0xFF334155),
+            start = Offset(w * 0.16f, h * 0.44f),
+            end = Offset(w * 0.28f, h * 0.74f),
+            strokeWidth = w * 0.055f,
+            cap = StrokeCap.Round
+        )
+        drawCircle(
+            color = Color(0xFF475569),
+            radius = w * 0.075f,
+            center = Offset(w * 0.15f, h * 0.40f)
+        )
+        drawCircle(
+            color = Color(0xFFE0F2FE),
+            radius = w * 0.032f,
+            center = Offset(w * 0.13f, h * 0.38f)
+        )
+
+        drawRoundRect(
+            color = Color(0xFF2563EB),
+            topLeft = Offset(w * 0.26f, h * 0.54f),
+            size = Size(w * 0.54f, h * 0.38f),
+            cornerRadius = CornerRadius(w * 0.14f, w * 0.14f)
+        )
+
+        drawRoundRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(w * 0.34f, h * 0.58f),
+            size = Size(w * 0.38f, h * 0.34f),
+            cornerRadius = CornerRadius(w * 0.05f, w * 0.05f)
+        )
+        drawRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(w * 0.36f, h * 0.52f),
+            size = Size(w * 0.06f, h * 0.10f)
+        )
+        drawRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(w * 0.64f, h * 0.52f),
+            size = Size(w * 0.06f, h * 0.10f)
+        )
+
+        drawRoundRect(
+            color = Color(0xFFFDBA74),
+            topLeft = Offset(w * 0.46f, h * 0.44f),
+            size = Size(w * 0.14f, h * 0.12f),
+            cornerRadius = CornerRadius(8f, 8f)
+        )
+        drawCircle(
+            color = Color(0xFFFED7AA),
+            radius = w * 0.16f,
+            center = Offset(w * 0.53f, h * 0.34f)
+        )
+
+        drawCircle(color = Color(0xFF1E293B), radius = w * 0.018f, center = Offset(w * 0.48f, h * 0.33f))
+        drawCircle(color = Color(0xFF1E293B), radius = w * 0.018f, center = Offset(w * 0.58f, h * 0.33f))
+        drawArc(
+            color = Color(0xFF1E293B),
+            startAngle = 20f,
+            sweepAngle = 140f,
+            useCenter = false,
+            topLeft = Offset(w * 0.48f, h * 0.35f),
+            size = Size(w * 0.10f, h * 0.06f),
+            style = Stroke(width = 3f, cap = StrokeCap.Round)
+        )
+
+        val helmetPath = Path().apply {
+            moveTo(w * 0.35f, h * 0.26f)
+            cubicTo(w * 0.35f, h * 0.10f, w * 0.71f, h * 0.10f, w * 0.71f, h * 0.26f)
+            close()
+        }
+        drawPath(path = helmetPath, color = Color(0xFFFACC15))
+        drawRoundRect(
+            color = Color(0xFFEAB308),
+            topLeft = Offset(w * 0.32f, h * 0.24f),
+            size = Size(w * 0.42f, h * 0.045f),
+            cornerRadius = CornerRadius(10f, 10f)
+        )
+    }
+}
+
+@Composable
+private fun ExactLabourCategoryIconBox(category: String) {
+    val bgColor = when (category) {
+        "Mason" -> Color(0xFFE0F2FE)
+        "Electrician" -> Color(0xFFFEF3C7)
+        "Plumber" -> Color(0xFFDCFCE7)
+        "Painter" -> Color(0xFFFEE2E2)
+        "Carpenter" -> Color(0xFFEDE9FE)
+        else -> Color(0xFFF1F5F9)
+    }
+
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(bgColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(22.dp)) {
+            val w = this.size.width
+            val h = this.size.height
+            when (category) {
+                "Mason" -> {
+                    val blade = Path().apply {
+                        moveTo(w * 0.75f, h * 0.20f)
+                        lineTo(w * 0.30f, h * 0.45f)
+                        lineTo(w * 0.55f, h * 0.70f)
+                        close()
+                    }
+                    drawPath(blade, color = Color(0xFF1D4ED8))
+                    drawLine(
+                        color = Color(0xFF1E3A8A),
+                        start = Offset(w * 0.42f, h * 0.58f),
+                        end = Offset(w * 0.20f, h * 0.80f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                }
+                "Electrician" -> {
+                    val bolt = Path().apply {
+                        moveTo(w * 0.58f, h * 0.10f)
+                        lineTo(w * 0.25f, h * 0.55f)
+                        lineTo(w * 0.50f, h * 0.55f)
+                        lineTo(w * 0.40f, h * 0.90f)
+                        lineTo(w * 0.75f, h * 0.45f)
+                        lineTo(w * 0.50f, h * 0.45f)
+                        close()
+                    }
+                    drawPath(bolt, color = Color(0xFFF59E0B))
+                }
+                "Plumber" -> {
+                    drawRoundRect(
+                        color = Color(0xFF16A34A),
+                        topLeft = Offset(w * 0.20f, h * 0.42f),
+                        size = Size(w * 0.55f, h * 0.18f),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    drawRoundRect(
+                        color = Color(0xFF16A34A),
+                        topLeft = Offset(w * 0.58f, h * 0.42f),
+                        size = Size(w * 0.18f, h * 0.36f),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    drawLine(
+                        color = Color(0xFF15803D),
+                        start = Offset(w * 0.32f, h * 0.25f),
+                        end = Offset(w * 0.52f, h * 0.25f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = Color(0xFF15803D),
+                        start = Offset(w * 0.42f, h * 0.25f),
+                        end = Offset(w * 0.42f, h * 0.42f),
+                        strokeWidth = w * 0.10f
+                    )
+                }
+                "Painter" -> {
+                    drawRoundRect(
+                        color = Color(0xFFEF4444),
+                        topLeft = Offset(w * 0.20f, h * 0.18f),
+                        size = Size(w * 0.56f, h * 0.24f),
+                        cornerRadius = CornerRadius(6f, 6f)
+                    )
+                    drawLine(
+                        color = Color(0xFF991B1B),
+                        start = Offset(w * 0.48f, h * 0.42f),
+                        end = Offset(w * 0.48f, h * 0.84f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                }
+                "Carpenter" -> {
+                    drawLine(
+                        color = Color(0xFF6D28D9),
+                        start = Offset(w * 0.24f, h * 0.78f),
+                        end = Offset(w * 0.64f, h * 0.34f),
+                        strokeWidth = w * 0.12f,
+                        cap = StrokeCap.Round
+                    )
+                    drawRoundRect(
+                        color = Color(0xFF5B21B6),
+                        topLeft = Offset(w * 0.42f, h * 0.18f),
+                        size = Size(w * 0.40f, h * 0.18f),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                }
+                else -> {
+                    val r = w * 0.13f
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.32f, h * 0.32f))
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.68f, h * 0.32f))
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.32f, h * 0.68f))
+                    drawCircle(Color(0xFF1E3A8A), radius = r, center = Offset(w * 0.68f, h * 0.68f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExactLabourAvatar(
+    shirtColor: Color,
+    showYellowHelmet: Boolean,
+    size: Dp = 54.dp
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xFFE2E8F0)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = this.size.width
+            val h = this.size.height
+
+            drawArc(
+                color = shirtColor,
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = true,
+                topLeft = Offset(w * 0.14f, h * 0.62f),
+                size = Size(w * 0.72f, h * 0.54f)
+            )
+            drawRect(
+                color = Color(0xFFE0A96D),
+                topLeft = Offset(w * 0.42f, h * 0.52f),
+                size = Size(w * 0.16f, h * 0.14f)
+            )
+            drawCircle(
+                color = Color(0xFFF1C27D),
+                radius = w * 0.20f,
+                center = Offset(w * 0.50f, h * 0.40f)
+            )
+            if (showYellowHelmet) {
+                drawArc(
+                    color = Color(0xFFFACC15),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = true,
+                    topLeft = Offset(w * 0.28f, h * 0.14f),
+                    size = Size(w * 0.44f, h * 0.32f)
+                )
+            } else {
+                drawArc(
+                    color = Color(0xFF1E293B),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = true,
+                    topLeft = Offset(w * 0.30f, h * 0.17f),
+                    size = Size(w * 0.40f, h * 0.26f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LabourDashboardScreen(
+    currentUser: Any? = null,
+    jobs: List<JobPost> = emptyList(),
+    applications: List<JobApplication> = emptyList(),
+    selectedCategory: String? = null,
+    onCategorySelected: (String) -> Unit = {},
+    activeTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
     isAvailable: Boolean = true,
     onToggleAvailability: () -> Unit = {},
-    onApplyJob: (JobT) -> Unit = {},
-    onAcceptJob: (JobT) -> Unit = {},
-    onRejectJob: (JobT) -> Unit = {},
+    onApplyJob: (JobPost) -> Unit = {},
+    onAcceptJob: (JobPost) -> Unit = {},
+    onRejectJob: (JobPost) -> Unit = {},
     onCompleteJob: (Long) -> Unit = {},
     onSwitchRole: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
@@ -156,1284 +409,985 @@ fun <JobT, CatT, TabT> LabourDashboardScreen(
 ) {
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
-    val chatPrefs = remember { context.getSharedPreferences("workora_active_chat", Context.MODE_PRIVATE) }
 
-    LaunchedEffect(Unit) {
-        AppLanguageManager.init(context)
+    var currentRealLocation by remember {
+        mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
-    val selectedLanguage = AppLanguageManager.currentLanguage
-    val isHindi = selectedLanguage.equals("Hindi", ignoreCase = true) || selectedLanguage.contains("हिंदी")
+    var showLocationModal by remember { mutableStateOf(false) }
+    var locationSearchInput by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
 
-    LaunchedEffect(toastMessage) {
-        if (!toastMessage.isNullOrBlank()) {
-            Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
-        }
-    }
+    var bottomNavIndex by remember { mutableIntStateOf(0) }
 
-    val workerName = profilePrefs.getString("user_name", "")?.ifBlank {
-        authPrefs.getString("last_logged_in_email", if (isHindi) "कारीगर" else "Worker")?.substringBefore("@") ?: "Worker"
-    } ?: "Worker"
-    val workerSkill = profilePrefs.getString("user_skill", "")?.ifBlank { if (isHindi) "कुशल कारीगर" else "Skilled Worker" } ?: "Skilled Worker"
-    var workerArea by remember {
-        mutableStateOf(
-            profilePrefs.getString("user_location", "")?.ifBlank { "Silwani, Raisen" } ?: "Silwani, Raisen"
-        )
-    }
-    val workerExp = profilePrefs.getString("user_experience", "")?.ifBlank { if (isHindi) "अनुभवी" else "Experienced" } ?: "Experienced"
-    val workerRate = profilePrefs.getString("user_rate", "")?.ifBlank { "600" } ?: "600"
-    val workerProfilePhoto = profilePrefs.getString("user_profile_photo", "") ?: ""
+    var showPostDialog by remember { mutableStateOf(false) }
+    var postTitle by remember { mutableStateOf("House Repair Work") }
+    var postCategory by remember { mutableStateOf("Mason") }
+    var postWage by remember { mutableStateOf("500") }
 
-    // Active Location Filter State for Worker Home Screen
-    var activeJobLocationFilter by remember { mutableStateOf("All Locations") }
-    var filterByWorkerLocation by remember { mutableStateOf(false) }
-    var showWorkerLocationModal by remember { mutableStateOf(false) }
-
-    var localSearchQuery by remember { mutableStateOf("") }
-    var selectedCategoryFilter by remember { mutableStateOf("All") }
-    var sortMode by remember { mutableStateOf("DEFAULT") }
-    var showSortDialog by remember { mutableStateOf(false) }
-    var selectedCustomerRequestForProfile by remember { mutableStateOf<LabourWorkRequestItem?>(null) }
-
-    val defaultCustomerRequests = remember {
-        listOf(
-            LabourWorkRequestItem(
-                id = "req_1",
-                title = "Fix home wiring & switchboards",
-                category = "Electrician",
-                description = "Need an experienced electrician to fix house wiring and install 4 new modular switchboards.",
-                customerName = "Amit Sharma",
-                customerPhone = "+91 9876543210",
-                location = "Main Market, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 800,
-                workersNeeded = 1,
-                date = "Today",
-                status = "PENDING",
-                urgency = "Urgent"
+    val exactWorkers = remember {
+        mutableStateListOf(
+            ExactLabourCardItem(
+                name = "Ramesh Kumar",
+                trade = "Mason",
+                rating = 4.8,
+                reviewsCount = 12,
+                distanceKm = 2,
+                dailyWage = 600,
+                shirtColor = Color(0xFF1E3A8A)
             ),
-            LabourWorkRequestItem(
-                id = "req_2",
-                title = "House Plaster & Brick Work",
-                category = "Mason",
-                description = "Need skilled mason for boundary wall construction and outer plastering work for 4 days.",
-                customerName = "Rajesh Patel",
-                customerPhone = "+91 9123456780",
-                location = "Civil Lines, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 850,
-                workersNeeded = 2,
-                date = "Today",
-                status = "PENDING",
-                urgency = "Normal"
+            ExactLabourCardItem(
+                name = "Suresh Patel",
+                trade = "Electrician",
+                rating = 4.6,
+                reviewsCount = 8,
+                distanceKm = 3,
+                dailyWage = 550,
+                shirtColor = Color(0xFF334155)
             ),
-            LabourWorkRequestItem(
-                id = "req_3",
-                title = "Bathroom Pipeline & Tank Fitting",
-                category = "Plumber",
-                description = "Overhead water tank installation and bathroom tap fitting work.",
-                customerName = "Vikash Singh",
-                customerPhone = "+91 9425012345",
-                location = "Bhopal Road, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 850,
-                workersNeeded = 1,
-                date = "26 Sep 2026",
-                status = "PENDING",
-                urgency = "Normal"
-            ),
-            LabourWorkRequestItem(
-                id = "req_4",
-                title = "2 BHK Full Interior Wall Painting",
-                category = "Painter",
-                description = "Wall putty and two coats of plastic emulsion paint required for 2 BHK house.",
-                customerName = "Pooja Verma",
-                customerPhone = "+91 7654321098",
-                location = "New Colony, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 750,
-                workersNeeded = 2,
-                date = "26 Sep 2026",
-                status = "PENDING",
-                urgency = "Normal"
-            ),
-            LabourWorkRequestItem(
-                id = "req_5",
-                title = "Floor Vitrified Tile Fitting",
-                category = "Tile Worker",
-                description = "Need experienced tile worker for hall and kitchen floor tile fitting.",
-                customerName = "Sandeep Jain",
-                customerPhone = "+91 9826112233",
-                location = "Main Road, Silwani",
-                stateName = "Madhya Pradesh",
-                dailyRate = 900,
-                workersNeeded = 1,
-                date = "Today",
-                status = "PENDING",
-                urgency = "Urgent"
-            ),
-            LabourWorkRequestItem(
-                id = "req_6",
-                title = "Full House & Water Tank Cleaning",
-                category = "Cleaner",
-                description = "Deep cleaning of 3 rooms and overhead water tank cleaning work.",
-                customerName = "Neha Dubey",
-                customerPhone = "+91 9755112244",
-                location = "Station Road, Raisen",
-                stateName = "Madhya Pradesh",
-                dailyRate = 550,
-                workersNeeded = 1,
-                date = "Today",
-                status = "PENDING",
-                urgency = "Normal"
+            ExactLabourCardItem(
+                name = "Amit Yadav",
+                trade = "Plumber",
+                rating = 4.7,
+                reviewsCount = 15,
+                distanceKm = 4,
+                dailyWage = 500,
+                shirtColor = Color(0xFF0F766E)
             )
         )
     }
 
-    val workRequestsList = remember {
-        mutableStateListOf<LabourWorkRequestItem>().apply { addAll(defaultCustomerRequests) }
+    val filteredWorkers = exactWorkers.filter { w ->
+        val matchQuery = searchQuery.isBlank() ||
+                w.name.contains(searchQuery, ignoreCase = true) ||
+                w.trade.contains(searchQuery, ignoreCase = true)
+        val matchCat = selectedCategory.isNullOrBlank() ||
+                selectedCategory.equals("All", ignoreCase = true) ||
+                w.trade.equals(selectedCategory, ignoreCase = true)
+        matchQuery && matchCat
     }
 
-    LaunchedEffect(Unit) {
-        fetchLiveCustomerRequestsFromFirebase { cloudRequests ->
-            val merged = mutableListOf<LabourWorkRequestItem>()
-            merged.addAll(cloudRequests)
-            defaultCustomerRequests.forEach { def ->
-                if (merged.none { it.id == def.id || it.title.equals(def.title, true) }) {
-                    merged.add(def)
-                }
-            }
-            workRequestsList.clear()
-            workRequestsList.addAll(merged)
-        }
-    }
-
-    val filteredRequests = workRequestsList
-        .filter { req ->
-            val matchCat = selectedCategoryFilter == "All" || req.category.equals(selectedCategoryFilter, ignoreCase = true)
-            val matchLoc = if (!filterByWorkerLocation || activeJobLocationFilter.equals("All Locations", true) || activeJobLocationFilter.isBlank()) {
-                true
-            } else {
-                val tokens = activeJobLocationFilter.split(",", " ").map { it.trim().lowercase(Locale.US) }.filter { it.length >= 3 }
-                tokens.isEmpty() || tokens.any { tk ->
-                    req.location.lowercase(Locale.US).contains(tk) || req.stateName.lowercase(Locale.US).contains(tk)
-                }
-            }
-            matchCat && matchLoc && matchesLabourSmartSearch(req, localSearchQuery)
-        }
-        .let { list ->
-            when (sortMode) {
-                "HIGH_RATE" -> list.sortedByDescending { it.dailyRate }
-                "URGENT_FIRST" -> list.sortedByDescending { it.urgency.equals("Urgent", true) }
-                else -> list
-            }
-        }
-
-    val openDirectLiveChatWithCustomer: (LabourWorkRequestItem) -> Unit = { req ->
-        chatPrefs.edit()
-            .putString("chat_partner_id", req.id)
-            .putString("chat_partner_name", req.customerName)
-            .putString("chat_partner_role", "${if (isHindi) "ग्राहक" else "Customer"} • ${req.title}")
-            .putString("chat_partner_phone", req.customerPhone)
-            .putString("chat_partner_area", req.location)
-            .apply()
-        onOpenChat()
-    }
-
-    if (selectedCustomerRequestForProfile != null) {
-        val req = selectedCustomerRequestForProfile!!
-        CustomerAndJobDetailProfileScreen(
-            request = req,
-            isHindi = isHindi,
-            onBack = { selectedCustomerRequestForProfile = null },
-            onCallCustomer = {
-                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
-                context.startActivity(dialIntent)
-            },
-            onChatWithCustomer = {
-                selectedCustomerRequestForProfile = null
-                openDirectLiveChatWithCustomer(req)
-            },
-            onAcceptWorkRequest = {
-                val idx = workRequestsList.indexOfFirst { it.id == req.id }
-                if (idx >= 0) {
-                    val updated = req.copy(status = "ACCEPTED")
-                    workRequestsList[idx] = updated
-                    selectedCustomerRequestForProfile = updated
-                    updateJobStatusInFirebase(req.id, "ACCEPTED", workerName)
-                    Toast.makeText(
-                        context,
-                        if (isHindi) "काम की रिक्वेस्ट स्वीकार कर ली गई! ✓" else "Work Request Accepted! ✓",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        )
-        return
-    }
-
-    Scaffold(
-        containerColor = LabourBgLight,
-        bottomBar = {
-            Surface(
-                color = LabourWhite,
-                shadowElevation = 12.dp,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF8FAFC))
+    ) {
+        if (bottomNavIndex == 0) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 84.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(vertical = 10.dp, horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LabourBottomNavItem(
-                        icon = Icons.Default.Home,
-                        label = if (isHindi) "होम" else "Home",
-                        isSelected = true,
-                        onClick = {
-                            selectedCategoryFilter = "All"
-                            localSearchQuery = ""
-                            filterByWorkerLocation = false
-                        }
-                    )
-                    LabourBottomNavItem(
-                        icon = Icons.Outlined.WorkOutline,
-                        label = if (isHindi) "मेरे काम" else "My Jobs",
-                        isSelected = false,
-                        onClick = {
-                            selectedCategoryFilter = "All"
-                            localSearchQuery = ""
-                            filterByWorkerLocation = false
-                        }
-                    )
-                    LabourBottomNavItem(
-                        icon = Icons.Outlined.Chat,
-                        label = if (isHindi) "चैट" else "Chat",
-                        isSelected = false,
-                        onClick = onOpenChat
-                    )
-                    LabourBottomNavItem(
-                        icon = Icons.Outlined.Person,
-                        label = if (isHindi) "प्रोफाइल" else "Profile",
-                        isSelected = false,
-                        onClick = onOpenProfile
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Top Navy Header + Restored Live Location Bar + Search Bar
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(LabourNavyPrimary)
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .background(Color.White)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { onSwitchRole() }
                     ) {
+                        ExactLabourWLogo(size = 44.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Workora",
-                                color = LabourWhite,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                text = "WORKORA",
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A),
+                                letterSpacing = 0.5.sp
                             )
                             Text(
-                                text = if (isHindi) "कारीगर डैशबोर्ड" else "Worker Dashboard",
-                                color = Color(0xFFCBD5E1),
-                                fontSize = 12.sp
+                                text = "Find & Hire Skilled Labour",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B)
                             )
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Surface(
-                                color = LabourOrangeAccent,
-                                shape = RoundedCornerShape(50),
-                                modifier = Modifier.clickable { onSwitchRole() }
-                            ) {
-                                Text(
-                                    text = if (isHindi) "कस्टमर मोड" else "Customer Mode",
-                                    color = LabourWhite,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onOpenProfile) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color(0xFF1E293B),
+                                modifier = Modifier.size(23.dp)
+                            )
+                        }
+                        IconButton(onClick = onSwitchRole) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menu",
+                                tint = Color(0xFF1E293B),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
 
-                    // RESTORED WORKER HOME SCREEN LIVE LOCATION BAR
-                    Surface(
-                        color = Color(0xFF1E40AF),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showWorkerLocationModal = true }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Card(
+                        onClick = { showLocationModal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.LocationOn,
-                                    contentDescription = "Location",
-                                    tint = LabourOrangeAccent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (!filterByWorkerLocation || activeJobLocationFilter == "All Locations") {
-                                        if (isHindi) "लोकेशन: सभी क्षेत्र ($workerArea)" else "Location: All Areas ($workerArea)"
-                                    } else {
-                                        "📍 $activeJobLocationFilter"
-                                    },
-                                    color = LabourWhite,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (isHindi) "बदलें" else "Change",
-                                    color = Color(0xFFFDE047),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
                                     contentDescription = null,
-                                    tint = Color(0xFFFDE047),
-                                    modifier = Modifier.size(18.dp)
+                                    tint = Color(0xFFF97316),
+                                    modifier = Modifier.size(22.dp)
                                 )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = currentRealLocation,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Text(
+                                        text = "Tap to change location",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B)
+                            )
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color(0xFFE0F2FE), Color(0xFFDBEAFE))
+                                    )
+                                )
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Find Skilled\nWorkers Near You",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF0F172A),
+                                        lineHeight = 23.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Get your work done easily\nand safely.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF475569),
+                                        lineHeight = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    Button(
+                                        onClick = { showPostDialog = true },
+                                        shape = RoundedCornerShape(22.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF97316)),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                        modifier = Modifier.height(38.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = null,
+                                                tint = Color(0xFFF97316),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Post New Requirement",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+
+                                ExactLabourBannerGraphic(size = 102.dp)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = localSearchQuery,
-                        onValueChange = { query ->
-                            localSearchQuery = query
-                            if (query.isNotBlank() && selectedCategoryFilter != "All") {
-                                selectedCategoryFilter = "All"
-                            }
-                        },
-                        placeholder = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = if (isHindi) "काम या शहर खोजें..." else "Search work or location...",
-                                fontSize = 13.sp,
-                                color = LabourSecondaryText
+                                text = "Popular Categories",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
                             )
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.Search, contentDescription = null, tint = LabourSecondaryText)
-                        },
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (localSearchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { localSearchQuery = "" }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = LabourSecondaryText)
-                                    }
+                            Text(
+                                text = "View All >",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E3A8A),
+                                modifier = Modifier.clickable {
+                                    onCategorySelected("All")
+                                    bottomNavIndex = 1
                                 }
-                                IconButton(onClick = { showSortDialog = true }) {
-                                    Icon(Icons.Outlined.Tune, contentDescription = "Filter", tint = LabourNavyPrimary)
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = LabourWhite,
-                            unfocusedContainerColor = LabourWhite,
-                            focusedBorderColor = LabourOrangeAccent,
-                            unfocusedBorderColor = LabourWhite,
-                            focusedTextColor = LabourMainText,
-                            unfocusedTextColor = LabourMainText
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            // Worker Summary + Availability Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = LabourWhite),
-                    border = BorderStroke(1.dp, LabourBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (workerProfilePhoto.isNotBlank()) {
-                                UserProfilePhotoView(base64Photo = workerProfilePhoto, size = 68.dp)
-                            } else {
-                                CustomerHardHatAvatar(size = 68.dp)
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = workerName,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = LabourMainText
-                                )
-                                Text(
-                                    text = translateLabourCategory(workerSkill, isHindi),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = LabourNavyPrimary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "📍 $workerArea • ${if (isHindi) "अनुभव:" else "Exp:"} $workerExp",
-                                    fontSize = 12.sp,
-                                    color = LabourSecondaryText
-                                )
-                                Text(
-                                    text = "${if (isHindi) "प्रतिदिन रेट:" else "Daily Rate:"} ₹$workerRate/${if (isHindi) "दिन" else "day"}",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = LabourOrangeAccent
-                                )
-                            }
+                            )
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        val categories = listOf("Mason", "Electrician", "Plumber", "Painter", "Carpenter", "More")
+                        categories.chunked(3).forEach { rowCats ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowCats.forEach { catName ->
+                                    Card(
+                                        onClick = {
+                                            onCategorySelected(if (catName == "More") "All" else catName)
+                                            bottomNavIndex = 1
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(90.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            ExactLabourCategoryIconBox(category = catName)
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = catName,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF0F172A)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-                        Surface(
-                            color = if (isAvailable) Color(0xFFECFDF5) else Color(0xFFFEF2F2),
+                    Card(
+                        onClick = { bottomNavIndex = 1 },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
+                        border = BorderStroke(1.dp, Color(0xFFE0F2FE)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF16A34A)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Verified & Trusted Workers",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Text(
+                                        text = "All workers are verified for your safety.",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B)
+                            )
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent Jobs",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "View All >",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E3A8A),
+                                modifier = Modifier.clickable { bottomNavIndex = 1 }
+                            )
+                        }
+
+                        Card(
+                            onClick = { bottomNavIndex = 1 },
+                            modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, if (isAvailable) Color(0xFFA7F3D0) else Color(0xFFFECACA)),
-                            modifier = Modifier.fillMaxWidth()
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = if (isAvailable) {
-                                        if (isHindi) "काम के लिए उपलब्ध (Available)" else "Available for work"
-                                    } else {
-                                        if (isHindi) "अभी व्यस्त (Currently Busy)" else "Currently Busy"
-                                    },
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isAvailable) LabourSuccessGreen else Color(0xFFDC2626)
-                                )
-                                Switch(
-                                    checked = isAvailable,
-                                    onCheckedChange = { onToggleAvailability() },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = LabourWhite,
-                                        checkedTrackColor = LabourSuccessGreen
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFE0F2FE)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Build,
+                                            contentDescription = null,
+                                            tint = Color(0xFF1D4ED8),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = "House Repair Work",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = currentRealLocation,
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        Text(
+                                            text = "Posted 2 hours ago",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+                                }
 
-            // Category Filter Chips
-            item {
-                val cats = listOf(
-                    "All", "Mason", "Electrician", "Plumber", "Painter",
-                    "Carpenter", "General Labour", "Tile Worker", "Cleaner", "Farm Worker"
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    cats.forEach { c ->
-                        val selected = selectedCategoryFilter.equals(c, ignoreCase = true)
-                        Surface(
-                            color = if (selected) LabourNavyPrimary else LabourWhite,
-                            shape = RoundedCornerShape(50),
-                            border = BorderStroke(1.dp, if (selected) LabourNavyPrimary else LabourBorder),
-                            modifier = Modifier.clickable {
-                                selectedCategoryFilter = c
-                                if (localSearchQuery.isNotBlank()) {
-                                    localSearchQuery = ""
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "₹500/day",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E3A8A)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = Color(0xFF64748B)
+                                    )
                                 }
                             }
-                        ) {
-                            Text(
-                                text = translateLabourCategory(c, isHindi),
-                                color = if (selected) LabourWhite else LabourMainText,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
                         }
                     }
                 }
             }
-
-            item {
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 84.dp)
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(Color.White)
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = if (isHindi) "ग्राहकों के काम की रिक्वेस्ट (${filteredRequests.size})" else "Customer Work Requests (${filteredRequests.size})",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = LabourMainText
-                    )
-                    Text(
-                        text = if (isHindi) "सभी देखें >" else "See All >",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LabourNavyPrimary,
-                        modifier = Modifier.clickable {
-                            selectedCategoryFilter = "All"
-                            localSearchQuery = ""
-                            filterByWorkerLocation = false
-                            sortMode = "DEFAULT"
-                        }
-                    )
-                }
-            }
-
-            if (filteredRequests.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = LabourWhite),
-                        border = BorderStroke(1.dp, LabourBorder)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { bottomNavIndex = 0 }) {
                             Icon(
-                                imageVector = Icons.Outlined.SearchOff,
-                                contentDescription = null,
-                                tint = LabourSecondaryText,
-                                modifier = Modifier.size(44.dp)
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFF0F172A)
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (isHindi) "इस खोज या लोकेशन के लिए कोई काम नहीं मिला" else "No work requests found for this location",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = LabourMainText
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = {
-                                    localSearchQuery = ""
-                                    selectedCategoryFilter = "All"
-                                    filterByWorkerLocation = false
-                                    sortMode = "DEFAULT"
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = LabourOrangeAccent)
-                            ) {
-                                Text(if (isHindi) "सभी काम दिखाएं" else "Show All Work Requests", color = LabourWhite, fontWeight = FontWeight.Bold)
-                            }
                         }
+                        Text(
+                            text = "Available Workers",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF0F172A)
+                        )
+                    }
+                    IconButton(onClick = {}) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF0F172A)
+                        )
                     }
                 }
-            } else {
-                items(filteredRequests, key = { it.id }) { req ->
-                    CustomerWorkRequestCard(
-                        request = req,
-                        isHindi = isHindi,
-                        onCardClick = {
-                            selectedCustomerRequestForProfile = req
-                        },
-                        onCallCustomerClick = {
-                            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${req.customerPhone}"))
-                            context.startActivity(dialIntent)
-                        },
-                        onMessageIconClick = {
-                            openDirectLiveChatWithCustomer(req)
-                        }
-                    )
-                }
-            }
-        }
-    }
 
-    // =========================================================================
-    // WORKER LIVE LOCATION PICKER MODAL WITH REAL AUTO-SUGGESTIONS
-    // =========================================================================
-    if (showWorkerLocationModal) {
-        var tempLocInput by remember {
-            mutableStateOf(if (activeJobLocationFilter == "All Locations") workerArea else activeJobLocationFilter)
-        }
-
-        Dialog(
-            onDismissRequest = { showWorkerLocationModal = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.94f)
-                    .padding(16.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = LabourWhite)
-            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(18.dp),
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Card(
+                        onClick = { showLocationModal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1D4ED8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = currentRealLocation,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                            Text(
+                                text = "Change",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2563EB)
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = {
+                            Text(
+                                text = "Search by name, skill or service...",
+                                fontSize = 13.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFE2E8F0),
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("All", "Mason", "Electrician", "Plumber").forEach { cat ->
+                            val isSelected = (cat == "All" && (selectedCategory == null || selectedCategory == "All")) ||
+                                    selectedCategory.equals(cat, ignoreCase = true)
+                            Button(
+                                onClick = { onCategorySelected(cat) },
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSelected) Color(0xFF1E3A8A) else Color.White
+                                ),
+                                border = BorderStroke(1.dp, if (isSelected) Color(0xFF1E3A8A) else Color(0xFFE2E8F0)),
+                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else Color(0xFF0F172A)
+                                )
+                            }
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = LabourOrangeAccent)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isHindi) "काम की लोकेशन चुनें (Live Location)" else "Select Work Location",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = LabourMainText
-                            )
-                        }
-                        IconButton(onClick = { showWorkerLocationModal = false }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = LabourSecondaryText)
+                        Text(
+                            text = "${filteredWorkers.size} Workers Found",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF0F172A)
+                        )
+
+                        Card(
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Sort by",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
 
-                    Text(
-                        text = if (isHindi) "अपना शहर, तहसील या गाँव लिखें — नीचे असली लोकेशन सजेस्ट होंगी:" else "Type your city, tehsil or village — real locations will suggest below:",
-                        fontSize = 12.sp,
-                        color = LabourSecondaryText
-                    )
-
-                    LiveLocationAutoCompleteField(
-                        value = tempLocInput,
-                        onValueChange = { tempLocInput = it },
-                        onLocationSelected = { fullLoc, areaPart, statePart ->
-                            workerArea = areaPart
-                            activeJobLocationFilter = fullLoc
-                            filterByWorkerLocation = true
-                            profilePrefs.edit()
-                                .putString("user_location", areaPart)
-                                .putString("user_state", statePart)
-                                .apply()
-                            Toast.makeText(context, "Location: $fullLoc ✓", Toast.LENGTH_SHORT).show()
-                            showWorkerLocationModal = false
-                        },
-                        label = if (isHindi) "शहर / गाँव / एरिया खोजें" else "Search City / Village / Area"
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                activeJobLocationFilter = "All Locations"
-                                filterByWorkerLocation = false
-                                showWorkerLocationModal = false
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
+                    filteredWorkers.forEachIndexed { index, worker ->
+                        Card(
+                            onClick = { onOpenChat() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
-                            Text(if (isHindi) "सभी क्षेत्र (All)" else "All Locations", color = LabourNavyPrimary, fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = {
-                                if (tempLocInput.isNotBlank()) {
-                                    workerArea = tempLocInput.trim()
-                                    activeJobLocationFilter = tempLocInput.trim()
-                                    filterByWorkerLocation = true
-                                    profilePrefs.edit().putString("user_location", workerArea).apply()
-                                } else {
-                                    activeJobLocationFilter = "All Locations"
-                                    filterByWorkerLocation = false
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    ExactLabourAvatar(
+                                        shirtColor = worker.shirtColor,
+                                        showYellowHelmet = index == 0,
+                                        size = 54.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = worker.name,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        Text(
+                                            text = worker.trade,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = Color(0xFFF59E0B),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "${worker.rating}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF0F172A)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "(${worker.reviewsCount} reviews)",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "${worker.distanceKm} km away",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
                                 }
-                                showWorkerLocationModal = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = LabourOrangeAccent),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(if (isHindi) "लोकेशन लागू करें" else "Apply Location", color = LabourWhite, fontWeight = FontWeight.Bold)
+
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFFE0F2FE), shape = RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "Available",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0284C7)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = Color(0xFF94A3B8)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "₹${worker.dailyWage}/day",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E3A8A)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Floating Online Live Chat Pill Button
+        Button(
+            onClick = onOpenChat,
+            shape = RoundedCornerShape(28.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF083D91)),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 16.dp, bottom = 72.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Chat,
+                contentDescription = "Online Live Chat",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Online Live Chat",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+
+        // Bottom Navigation Bar
+        Card(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding(),
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp, horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { bottomNavIndex = 0 }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = "Home",
+                        tint = if (bottomNavIndex == 0) Color(0xFF1E3A8A) else Color(0xFF64748B),
+                        modifier = Modifier.size(23.dp)
+                    )
+                    Text(
+                        text = "Home",
+                        fontSize = 10.sp,
+                        fontWeight = if (bottomNavIndex == 0) FontWeight.Bold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 0) Color(0xFF1E3A8A) else Color(0xFF64748B)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { bottomNavIndex = 1 }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = if (bottomNavIndex == 1) Color(0xFF1E3A8A) else Color(0xFF64748B),
+                        modifier = Modifier.size(23.dp)
+                    )
+                    Text(
+                        text = "Search",
+                        fontSize = 10.sp,
+                        fontWeight = if (bottomNavIndex == 1) FontWeight.Bold else FontWeight.Medium,
+                        color = if (bottomNavIndex == 1) Color(0xFF1E3A8A) else Color(0xFF64748B)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { showPostDialog = true }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF94A3B8)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Post",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Post",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onOpenProfile() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(23.dp)
+                    )
+                    Text(
+                        text = "Profile",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+        }
     }
 
-    if (showSortDialog) {
+    if (showLocationModal) {
+        val locations = listOf(
+            "Silwani, Raisen (MP)",
+            "Raisen, Madhya Pradesh",
+            "Begamganj, Raisen (MP)",
+            "Gairatganj, Raisen (MP)",
+            "Bareli, Raisen (MP)",
+            "Bhopal, Madhya Pradesh"
+        )
         AlertDialog(
-            onDismissRequest = { showSortDialog = false },
-            containerColor = LabourWhite,
-            title = {
-                Text(
-                    text = if (isHindi) "काम फ़िल्टर और सॉर्ट करें" else "Filter & Sort Work Requests",
-                    fontWeight = FontWeight.Bold,
-                    color = LabourMainText
-                )
-            },
+            onDismissRequest = { showLocationModal = false },
+            title = { Text("Select Location", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val options = listOf(
-                        "DEFAULT" to (if (isHindi) "डिफ़ॉल्ट (सभी नए काम)" else "Default (Latest Requests)"),
-                        "HIGH_RATE" to (if (isHindi) "सबसे ज्यादा मजदूरी रेट पहले (High Rate ₹)" else "Highest Daily Rate First (₹)"),
-                        "URGENT_FIRST" to (if (isHindi) "अर्जेंट काम पहले (Urgent First)" else "Urgent Work First")
+                    OutlinedTextField(
+                        value = locationSearchInput,
+                        onValueChange = { locationSearchInput = it },
+                        placeholder = { Text("Type village or city...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    options.forEach { (key, label) ->
-                        Row(
+                    if (locationSearchInput.isNotBlank()) {
+                        Button(
+                            onClick = {
+                                currentRealLocation = locationSearchInput.trim()
+                                profilePrefs.edit().putString("user_location", currentRealLocation).apply()
+                                showLocationModal = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Set '${locationSearchInput.trim()}'")
+                        }
+                    }
+                    locations.forEach { loc ->
+                        Text(
+                            text = loc,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    sortMode = key
-                                    showSortDialog = false
+                                    currentRealLocation = loc
+                                    profilePrefs.edit().putString("user_location", loc).apply()
+                                    showLocationModal = false
                                 }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = sortMode == key,
-                                onClick = {
-                                    sortMode = key
-                                    showSortDialog = false
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(label, fontSize = 14.sp, color = LabourMainText, fontWeight = FontWeight.SemiBold)
-                        }
+                                .padding(vertical = 8.dp)
+                        )
                     }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (showPostDialog) {
+        AlertDialog(
+            onDismissRequest = { showPostDialog = false },
+            title = { Text("Post New Requirement", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = postTitle,
+                        onValueChange = { postTitle = it },
+                        label = { Text("Work Title") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = postCategory,
+                        onValueChange = { postCategory = it },
+                        label = { Text("Category (Mason, Electrician...)") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = postWage,
+                        onValueChange = { postWage = it },
+                        label = { Text("Daily Wage (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
-                        sortMode = "DEFAULT"
-                        selectedCategoryFilter = "All"
-                        localSearchQuery = ""
-                        filterByWorkerLocation = false
-                        showSortDialog = false
-                    }
+                        showPostDialog = false
+                        Toast.makeText(context, "Requirement Posted ✓", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                 ) {
-                    Text(if (isHindi) "रीसेट करें" else "Reset All", color = LabourOrangeAccent, fontWeight = FontWeight.Bold)
+                    Text("Post", color = Color.White)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSortDialog = false }) {
-                    Text(if (isHindi) "बंद करें" else "Close", color = LabourSecondaryText)
+                OutlinedButton(onClick = { showPostDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )
     }
-}
-
-@Composable
-internal fun CustomerWorkRequestCard(
-    request: LabourWorkRequestItem,
-    isHindi: Boolean,
-    onCardClick: () -> Unit,
-    onCallCustomerClick: () -> Unit,
-    onMessageIconClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable { onCardClick() },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = LabourWhite),
-        border = BorderStroke(1.dp, LabourBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFDBEAFE)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = request.customerName.take(1).uppercase(Locale.US),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = LabourNavyPrimary
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = request.customerName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = LabourMainText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "${request.title} (${translateLabourCategory(request.category, isHindi)})",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = LabourNavyPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(5.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = LabourOrangeAccent,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "${request.location}, ${request.stateName} • ${request.date}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = LabourSecondaryText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Surface(
-                    color = LabourRateBadgeBg,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, LabourRateBadgeBorder)
-                ) {
-                    Text(
-                        text = "₹${request.dailyRate}/${if (isHindi) "दिन" else "day"}",
-                        color = LabourRateTextOrange,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = onCallCustomerClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LabourDarkNavyBtn,
-                        contentColor = LabourWhite
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Call,
-                        contentDescription = "Call Now",
-                        tint = LabourWhite,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isHindi) "अभी कॉल करें (Call Now)" else "Call Now",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LabourWhite
-                    )
-                }
-
-                Surface(
-                    color = LabourNavyPrimary,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clickable { onMessageIconClick() }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Outlined.Chat,
-                            contentDescription = "Live Chat with Customer",
-                            tint = LabourWhite,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun CustomerAndJobDetailProfileScreen(
-    request: LabourWorkRequestItem,
-    isHindi: Boolean,
-    onBack: () -> Unit,
-    onCallCustomer: () -> Unit,
-    onChatWithCustomer: () -> Unit,
-    onAcceptWorkRequest: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LabourBgLight)
-    ) {
-        Surface(
-            color = LabourNavyPrimary,
-            shadowElevation = 4.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = LabourWhite)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = if (isHindi) "ग्राहक और काम का विवरण" else "Customer & Work Profile",
-                    color = LabourWhite,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = LabourWhite),
-                border = BorderStroke(1.dp, LabourBorder)
-            ) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFDBEAFE)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = request.customerName.take(1).uppercase(Locale.US),
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = LabourNavyPrimary
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = request.customerName,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = LabourMainText
-                            )
-                            Text(
-                                text = if (isHindi) "सत्यापित ग्राहक (Verified Customer)" else "Verified Customer",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = LabourSuccessGreen
-                            )
-                            Text(
-                                text = "📍 ${request.location}, ${request.stateName}",
-                                fontSize = 13.sp,
-                                color = LabourSecondaryText
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(color = LabourBorder)
-
-                    Text(
-                        text = "${if (isHindi) "काम:" else "Work Title:"} ${request.title}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LabourMainText
-                    )
-                    Text(
-                        text = "${if (isHindi) "श्रेणी:" else "Category Needed:"} ${translateLabourCategory(request.category, isHindi)}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = LabourNavyPrimary
-                    )
-                    Text(
-                        text = "${if (isHindi) "प्रतिदिन रेट:" else "Offered Rate:"} ₹${request.dailyRate}/${if (isHindi) "दिन" else "day"} • ${if (isHindi) "कारीगर चाहिए:" else "Workers Needed:"} ${request.workersNeeded}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LabourOrangeAccent
-                    )
-                    Text(
-                        text = "${if (isHindi) "ग्राहक का नंबर:" else "Customer Phone:"} ${request.customerPhone}",
-                        fontSize = 14.sp,
-                        color = LabourMainText
-                    )
-                    Text(
-                        text = if (isHindi) "काम का पूरा विवरण:" else "Work Description:",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LabourMainText
-                    )
-                    Text(request.description, fontSize = 14.sp, color = LabourSecondaryText)
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = onCallCustomer,
-                    colors = ButtonDefaults.buttonColors(containerColor = LabourDarkNavyBtn),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp)
-                ) {
-                    Icon(Icons.Default.Call, contentDescription = null, tint = LabourWhite, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isHindi) "कॉल करें" else "Call Now", color = LabourWhite, fontWeight = FontWeight.Bold)
-                }
-
-                Button(
-                    onClick = onChatWithCustomer,
-                    colors = ButtonDefaults.buttonColors(containerColor = LabourNavyPrimary),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp)
-                ) {
-                    Icon(Icons.Outlined.Chat, contentDescription = null, tint = LabourWhite, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isHindi) "लाइव चैट" else "Live Chat", color = LabourWhite, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Button(
-                onClick = onAcceptWorkRequest,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (request.status == "ACCEPTED") LabourSuccessGreen else LabourOrangeAccent
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-            ) {
-                Text(
-                    text = if (request.status == "ACCEPTED") {
-                        if (isHindi) "काम स्वीकार किया गया ✓" else "Work Request Accepted ✓"
-                    } else {
-                        if (isHindi) "काम स्वीकार करें (Accept Work)" else "Accept Work Request"
-                    },
-                    color = LabourWhite,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun CustomerHardHatAvatar(size: Dp = 68.dp) {
-    Canvas(modifier = Modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-        drawCircle(color = Color(0xFFE2E8F0), radius = w * 0.5f, center = Offset(w * 0.5f, h * 0.5f))
-        drawArc(
-            color = LabourSuccessGreen,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(w * 0.16f, h * 0.62f),
-            size = Size(w * 0.68f, h * 0.48f)
-        )
-        drawCircle(color = Color(0xFFFCD34D), radius = w * 0.21f, center = Offset(w * 0.5f, h * 0.45f))
-        drawArc(
-            color = LabourOrangeAccent,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = true,
-            topLeft = Offset(w * 0.24f, h * 0.16f),
-            size = Size(w * 0.52f, h * 0.34f)
-        )
-        drawLine(
-            color = LabourOrangeAccent,
-            start = Offset(w * 0.20f, h * 0.33f),
-            end = Offset(w * 0.80f, h * 0.33f),
-            strokeWidth = w * 0.065f,
-            cap = StrokeCap.Round
-        )
-    }
-}
-
-@Composable
-internal fun LabourBottomNavItem(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val tint = if (isSelected) LabourOrangeAccent else Color(0xFF475569)
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-    ) {
-        Icon(imageVector = icon, contentDescription = label, tint = tint, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = tint
-        )
-    }
-}
-
-internal fun fetchLiveCustomerRequestsFromFirebase(
-    onLoaded: (List<LabourWorkRequestItem>) -> Unit
-) {
-    Thread {
-        val list = mutableListOf<LabourWorkRequestItem>()
-        try {
-            val conn = URL("$LABOUR_FB_URL/jobs.json").openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.connectTimeout = 5000
-            if (conn.responseCode == 200) {
-                val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
-                    val root = JSONObject(resp)
-                    val keys = root.keys()
-                    while (keys.hasNext()) {
-                        val k = keys.next()
-                        val obj = root.optJSONObject(k) ?: continue
-                        list.add(
-                            LabourWorkRequestItem(
-                                id = obj.optString("id", k),
-                                title = obj.optString("title", "Work Request"),
-                                category = obj.optString("category", "General Labour"),
-                                description = obj.optString("description", "Local work request"),
-                                customerName = obj.optString("customerName", "Customer"),
-                                customerPhone = obj.optString("customerPhone", "+91 9876543210"),
-                                location = obj.optString("location", "Silwani"),
-                                stateName = obj.optString("state", "Madhya Pradesh"),
-                                dailyRate = obj.optInt("dailyRate", 600),
-                                workersNeeded = obj.optInt("workersNeeded", 1),
-                                date = obj.optString("date", "Today"),
-                                status = obj.optString("status", "PENDING").uppercase(Locale.US),
-                                urgency = obj.optString("urgency", "Normal")
-                            )
-                        )
-                    }
-                }
-            }
-            conn.disconnect()
-        } catch (_: Exception) {
-        }
-        Handler(Looper.getMainLooper()).post {
-            onLoaded(list)
-        }
-    }.start()
-}
-
-internal fun updateJobStatusInFirebase(jobId: String, status: String, workerName: String) {
-    Thread {
-        try {
-            val url = URL("$LABOUR_FB_URL/jobs/$jobId.json")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "PATCH"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            val payload = JSONObject().apply {
-                put("status", status)
-                put("workerName", workerName)
-            }
-            OutputStreamWriter(conn.outputStream).use { it.write(payload.toString()) }
-            conn.responseCode
-            conn.disconnect()
-        } catch (_: Exception) {
-        }
-    }.start()
 }
