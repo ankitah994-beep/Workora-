@@ -563,6 +563,7 @@ fun CustomerDashboardScreen(
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
     val greenTrusted = Color(0xFF22A06B)
+    val redCancel = Color(0xFFB42318)
 
     // Live Language Reader
     val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
@@ -595,6 +596,13 @@ fun CustomerDashboardScreen(
     var bottomNavIndex by remember { mutableIntStateOf(0) }
 
     var viewingWorkerProfile by remember { mutableStateOf<ExactWorkerItem?>(null) }
+    var jobToCancelConfirm by remember { mutableStateOf<CustomerMyJobEntry?>(null) }
+
+    // Track cancelled job IDs so they stay cancelled permanently
+    val cancelledJobIds = remember {
+        val saved = profilePrefs.getStringSet("cancelled_customer_job_ids", emptySet()) ?: emptySet()
+        mutableStateListOf<Long>().apply { addAll(saved.mapNotNull { it.toLongOrNull() }) }
+    }
 
     // ==================== CUSTOMER - POST A JOB (ALL 13 FIELDS) ====================
     var jobWorkName by remember { mutableStateOf("") }
@@ -634,7 +642,36 @@ fun CustomerDashboardScreen(
                 workTime = "9:00 AM – 6:00 PM",
                 status = "ACTIVE"
             )
-        )
+        ).apply {
+            removeAll { cancelledJobIds.contains(it.id) }
+        }
+    }
+
+    fun cancelCustomerJobOrHire(targetJob: CustomerMyJobEntry) {
+        myPostedJobsList.removeAll { it.id == targetJob.id || it.key == targetJob.key }
+        if (!cancelledJobIds.contains(targetJob.id)) {
+            cancelledJobIds.add(targetJob.id)
+            profilePrefs.edit()
+                .putStringSet("cancelled_customer_job_ids", cancelledJobIds.map { it.toString() }.toSet())
+                .apply()
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val delConn = (URL("$CUSTOMER_DB_URL/jobs/${targetJob.key}.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "DELETE"
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                }
+                delConn.responseCode
+                delConn.disconnect()
+            } catch (_: Exception) {
+            }
+        }
+        Toast.makeText(
+            context,
+            tr("काम / हायरिंग सफलतापूर्वक रद्द (Cancel) कर दी गई ✓", "Job / Hiring Cancelled Successfully ✓"),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     val jobPhotoPicker = rememberLauncherForActivityResult(
@@ -804,11 +841,13 @@ fun CustomerDashboardScreen(
                             val k = keys.next()
                             val obj = root.optJSONObject(k) ?: continue
                             val title = obj.optString("title", "")
-                            if (title.isNotBlank()) {
+                            val jobId = obj.optLong("id", System.currentTimeMillis())
+                            val statusStr = obj.optString("status", "ACTIVE")
+                            if (title.isNotBlank() && statusStr != "CANCELLED" && !cancelledJobIds.contains(jobId)) {
                                 loadedJobs.add(
                                     CustomerMyJobEntry(
                                         key = k,
-                                        id = obj.optLong("id", System.currentTimeMillis()),
+                                        id = jobId,
                                         title = title,
                                         category = obj.optString("category", "Mason"),
                                         description = obj.optString("description", ""),
@@ -819,7 +858,7 @@ fun CustomerDashboardScreen(
                                         numberOfDays = obj.optString("numberOfDays", "2"),
                                         workersNeeded = obj.optInt("workersNeeded", 1),
                                         workTime = obj.optString("workTime", "9:00 AM – 6:00 PM"),
-                                        status = obj.optString("status", "ACTIVE")
+                                        status = statusStr
                                     )
                                 )
                             }
@@ -827,7 +866,7 @@ fun CustomerDashboardScreen(
                         if (loadedJobs.isNotEmpty()) {
                             withContext(Dispatchers.Main) {
                                 loadedJobs.sortedByDescending { it.id }.forEach { cj ->
-                                    if (myPostedJobsList.none { it.id == cj.id }) {
+                                    if (myPostedJobsList.none { it.id == cj.id } && !cancelledJobIds.contains(cj.id)) {
                                         myPostedJobsList.add(0, cj)
                                     }
                                 }
@@ -873,7 +912,6 @@ fun CustomerDashboardScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 96.dp)
                 ) {
-                    // Top Header (Bell Icon now opens Live Notification Center!)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1834,7 +1872,7 @@ fun CustomerDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY JOBS ====================
+                // ==================== 3: 📋 MY JOBS (WITH CANCEL HIRE / JOB OPTION) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1862,8 +1900,8 @@ fun CustomerDashboardScreen(
                             )
                             Text(
                                 text = tr(
-                                    "अपने पोस्ट किए काम और कारीगरों के जवाब देखें",
-                                    "Track your posted requirements & worker responses"
+                                    "अपने पोस्ट किए काम और हायर किए कारीगरों को मैनेज या रद्द करें",
+                                    "Manage or cancel your posted jobs & hired workers"
                                 ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
@@ -1877,64 +1915,88 @@ fun CustomerDashboardScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        myPostedJobsList.forEach { myJob ->
+                        if (myPostedJobsList.isEmpty()) {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = cardColor),
-                                border = BorderStroke(1.dp, borderLight),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                border = BorderStroke(1.dp, borderLight)
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = myJob.title,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = textDark
-                                            )
-                                            Text(
-                                                text = "${translateCategoryLabel(myJob.category, appLang)} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = accentBlue
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .background(Color(0xFFDCFCE7), shape = RoundedCornerShape(8.dp))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = myJob.status,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = greenTrusted
-                                            )
-                                        }
-                                    }
-
                                     Text(
-                                        text = "📍 ${myJob.location} • 🗓️ ${myJob.preferredDate} (${myJob.workTime})",
-                                        fontSize = 12.sp,
-                                        color = textMuted
+                                        text = tr("कोई सक्रिय काम या हायरिंग नहीं है।", "No active posted jobs or hired workers."),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = textDark
                                     )
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Button(
+                                        onClick = { bottomNavIndex = 2 },
+                                        colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
                                     ) {
+                                        Text(tr("+ नया काम पोस्ट करें", "+ Post New Job"), color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            myPostedJobsList.forEach { myJob ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                                    border = BorderStroke(1.dp, borderLight),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = myJob.title,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = textDark
+                                                )
+                                                Text(
+                                                    text = "${translateCategoryLabel(myJob.category, appLang)} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = accentBlue
+                                                )
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color(0xFFDCFCE7), shape = RoundedCornerShape(8.dp))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = myJob.status,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = greenTrusted
+                                                )
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "📍 ${myJob.location} • 🗓️ ${myJob.preferredDate} (${myJob.workTime})",
+                                            fontSize = 12.sp,
+                                            color = textMuted
+                                        )
+
                                         Text(
                                             text = "₹${myJob.dailyRate} (${myJob.budgetType})",
                                             fontSize = 15.sp,
@@ -1942,27 +2004,67 @@ fun CustomerDashboardScreen(
                                             color = brandOrange
                                         )
 
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        // Clean 3-Button Row: Message | Complete ✓ | Cancel ✕
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             OutlinedButton(
                                                 onClick = onOpenChat,
-                                                shape = RoundedCornerShape(8.dp),
+                                                shape = RoundedCornerShape(10.dp),
                                                 border = BorderStroke(1.dp, accentBlue),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                                modifier = Modifier.height(34.dp)
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(38.dp)
                                             ) {
-                                                Text(tr("Workora मैसेज", "Workora Message"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accentBlue)
+                                                Text(
+                                                    text = tr("मैसेज", "Message"),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = accentBlue,
+                                                    maxLines = 1
+                                                )
                                             }
+
                                             Button(
                                                 onClick = {
                                                     onCompleteJob(myJob.id)
-                                                    Toast.makeText(context, "Job marked Completed ✓", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, tr("काम पूरा हुआ ✓", "Job marked Completed ✓"), Toast.LENGTH_SHORT).show()
                                                 },
-                                                shape = RoundedCornerShape(8.dp),
+                                                shape = RoundedCornerShape(10.dp),
                                                 colors = ButtonDefaults.buttonColors(containerColor = greenTrusted),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                                modifier = Modifier.height(34.dp)
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                                modifier = Modifier
+                                                    .weight(1.1f)
+                                                    .height(38.dp)
                                             ) {
-                                                Text(tr("पूरा हुआ ✓", "Complete ✓"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                Text(
+                                                    text = tr("पूरा हुआ ✓", "Complete ✓"),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color.White,
+                                                    maxLines = 1
+                                                )
+                                            }
+
+                                            Button(
+                                                onClick = { jobToCancelConfirm = myJob },
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = redCancel),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                                modifier = Modifier
+                                                    .weight(1.1f)
+                                                    .height(38.dp)
+                                            ) {
+                                                Text(
+                                                    text = tr("रद्द करें ✕", "Cancel ✕"),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color.White,
+                                                    maxLines = 1
+                                                )
                                             }
                                         }
                                     }
@@ -2148,7 +2250,53 @@ fun CustomerDashboardScreen(
         }
     }
 
-    // Show Live Notification Center Dialog when Bell icon is clicked
+    // Confirmation Dialog for Cancelling a Hired Worker / Posted Job
+    if (jobToCancelConfirm != null) {
+        val target = jobToCancelConfirm!!
+        AlertDialog(
+            onDismissRequest = { jobToCancelConfirm = null },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = tr("काम / हायरिंग रद्द करें?", "Cancel Job / Hiring?"),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = redCancel
+                )
+            },
+            text = {
+                Text(
+                    text = tr(
+                        "क्या आप वाकई '${target.title}' को रद्द (Cancel) करना चाहते हैं?",
+                        "Are you sure you want to cancel '${target.title}'?"
+                    ),
+                    fontSize = 13.sp,
+                    color = textDark
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        cancelCustomerJobOrHire(target)
+                        jobToCancelConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = redCancel)
+                ) {
+                    Text(
+                        text = tr("हाँ, रद्द करें ✕", "Yes, Cancel ✕"),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { jobToCancelConfirm = null }) {
+                    Text(tr("वापस जाएं", "Keep It"), color = textDark, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     if (showNotificationsDialog) {
         WorkoraLiveNotificationCenterDialog(
             userLocation = currentRealLocation,
