@@ -548,9 +548,6 @@ fun CustomerDashboardScreen(
     var liveBannerSubtext by remember {
         mutableStateOf(brandingPrefs.getString("banner_subtext", "Get your work done easily\nand safely.") ?: "Get your work done easily\nand safely.")
     }
-    var livePostBtnLabel by remember {
-        mutableStateOf(brandingPrefs.getString("post_btn_label", "Post Job") ?: "Post Job")
-    }
     var liveLogoBase64 by remember {
         mutableStateOf(brandingPrefs.getString("logo_base64", "") ?: "")
     }
@@ -687,7 +684,6 @@ fun CustomerDashboardScreen(
     fun loadLiveWorkersAndMyJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 0. Sync Admin App Branding Live from Firebase /app_branding
                 val bConn = URL("$CUSTOMER_DB_URL/app_branding.json").openConnection() as HttpURLConnection
                 if (bConn.responseCode in 200..299) {
                     val bResp = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
@@ -697,13 +693,11 @@ fun CustomerDashboardScreen(
                         val cTag = bObj.optString("app_tagline", liveAppTagline)
                         val cHead = bObj.optString("banner_text", liveBannerHeading)
                         val cSub = bObj.optString("banner_subtext", liveBannerSubtext)
-                        val cBtn = bObj.optString("post_btn_label", livePostBtnLabel)
                         brandingPrefs.edit().apply {
                             putString("app_name", cName)
                             putString("app_tagline", cTag)
                             putString("banner_text", cHead)
                             putString("banner_subtext", cSub)
-                            putString("post_btn_label", cBtn)
                             apply()
                         }
                         withContext(Dispatchers.Main) {
@@ -711,13 +705,11 @@ fun CustomerDashboardScreen(
                             liveAppTagline = cTag
                             liveBannerHeading = cHead
                             liveBannerSubtext = cSub
-                            livePostBtnLabel = cBtn
                         }
                     }
                 }
                 bConn.disconnect()
 
-                // 1. Sync Workers
                 val conn = URL("$CUSTOMER_DB_URL/workers.json").openConnection() as HttpURLConnection
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
@@ -768,7 +760,6 @@ fun CustomerDashboardScreen(
                 }
                 conn.disconnect()
 
-                // 2. Sync Jobs
                 val jConn = URL("$CUSTOMER_DB_URL/jobs.json").openConnection() as HttpURLConnection
                 if (jConn.responseCode in 200..299) {
                     val jResp = BufferedReader(InputStreamReader(jConn.inputStream)).use { it.readText() }
@@ -955,6 +946,7 @@ fun CustomerDashboardScreen(
                             }
                         }
 
+                        // Clean Hero Banner (No duplicate Post Job button here)
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
@@ -993,32 +985,21 @@ fun CustomerDashboardScreen(
                                         Spacer(modifier = Modifier.height(14.dp))
 
                                         Button(
-                                            onClick = {
-                                                jobWorkLocation = currentRealLocation
-                                                bottomNavIndex = 2
-                                            },
+                                            onClick = { bottomNavIndex = 1 },
                                             shape = RoundedCornerShape(22.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = deepNavy),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                             modifier = Modifier.height(38.dp)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(18.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color.White),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Add,
-                                                    contentDescription = null,
-                                                    tint = brandOrange,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(15.dp)
+                                            )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = livePostBtnLabel,
+                                                text = "Explore Workers",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
@@ -1189,7 +1170,7 @@ fun CustomerDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔍 FIND WORKERS ====================
+                // ==================== 1: 🔍 FIND WORKERS (CLEAN HEADER WITHOUT DUPLICATE POST BUTTON) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1203,38 +1184,21 @@ fun CustomerDashboardScreen(
                             .fillMaxWidth()
                             .background(Color.White)
                             .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { bottomNavIndex = 0 }) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = textDark
-                                )
-                            }
-                            Text(
-                                text = "Find Workers",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = textDark
+                        IconButton(onClick = { bottomNavIndex = 0 }) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = textDark
                             )
                         }
-                        Button(
-                            onClick = {
-                                jobWorkLocation = currentRealLocation
-                                bottomNavIndex = 2
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Post Job", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
+                        Text(
+                            text = "Find Workers",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = textDark
+                        )
                     }
 
                     Column(
@@ -1378,7 +1342,7 @@ fun CustomerDashboardScreen(
             }
 
             2 -> {
-                // ==================== 2: ➕ POST JOB (FULL 13-POINT SCREEN) ====================
+                // ==================== 2: ➕ POST JOB (OPENED ONLY FROM BOTTOM '+' ICON) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1807,7 +1771,7 @@ fun CustomerDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY JOBS (ACTIVITY TAB) ====================
+                // ==================== 3: 📋 MY JOBS (CLEAN HEADER WITHOUT DUPLICATE POST BUTTON) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1821,41 +1785,23 @@ fun CustomerDashboardScreen(
                             .fillMaxWidth()
                             .background(deepNavy)
                             .padding(horizontal = 12.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { bottomNavIndex = 0 }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                            }
-                            Column {
-                                Text(
-                                    text = "My Jobs",
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "Track your posted requirements & worker responses",
-                                    fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.85f)
-                                )
-                            }
+                        IconButton(onClick = { bottomNavIndex = 0 }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                         }
-
-                        Button(
-                            onClick = {
-                                jobWorkLocation = currentRealLocation
-                                bottomNavIndex = 2
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Post Job", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Column {
+                            Text(
+                                text = "My Jobs",
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Track your posted requirements & worker responses",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
                         }
                     }
 
@@ -1992,7 +1938,7 @@ fun CustomerDashboardScreen(
         }
 
         // ==================== 5-ICON CUSTOMER BOTTOM NAVIGATION BAR ====================
-        // 🏠 Home | 🔍 Find Workers | ➕ Post Job (Prominent Orange) | 📋 My Jobs | 👤 Profile
+        // ONLY PLACE WITH '+' POST JOB BUTTON
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -2054,6 +2000,7 @@ fun CustomerDashboardScreen(
                     )
                 }
 
+                // THE ONLY '+' POST JOB BUTTON IN THE APP
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -2210,7 +2157,7 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // Real Live Location Picker Modal (Zero Fake Locations!)
+    // Real Live Location Picker Modal
     if (showLocationModal) {
         WorkoraLiveLocationModal(
             currentLocation = currentRealLocation,
