@@ -26,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -78,7 +77,7 @@ fun SignUpScreen(
     var fullName by remember { mutableStateOf("") }
     var mobileNumber by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("Silwani, Raisen (MP)") }
+    var location by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(true) }
 
@@ -172,15 +171,11 @@ fun SignUpScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                OutlinedTextField(
+                // Real Live Location Auto-Suggest + GPS Detection Field
+                LiveLocationAutoCompleteField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("Village / City (गाँव या शहर)") },
-                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange) },
-                    textStyle = TextStyle(color = WorkoraTextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    label = "Village / City (गाँव या शहर - Live Search)"
                 )
 
                 OutlinedTextField(
@@ -232,9 +227,14 @@ fun SignUpScreen(
                         val digits = mobileNumber.filter { it.isDigit() }.takeLast(10)
                         val cleanPass = password.trim()
                         val cleanEmailInput = email.trim().lowercase()
+                        val cleanLocation = location.trim()
 
                         if (cleanName.isBlank() || digits.length < 10) {
                             Toast.makeText(context, "Kripya Naam aur 10-digit Mobile Number dalein!", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (cleanLocation.isBlank()) {
+                            Toast.makeText(context, "Kripya apna Village / City chunein!", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (!isPasswordValid) {
@@ -259,7 +259,7 @@ fun SignUpScreen(
                         profilePrefs.edit().apply {
                             putString("user_name", cleanName)
                             putString("user_phone", "+91 $digits")
-                            putString("user_location", location.trim().ifBlank { "Silwani, Raisen (MP)" })
+                            putString("user_location", cleanLocation)
                             apply()
                         }
 
