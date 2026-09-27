@@ -976,6 +976,7 @@ fun ProfileScreen(
     var showLiveLocationModal by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showAdminSecurityGate by remember { mutableStateOf(false) }
+    var showNotificationsCenterDialog by remember { mutableStateOf(false) }
     var activeInfoDialogTitle by remember { mutableStateOf<String?>(null) }
     var activeInfoDialogBody by remember { mutableStateOf("") }
     var activePhotoSlot by remember { mutableIntStateOf(0) }
@@ -1850,6 +1851,7 @@ fun ProfileScreen(
                 }
             }
 
+            // Opens the new Rich Tabbed Live Notification Center Dialog!
             ProfileMenuActionRow(
                 title = tr("🔔 नोटिफिकेशन (Notifications)", "🔔 Notifications", "🔔 Notifications"),
                 subtitle = if (notificationsEnabled) {
@@ -1861,14 +1863,7 @@ fun ProfileScreen(
                 borderColor = borderColor,
                 textDark = textDark,
                 textMuted = textMuted,
-                onClick = {
-                    activeInfoDialogTitle = tr("🔔 लाइव नोटिफिकेशन सेंटर", "🔔 Live Notification Center", "🔔 Live Notification Center")
-                    activeInfoDialogBody = tr(
-                        "🟢 नया काम अलर्ट ($savedLocation):\n• राजमिस्त्री और इलेक्ट्रीशियन की आवश्यकता (₹600/दिन) — अभी उपलब्ध।\n\n💬 Workora मैसेज अपडेट:\n• आपके क्षेत्र ($savedLocation) के सत्यापित ग्राहक और कारीगर ऑनलाइन हैं।\n\n🛡️ सुरक्षा और प्रोफाइल अलर्ट:\n• आपकी प्रोफाइल ($savedName) 100% रियल OTP से सत्यापित और सक्रिय है।",
-                        "🟢 New Job Alert ($savedLocation):\n• Mason & Electrician work available (₹600/day).\n\n💬 Workora Message Update:\n• Verified customers and workers in $savedLocation are online.\n\n🛡️ Security & Profile Alert:\n• Your profile ($savedName) is 100% Real-OTP verified and active.",
-                        "🟢 New Job Alert ($savedLocation):\n• Mason & Electrician work available (₹600/day).\n\n💬 Workora Message Update:\n• Verified customers and workers in $savedLocation are online.\n\n🛡️ Security & Profile Alert:\n• Your profile ($savedName) is 100% Real-OTP verified and active."
-                    )
-                }
+                onClick = { showNotificationsCenterDialog = true }
             )
 
             if (role == UserRole.CUSTOMER) {
@@ -1992,6 +1987,15 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+
+    if (showNotificationsCenterDialog) {
+        WorkoraLiveNotificationCenterDialog(
+            userLocation = savedLocation,
+            appLang = appLang,
+            onDismiss = { showNotificationsCenterDialog = false },
+            onOpenChat = onOpenChat
+        )
     }
 
     if (showAdminSecurityGate) {
