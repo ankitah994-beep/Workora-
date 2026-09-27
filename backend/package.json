@@ -1,0 +1,26 @@
+{
+  "name": "workora-production-security-backend",
+  "version": "1.0.0",
+  "description": "Production-grade secure Node.js & PostgreSQL backend for Workora",
+  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "security-audit": "npm audit --omit=dev --audit-level=high",
+    "db-init": "psql \"$DATABASE_URL\" -f schema_and_backup.sql"
+  },
+  "dependencies": {
+    "argon2": "^0.41.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.13.3"
+  }
+}
