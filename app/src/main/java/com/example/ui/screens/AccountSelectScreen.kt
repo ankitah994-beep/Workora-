@@ -89,10 +89,6 @@ fun WorkoraAdminSecurityGateDialog(
     }
     val isFirstTimePinSetup = savedPinHash.isBlank()
 
-    val latestOtpHint = remember(step) {
-        WorkoraRealOtpEngine.peekLatestOtpForHint(context, targetKey)
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = cardColor,
@@ -142,7 +138,6 @@ fun WorkoraAdminSecurityGateDialog(
                         value = pinInput,
                         onValueChange = { if (it.length <= 6) pinInput = it.filter { c -> c.isDigit() } },
                         label = { Text("6-Digit PIN") },
-                        placeholder = { Text("123456") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         singleLine = true,
@@ -151,50 +146,33 @@ fun WorkoraAdminSecurityGateDialog(
                     )
                 } else {
                     Text(
-                        text = "Enter the 6-digit OTP to unlock Admin Panel:",
+                        text = "Enter the 6-digit OTP from notification to unlock Admin Panel:",
                         fontSize = 13.sp,
                         color = textMuted
                     )
-                    if (latestOtpHint.isNotBlank()) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                            border = BorderStroke(1.dp, Color(0xFFBAE6FD)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { otpInput = latestOtpHint }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "OTP: $latestOtpHint",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = SelectNavy
-                                )
-                                Text(
-                                    text = "Tap to Fill",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SelectOrange
-                                )
-                            }
-                        }
-                    }
                     OutlinedTextField(
                         value = otpInput,
                         onValueChange = { if (it.length <= 6) otpInput = it.filter { c -> c.isDigit() } },
-                        label = { Text("6-Digit OTP") },
-                        placeholder = { Text("123456") },
+                        label = { Text("Enter 6-Digit OTP") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
+                    )
+                    Text(
+                        text = "Resend OTP",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SelectNavy,
+                        modifier = Modifier.clickable {
+                            errorMsg = null
+                            otpInput = ""
+                            WorkoraRealOtpEngine.sendRealOtp(
+                                context = context,
+                                phoneOrEmail = targetKey,
+                                purpose = "ADMIN_UNLOCK"
+                            ) {}
+                        }
                     )
                 }
             }
