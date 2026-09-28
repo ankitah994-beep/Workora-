@@ -772,7 +772,7 @@ fun ProfileScreen(
         mutableStateOf(profilePrefs.getString("user_location", userLocation) ?: userLocation)
     }
     var savedSkill by remember {
-        mutableStateOf(profilePrefs.getString("user_skill", "Mason") ?: "Mason")
+        mutableStateOf(profilePrefs.getString("user_skill", "Default") ?: "Mason")
     }
     var savedWage by remember {
         mutableStateOf(profilePrefs.getString("user_rate", "600") ?: "600")
