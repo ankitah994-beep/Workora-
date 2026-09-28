@@ -100,6 +100,7 @@ private fun encodeSignUpUriToBase64(context: Context, uri: Uri): String {
 fun SignUpScreen(
     onSignUp: (name: String, email: String, phone: String, password: String) -> Unit = { _, _, _, _ -> },
     onNavigateToLogin: () -> Unit = {},
+    toastMessage: String? = null,
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
