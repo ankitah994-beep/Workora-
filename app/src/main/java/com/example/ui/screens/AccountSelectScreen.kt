@@ -9,7 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,12 +27,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -69,12 +66,8 @@ import com.example.model.UserRole
 
 private val SelectNavy = Color(0xFF083D91)
 private val SelectOrange = Color(0xFFFF8C00)
-private val SelectGreen = Color(0xFF22A06B)
 private val SelectRed = Color(0xFFB42318)
 
-// =========================================================================
-// ADMIN SECURITY GATE DIALOG (PIN + OTP Verification)
-// =========================================================================
 @Composable
 fun WorkoraAdminSecurityGateDialog(
     onDismiss: () -> Unit,
@@ -85,7 +78,7 @@ fun WorkoraAdminSecurityGateDialog(
     val textDark = WorkoraThemeManager.textPrimary(context)
     val textMuted = WorkoraThemeManager.textSecondary(context)
 
-    var step by remember { mutableIntStateOf(1) } // 1 = PIN, 2 = OTP
+    var step by remember { mutableIntStateOf(1) }
     var pinInput by remember { mutableStateOf("") }
     var otpInput by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -309,12 +302,13 @@ private fun AccountSelectLogo() {
     }
 }
 
-// =========================================================================
-// ACCOUNT ROLE SELECTION SCREEN (CUSTOMER vs WORKER)
-// =========================================================================
 @Composable
 fun AccountSelectScreen(
-    onRoleSelected: (UserRole) -> Unit = {}
+    onSelectRole: (UserRole) -> Unit = {},
+    onRoleSelected: (UserRole) -> Unit = onSelectRole,
+    toastMessage: String? = null,
+    onOpenAdmin: () -> Unit = {},
+    onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
@@ -333,22 +327,29 @@ fun AccountSelectScreen(
         AdminDashboardScreen(
             adminEmail = loggedEmail,
             adminTier = "SUPER_ADMIN",
-            onLogoutAdmin = { isAdminPanelOpen = false },
+            onLogoutAdmin = {
+                isAdminPanelOpen = false
+                onLogout()
+            },
             onSwitchRoleFromAdmin = { roleStr ->
                 isAdminPanelOpen = false
                 if (roleStr == "CUSTOMER") {
+                    onSelectRole(UserRole.CUSTOMER)
                     onRoleSelected(UserRole.CUSTOMER)
                 } else {
+                    onSelectRole(UserRole.LABOUR)
                     onRoleSelected(UserRole.LABOUR)
                 }
             },
             onBack = { isAdminPanelOpen = false },
             onSwitchToCustomer = {
                 isAdminPanelOpen = false
+                onSelectRole(UserRole.CUSTOMER)
                 onRoleSelected(UserRole.CUSTOMER)
             },
             onSwitchToLabour = {
                 isAdminPanelOpen = false
+                onSelectRole(UserRole.LABOUR)
                 onRoleSelected(UserRole.LABOUR)
             }
         )
@@ -402,6 +403,7 @@ fun AccountSelectScreen(
         Card(
             onClick = {
                 authPrefs.edit().putString("saved_user_role", UserRole.CUSTOMER.name).apply()
+                onSelectRole(UserRole.CUSTOMER)
                 onRoleSelected(UserRole.CUSTOMER)
             },
             modifier = Modifier.fillMaxWidth(),
@@ -465,6 +467,7 @@ fun AccountSelectScreen(
         Card(
             onClick = {
                 authPrefs.edit().putString("saved_user_role", UserRole.LABOUR.name).apply()
+                onSelectRole(UserRole.LABOUR)
                 onRoleSelected(UserRole.LABOUR)
             },
             modifier = Modifier.fillMaxWidth(),
@@ -550,6 +553,7 @@ fun AccountSelectScreen(
             onAdminVerifiedSuccess = {
                 showAdminGateDialog = false
                 isAdminPanelOpen = true
+                onOpenAdmin()
                 Toast.makeText(context, "Admin Panel Unlocked ✓", Toast.LENGTH_SHORT).show()
             }
         )
