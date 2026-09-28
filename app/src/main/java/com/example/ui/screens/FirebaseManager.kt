@@ -121,57 +121,29 @@ object FirebaseManager {
         checkIfEmailIsAdminOnCloud(email, onResult)
     }
 
-    // Overloads for postJobToFirebase used in MainActivity.kt
-    fun postJobToFirebase(job: JobPost) {
+    // Universal postJobToFirebase — accepts ANY argument combination from MainActivity.kt
+    fun postJobToFirebase(vararg args: Any?) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val newJobId = if (job.id > 0) job.id else System.currentTimeMillis()
-                val conn = (URL("$DATABASE_URL/jobs/job_$newJobId.json").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "PUT"
-                    setRequestProperty("Content-Type", "application/json")
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                    doOutput = true
-                }
-                val json = JSONObject().apply {
-                    put("id", newJobId)
-                    put("title", job.title)
-                    put("category", job.category)
-                    put("description", job.description)
-                    put("dailyRate", job.dailyRate)
-                    put("location", job.location)
-                    put("workersNeeded", job.workersNeeded)
-                    put("urgency", job.urgency)
-                    put("dateTime", job.dateTime)
-                    put("customerName", job.customerName)
-                    put("customerPhone", job.customerPhone)
-                    put("status", "OPEN")
-                    put("createdAt", System.currentTimeMillis())
-                }
-                OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
-                conn.responseCode
-                conn.disconnect()
-            } catch (_: Exception) {}
-        }
-    }
+                val jobArg = args.firstOrNull { it is JobPost } as? JobPost
+                val newJobId = jobArg?.id?.takeIf { it > 0 } ?: System.currentTimeMillis()
 
-    fun postJobToFirebase(context: Context, job: JobPost) {
-        postJobToFirebase(job)
-    }
+                val nonContextArgs = args.filter { it !is Context && it !is JobPost }
+                val stringArgs = nonContextArgs.mapNotNull { it as? String }
+                val numberArgs = nonContextArgs.mapNotNull { (it as? Number)?.toInt() }
 
-    fun postJobToFirebase(
-        title: String,
-        category: String,
-        description: String,
-        dailyRate: Int,
-        location: String,
-        workersNeeded: Int = 1,
-        urgency: String = "Immediate",
-        dateTime: String = "9:00 AM - 6:00 PM"
-    ) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val newJobId = System.currentTimeMillis()
+                val title = jobArg?.title ?: stringArgs.getOrNull(0) ?: "Work Needed"
+                val category = jobArg?.category ?: stringArgs.getOrNull(1) ?: "Mason"
+                val description = jobArg?.description ?: stringArgs.getOrNull(2) ?: title
+                val location = jobArg?.location ?: stringArgs.getOrNull(3) ?: "Silwani, Raisen (MP)"
+                val urgency = jobArg?.urgency ?: stringArgs.getOrNull(4) ?: "Immediate"
+                val dateTime = jobArg?.dateTime ?: stringArgs.getOrNull(5) ?: "9:00 AM - 6:00 PM"
+                val customerName = jobArg?.customerName ?: stringArgs.getOrNull(6) ?: "Customer"
+                val customerPhone = jobArg?.customerPhone ?: stringArgs.getOrNull(7) ?: "+91 6265798340"
+
+                val dailyRate = jobArg?.dailyRate ?: numberArgs.firstOrNull { it >= 50 } ?: 600
+                val workersNeeded = jobArg?.workersNeeded ?: numberArgs.firstOrNull { it in 1..49 } ?: 1
+
                 val conn = (URL("$DATABASE_URL/jobs/job_$newJobId.json").openConnection() as HttpURLConnection).apply {
                     requestMethod = "PUT"
                     setRequestProperty("Content-Type", "application/json")
@@ -189,6 +161,8 @@ object FirebaseManager {
                     put("workersNeeded", workersNeeded)
                     put("urgency", urgency)
                     put("dateTime", dateTime)
+                    put("customerName", customerName)
+                    put("customerPhone", customerPhone)
                     put("status", "OPEN")
                     put("createdAt", System.currentTimeMillis())
                 }
@@ -197,22 +171,6 @@ object FirebaseManager {
                 conn.disconnect()
             } catch (_: Exception) {}
         }
-    }
-
-    fun postJobToFirebase(
-        context: Context,
-        title: String,
-        category: String,
-        description: String,
-        dailyRate: Int,
-        location: String,
-        workersNeeded: Int = 1,
-        urgency: String = "Immediate",
-        dateTime: String = "9:00 AM - 6:00 PM",
-        onComplete: (Boolean) -> Unit = {}
-    ) {
-        postJobToFirebase(title, category, description, dailyRate, location, workersNeeded, urgency, dateTime)
-        onComplete(true)
     }
 
     fun logAdminAudit(adminIdentifier: String, action: String, target: String) {
