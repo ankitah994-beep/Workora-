@@ -181,7 +181,6 @@ object WorkoraRealOtpEngine {
         }
     }
 
-    // Both verifyRealOtp and verifyOtp supported for AccountSelectScreen.kt & SignUpScreen.kt
     fun verifyRealOtp(context: Context, targetKey: String, enteredOtp: String): Pair<Boolean, String> {
         val cleanTarget = targetKey.trim().lowercase()
         val prefs = context.getSharedPreferences(OTP_PREFS, Context.MODE_PRIVATE)
@@ -324,11 +323,11 @@ fun WorkoraRealOtpVerificationDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val (ok, msg) = WorkoraRealOtpEngine.verifyRealOtp(context, targetKey, otpInput)
-                    if (ok) {
+                    val verifyResult = WorkoraRealOtpEngine.verifyRealOtp(context, targetKey, otpInput)
+                    if (verifyResult.first) {
                         onVerifiedSuccess()
                     } else {
-                        errorMessage = msg
+                        errorMessage = verifyResult.second
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange),
@@ -381,7 +380,10 @@ private fun WorkoraBrandCircleLogo() {
 @Composable
 fun LoginScreen(
     onLogin: (email: String, password: String) -> Unit = { _, _ -> },
-    onNavigateToRegister: () -> Unit = {}
+    onNavigateToSignUp: () -> Unit = {},
+    onNavigateToRegister: () -> Unit = onNavigateToSignUp,
+    toastMessage: String? = null,
+    onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
