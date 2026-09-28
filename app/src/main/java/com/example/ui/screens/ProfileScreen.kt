@@ -1420,17 +1420,18 @@ fun ProfileScreen(
                                 onClick = { Toast.makeText(context, "Thank you for rating Workora 5 Stars! ★★★★★", Toast.LENGTH_SHORT).show() }
                             )
                             SettingsTreeItem(
-                                label = tr("ℹ️ Workora के बारे में (About Workora)", "ℹ️ About Workora", "ℹ️ About Workora"),
-                                valueText = "v2.4.0 Prod",
-                                cardColor = cardColor,
-                                borderColor = borderColor,
-                                textDark = textDark,
-                                textMuted = textMuted,
-                                onClick = {
-                                    activeInfoDialogTitle = "ℹ️ About Workora"
-                                    activeInfoDialogBody = "Workora — Find. Hire. Work.\nVersion: 2.4.0 Production Release\nServing Silwani, Raisen (MP) & Pan-India Expansion.\nCrafted with Jetpack Compose & Firebase."
-                                }
-                            )
+    label = tr("ℹ️ Workora के बारे में (About Workora)", "ℹ️ About Workora", "ℹ️ About Workora"),
+    valueText = "Info",
+    cardColor = cardColor,
+    borderColor = borderColor,
+    textDark = textDark,
+    textMuted = textMuted,
+    onClick = {
+        activeInfoDialogTitle = "ℹ️ About Workora"
+        activeInfoDialogBody = "Workora – Find. Hire. Work.\nWorkora connects customers with trusted local workers. Find the right worker, post jobs, chat, hire, and manage your work—all in one simple app."
+    }
+)
+
 
                             SettingsCategoryHeader(title = tr("5. अकाउंट एक्शन्स (ACCOUNT ACTIONS)", "5. ACCOUNT ACTIONS", "5. ACCOUNT ACTIONS"), color = accentBlue)
                             SettingsTreeItem(
@@ -1905,15 +1906,50 @@ fun ProfileScreen(
                         onValueChange = { editLocation = it },
                         label = "Location & Area (Live Search)"
                     )
-                    OutlinedTextField(
-                        value = editSkill,
-                        onValueChange = { editSkill = it },
-                        label = { Text("Primary Skill (e.g. Mason, Electrician)") },
-                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                        leadingIcon = { Icon(Icons.Default.Build, contentDescription = null) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    val skillOptions = listOf(
+    "Default", "Mason", "Electrician", "Plumber",
+    "Painter", "Carpenter", "Labour", "Cleaner",
+    "Farm Worker", "Tile Worker", "Other"
+)
+
+Text(
+    text = "Primary Skill (Select Skill)",
+    fontSize = 13.sp,
+    fontWeight = FontWeight.ExtraBold,
+    color = textDark
+)
+
+skillOptions.chunked(3).forEach { rowSkills ->
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        rowSkills.forEach { skillItem ->
+            val isSelected = editSkill.equals(skillItem, ignoreCase = true)
+            OutlinedButton(
+                onClick = { editSkill = skillItem },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, if (isSelected) orangeColor else borderColor),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isSelected) orangeColor.copy(alpha = 0.15f) else cardColor
+                ),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    text = skillItem,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) orangeColor else textDark,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
                     OutlinedTextField(
                         value = editWage,
                         onValueChange = { editWage = it.filter { c -> c.isDigit() } },
