@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -53,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.JobPost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,45 +70,106 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+data class WorkoraCloudChatMessage(
+    val id: String,
+    val senderName: String,
+    val senderPhone: String,
+    val senderRole: String,
+    val text: String,
+    val timeLabel: String,
+    val timestamp: Long
+)
+
 object FirebaseManager {
     const val DATABASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-    fun checkIfEmailIsAdminOnCloud(email: String, onResult: (Boolean) -> Unit) {
+    // Overloads for MainActivity.kt (2-parameter callback: isAdmin, adminTier)
+    fun checkIfEmailIsAdminOnCloud(
+        email: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
         val clean = email.trim().lowercase()
         if (clean == "ankitah994@gmail.com" || clean.contains("ankitah994")) {
-            onResult(true)
+            onResult(true, "SUPER_ADMIN")
             return
         }
         CoroutineScope(Dispatchers.IO).launch {
             var isAdmin = false
+            var tier = "NONE"
             try {
                 val conn = URL("$DATABASE_URL/admins.json").openConnection() as HttpURLConnection
                 conn.connectTimeout = 4000
                 conn.readTimeout = 4000
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    if (resp.contains(clean)) isAdmin = true
+                    if (resp.contains(clean)) {
+                        isAdmin = true
+                        tier = "SUPER_ADMIN"
+                    }
                 }
                 conn.disconnect()
             } catch (_: Exception) {}
-            withContext(Dispatchers.Main) { onResult(isAdmin) }
+            withContext(Dispatchers.Main) { onResult(isAdmin, tier) }
         }
     }
 
-    fun postJobToFirebase(
+    fun checkIfEmailIsAdminOnCloud(
         context: Context,
+        email: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        checkIfEmailIsAdminOnCloud(email, onResult)
+    }
+
+    // Overloads for postJobToFirebase used in MainActivity.kt
+    fun postJobToFirebase(job: JobPost) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val newJobId = if (job.id > 0) job.id else System.currentTimeMillis()
+                val conn = (URL("$DATABASE_URL/jobs/job_$newJobId.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    setRequestProperty("Content-Type", "application/json")
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                    doOutput = true
+                }
+                val json = JSONObject().apply {
+                    put("id", newJobId)
+                    put("title", job.title)
+                    put("category", job.category)
+                    put("description", job.description)
+                    put("dailyRate", job.dailyRate)
+                    put("location", job.location)
+                    put("workersNeeded", job.workersNeeded)
+                    put("urgency", job.urgency)
+                    put("dateTime", job.dateTime)
+                    put("customerName", job.customerName)
+                    put("customerPhone", job.customerPhone)
+                    put("status", "OPEN")
+                    put("createdAt", System.currentTimeMillis())
+                }
+                OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
+                conn.responseCode
+                conn.disconnect()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun postJobToFirebase(context: Context, job: JobPost) {
+        postJobToFirebase(job)
+    }
+
+    fun postJobToFirebase(
         title: String,
         category: String,
         description: String,
         dailyRate: Int,
         location: String,
-        workersNeeded: Int,
-        urgency: String,
-        dateTime: String,
-        onComplete: (Boolean) -> Unit = {}
+        workersNeeded: Int = 1,
+        urgency: String = "Immediate",
+        dateTime: String = "9:00 AM - 6:00 PM"
     ) {
         CoroutineScope(Dispatchers.IO).launch {
-            var ok = false
             try {
                 val newJobId = System.currentTimeMillis()
                 val conn = (URL("$DATABASE_URL/jobs/job_$newJobId.json").openConnection() as HttpURLConnection).apply {
@@ -129,11 +193,26 @@ object FirebaseManager {
                     put("createdAt", System.currentTimeMillis())
                 }
                 OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
-                ok = conn.responseCode in 200..299
+                conn.responseCode
                 conn.disconnect()
             } catch (_: Exception) {}
-            withContext(Dispatchers.Main) { onComplete(ok) }
         }
+    }
+
+    fun postJobToFirebase(
+        context: Context,
+        title: String,
+        category: String,
+        description: String,
+        dailyRate: Int,
+        location: String,
+        workersNeeded: Int = 1,
+        urgency: String = "Immediate",
+        dateTime: String = "9:00 AM - 6:00 PM",
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        postJobToFirebase(title, category, description, dailyRate, location, workersNeeded, urgency, dateTime)
+        onComplete(true)
     }
 
     fun logAdminAudit(adminIdentifier: String, action: String, target: String) {
@@ -311,7 +390,12 @@ object FirebaseManager {
                         requestMethod = "PUT"
                         setRequestProperty("Content-Type", "application/json")
                         doOutput = true
-                        OutputStreamWriter(outputStream).use { it.write(JSONObject().apply { put("blocked", true); put("timestamp", System.currentTimeMillis()) }.toString()) }
+                        OutputStreamWriter(outputStream).use {
+                            it.write(JSONObject().apply {
+                                put("blocked", true)
+                                put("timestamp", System.currentTimeMillis())
+                            }.toString())
+                        }
                     } else {
                         requestMethod = "DELETE"
                     }
@@ -422,7 +506,6 @@ object FirebaseManager {
     }
 }
 
-// Global Workora Live Chat Dialog (Resolves 'Unresolved reference WorkoraLiveChatDialog')
 @Composable
 fun WorkoraLiveChatDialog(
     appLang: String,
@@ -452,7 +535,7 @@ fun WorkoraLiveChatDialog(
     var isSyncingChat by remember { mutableStateOf(false) }
 
     val chatMessages = remember {
-        mutableStateListOf(
+        mutableStateListOf<WorkoraCloudChatMessage>(
             WorkoraCloudChatMessage(
                 id = "welcome_msg",
                 senderName = "Workora Support",
@@ -508,8 +591,9 @@ fun WorkoraLiveChatDialog(
             withContext(Dispatchers.Main) {
                 isSyncingChat = false
                 if (fetched.isNotEmpty()) {
-                    fetched.sortedBy { it.timestamp }.takeLast(25).forEach { msg ->
-                        if (chatMessages.none { it.id == msg.id }) {
+                    val sortedList = fetched.sortedBy { m: WorkoraCloudChatMessage -> m.timestamp }.takeLast(25)
+                    for (msg in sortedList) {
+                        if (chatMessages.none { existing: WorkoraCloudChatMessage -> existing.id == msg.id }) {
                             chatMessages.add(msg)
                         }
                     }
@@ -609,7 +693,7 @@ fun WorkoraLiveChatDialog(
                     modifier = Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(12.dp)).background(subtleBg).padding(8.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    chatMessages.forEach { msg ->
+                    chatMessages.forEach { msg: WorkoraCloudChatMessage ->
                         val isMe = msg.senderName.equals(myName, ignoreCase = true)
                         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
                             Card(
