@@ -1,0 +1,140 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "app_branding": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).child('active').val() === true"
+    },
+
+    "categories": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).child('active').val() === true"
+    },
+
+    "admins": {
+      "$adminUid": {
+        ".read": "auth != null && auth.uid === $adminUid",
+        ".write": false
+      }
+    },
+
+    "users": {
+      ".indexOn": ["phone", "role", "city", "district", "state", "accountStatus"],
+      "$userId": {
+        ".read": "auth != null && (auth.uid === $userId || root.child('admins').child(auth.uid).child('active').val() === true)",
+        ".write": "auth != null && (auth.uid === $userId || root.child('admins').child(auth.uid).child('active').val() === true)",
+        "password": { ".validate": false },
+        "plainPassword": { ".validate": false }
+      }
+    },
+
+    "workers": {
+      ".read": true,
+      ".indexOn": ["trade", "city", "district", "state", "isAvailableToday", "rating"],
+      "$workerId": {
+        ".write": "auth != null && (auth.uid === $workerId || data.child('ownerUid').val() === auth.uid || (!data.exists() && newData.child('ownerUid').val() === auth.uid) || root.child('admins').child(auth.uid).child('active').val() === true)"
+      }
+    },
+
+    "jobs": {
+      ".read": true,
+      ".indexOn": ["category", "status", "city", "district", "state", "customerUid", "id"],
+      "$jobKey": {
+        ".write": "auth != null && newData.exists() && ((!data.exists() && newData.child('customerUid').val() === auth.uid) || (data.exists() && (data.child('customerUid').val() === auth.uid || root.child('admins').child(auth.uid).child('active').val() === true)))",
+        "status": {
+          ".validate": "newData.val() === 'DRAFT' || newData.val() === 'OPEN' || newData.val() === 'PAUSED' || newData.val() === 'BOOKED' || newData.val() === 'IN_PROGRESS' || newData.val() === 'COMPLETED' || newData.val() === 'CANCELLED' || newData.val() === 'EXPIRED'"
+        }
+      }
+    },
+
+    "job_applications": {
+      ".read": "auth != null",
+      "$jobKey": {
+        ".indexOn": ["status", "workerPhone", "timestamp"],
+        "$appKey": {
+          ".write": "auth != null && newData.exists() && (newData.child('workerUid').val() === auth.uid || root.child('jobs').child($jobKey).child('customerUid').val() === auth.uid || root.child('admins').child(auth.uid).child('active').val() === true)",
+          "status": {
+            ".validate": "newData.val() === 'PENDING' || newData.val() === 'SELECTED' || newData.val() === 'REJECTED' || newData.val() === 'WITHDRAWN'"
+          }
+        }
+      }
+    },
+
+    "bookings": {
+      ".indexOn": ["customerUid", "workerUid", "jobKey", "status", "updatedAt"],
+      "$bookingId": {
+        ".read": "auth != null && (data.child('customerUid').val() === auth.uid || data.child('workerUid').val() === auth.uid || root.child('admins').child(auth.uid).child('active').val() === true)",
+        ".write": "auth != null && newData.exists() && ((!data.exists() && (newData.child('customerUid').val() === auth.uid || newData.child('workerUid').val() === auth.uid)) || (data.exists() && (data.child('customerUid').val() === auth.uid || data.child('workerUid').val() === auth.uid || root.child('admins').child(auth.uid).child('active').val() === true)))",
+        "status": {
+          ".validate": "newData.val() === 'PENDING' || newData.val() === 'ACCEPTED' || newData.val() === 'REJECTED' || newData.val() === 'IN_PROGRESS' || newData.val() === 'COMPLETED' || newData.val() === 'CANCELLED'"
+        }
+      }
+    },
+
+    "messages": {
+      ".read": "auth != null",
+      ".indexOn": ["timestamp", "conversationId", "senderPhone", "receiverPhone"],
+      "$msgId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('senderUid').val() === auth.uid) || root.child('admins').child(auth.uid).child('active').val() === true)"
+      }
+    },
+
+    "notifications": {
+      "$userKey": {
+        ".read": "auth != null && (auth.uid === $userKey || root.child('admins').child(auth.uid).child('active').val() === true)",
+        ".write": "auth != null",
+        ".indexOn": ["timestamp", "type", "isUnread"]
+      }
+    },
+
+    "reports": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).child('active').val() === true",
+      ".indexOn": ["status", "reportedUserKey", "reporterUserKey", "timestamp"],
+      "$reportId": {
+        ".write": "auth != null && (!data.exists() || root.child('admins').child(auth.uid).child('active').val() === true)"
+      }
+    },
+
+    "reviews": {
+      ".read": true,
+      ".indexOn": ["targetUserKey", "bookingId", "reviewerKey", "timestamp"],
+      "$reviewId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('rating').val() >= 1 && newData.child('rating').val() <= 5 && root.child('bookings').child(newData.child('bookingId').val()).child('status').val() === 'COMPLETED') || root.child('admins').child(auth.uid).child('active').val() === true)"
+      }
+    },
+
+    "blocked_users": {
+      "$userKey": {
+        ".read": "auth != null && (auth.uid === $userKey || root.child('admins').child(auth.uid).child('active').val() === true)",
+        "$blockedTargetKey": {
+          ".write": "auth != null && (auth.uid === $userKey || root.child('admins').child(auth.uid).child('active').val() === true)"
+        }
+      }
+    },
+
+    "kyc_verifications": {
+      ".indexOn": ["status", "timestamp"],
+      "$userKey": {
+        ".read": "auth != null && (auth.uid === $userKey || root.child('admins').child(auth.uid).child('active').val() === true)",
+        ".write": "auth != null && (auth.uid === $userKey || root.child('admins').child(auth.uid).child('active').val() === true)"
+      }
+    },
+
+    "admin_audit_logs": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).child('active').val() === true",
+      ".indexOn": ["timestamp", "action", "adminIdentifier"],
+      "$logId": {
+        ".write": "auth != null && root.child('admins').child(auth.uid).child('active').val() === true"
+      }
+    },
+
+    "otp_dispatches": {
+      "$otpKey": {
+        ".read": false,
+        ".write": "auth != null && !data.exists()"
+      }
+    }
+  }
+}
