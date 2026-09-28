@@ -124,7 +124,7 @@ fun LoginScreen(
     fun validateAndSendLoginOtp() {
         val rawId = identifierInput.trim()
         if (rawId.isBlank()) {
-            Toast.makeText(context, "Kripya Mobile Number ya Gmail ID dalein!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Mobile Number or Gmail ID", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -132,11 +132,11 @@ fun LoginScreen(
         val cleanDigits = rawId.filter { it.isDigit() }.takeLast(10)
 
         if (!isEmail && cleanDigits.length != 10) {
-            Toast.makeText(context, "Kripya sahi 10-digit Mobile Number dalein!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "10-digit Mobile Number", Toast.LENGTH_SHORT).show()
             return
         }
         if (isEmail && !rawId.contains("@")) {
-            Toast.makeText(context, "Kripya sahi Gmail / Email ID dalein!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Gmail/Email id", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -153,7 +153,7 @@ fun LoginScreen(
         if (authMethodTab == 0) {
             val cleanPass = passwordInput.trim()
             if (cleanPass.length < 6) {
-                Toast.makeText(context, "Kripya apna Password dalein!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Password", Toast.LENGTH_SHORT).show()
                 return
             }
 
@@ -170,7 +170,7 @@ fun LoginScreen(
 
             if (!passMatches) {
                 WorkoraSecurityManager.recordLoginAttempt(context, lookupKey, isSuccess = false)
-                Toast.makeText(context, "Galat Password! Kripya sahi password dalein.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Galat Password!", Toast.LENGTH_SHORT).show()
                 return
             }
         }
@@ -220,7 +220,7 @@ fun LoginScreen(
         )
 
         Text(
-            text = "Secure Real-OTP Login • Find. Hire. Work.",
+            text = "Find. Hire. Work.",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = WorkoraTextMuted
@@ -274,15 +274,7 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(0 to "🔐 Password + Real OTP", 1 to "⚡ Direct Real OTP").forEach { (idx, label) ->
-                        val selected = authMethodTab == idx
-                        OutlinedButton(
-                            onClick = { authMethodTab = idx },
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, if (selected) WorkoraOrange else WorkoraBorder),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (selected) Color(0xFFFFF0DE) else Color.White
+                    
                             ),
                             contentPadding = PaddingValues(0.dp)
                         ) {
@@ -306,7 +298,7 @@ fun LoginScreen(
                     },
                     placeholder = {
                         Text(
-                            if (loginInputType == 0) "e.g. 6265798340" else "e.g. ankitah994@gmail.com"
+                            if (loginInputType == 0) "mobile number" else "example@gmail.com"
                         )
                     },
                     leadingIcon = {
@@ -358,7 +350,7 @@ fun LoginScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         Text(
-                            text = "Forgot Password? Reset via Real OTP",
+                            text = "Forgot Password?",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = WorkoraNavy,
@@ -379,16 +371,7 @@ fun LoginScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                 ) {
-                    if (isSendingOtp) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Send Real 6-Digit OTP & Log In ✓",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
+                    
                         )
                     }
                 }
@@ -469,7 +452,7 @@ fun LoginScreen(
                     profilePrefs.edit().putString("user_phone", "+91 $cleanDigits").apply()
                 }
 
-                Toast.makeText(context, "Real OTP Verified! Welcome to Workora ✓", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Welcome to Workora", Toast.LENGTH_SHORT).show()
                 onLogin(finalEmail, passwordInput.ifBlank { "OTP_VERIFIED" })
             }
         )
@@ -482,7 +465,7 @@ fun LoginScreen(
             containerColor = Color.White,
             title = {
                 Text(
-                    text = "Reset Password via Real OTP",
+                    text = "Reset Password",
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = WorkoraNavy
@@ -533,7 +516,7 @@ fun LoginScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                 ) {
-                    Text("Send Real OTP", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Send OTP", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -581,7 +564,7 @@ fun LoginScreen(
                     apply()
                 }
                 passwordInput = newPass
-                Toast.makeText(context, "Password Reset Successfully via Real OTP! ✓", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Password Reset Successfully!", Toast.LENGTH_LONG).show()
             }
         )
     }
