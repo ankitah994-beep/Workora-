@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -142,6 +143,10 @@ data class WorkoraNotificationCardItem(
     val isUnread: Boolean = true
 )
 
+// =========================================================================
+// LIVE FIREBASE NOTIFICATION CENTER DIALOG (SHARED ACROSS ENTIRE APP)
+// Pulls real-time posted jobs (/jobs.json) & worker applications (/job_applications.json)
+// =========================================================================
 @Composable
 fun WorkoraLiveNotificationCenterDialog(
     userLocation: String,
@@ -161,33 +166,34 @@ fun WorkoraLiveNotificationCenterDialog(
     val isHindi = appLang == "Hindi"
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = All, 1 = Jobs, 2 = Messages
+    var isSyncingCloud by remember { mutableStateOf(false) }
 
     val notificationsList = remember(userLocation) {
         mutableStateListOf(
             WorkoraNotificationCardItem(
-                id = "n1",
+                id = "n_default_job",
                 type = "JOB",
                 titleHi = "नया काम उपलब्ध है ($userLocation)",
                 titleEn = "New Job Available ($userLocation)",
                 bodyHi = "राजमिस्त्री, इलेक्ट्रीशियन और प्लंबर का काम उपलब्ध है (₹550–₹600/दिन)।",
                 bodyEn = "Mason, Electrician & Plumber work available near $userLocation (₹550–₹600/day).",
-                timeHi = "अभी (Just now)",
-                timeEn = "Just now",
+                timeHi = "अभी (Live)",
+                timeEn = "Live",
                 isUnread = true
             ),
             WorkoraNotificationCardItem(
-                id = "n2",
+                id = "n_default_msg",
                 type = "MESSAGE",
                 titleHi = "Workora मैसेज और हायरिंग अपडेट",
                 titleEn = "Workora Message & Hiring Update",
                 bodyHi = "$userLocation के सत्यापित ग्राहक और कारीगर सीधे बात करने के लिए ऑनलाइन हैं।",
                 bodyEn = "Verified customers and workers in $userLocation are online for direct chat.",
-                timeHi = "10 मिनट पहले",
-                timeEn = "10 mins ago",
+                timeHi = "सक्रिय",
+                timeEn = "Active",
                 isUnread = true
             ),
             WorkoraNotificationCardItem(
-                id = "n3",
+                id = "n_default_sec",
                 type = "SECURITY",
                 titleHi = "प्रोफाइल और सुरक्षा सत्यापित ✓",
                 titleEn = "Profile & Security Verified ✓",
@@ -198,6 +204,112 @@ fun WorkoraLiveNotificationCenterDialog(
                 isUnread = false
             )
         )
+    }
+
+    fun fetchLiveNotificationsFromFirebase() {
+        isSyncingCloud = true
+        CoroutineScope(Dispatchers.IO).launch {
+            val cloudNotifications = mutableListOf<WorkoraNotificationCardItem>()
+            try {
+                // 1. Fetch live posted jobs from Firebase /jobs.json
+                val jConn = URL("$LABOUR_DB_URL/jobs.json").openConnection() as HttpURLConnection
+                jConn.connectTimeout = 5000
+                jConn.readTimeout = 5000
+                if (jConn.responseCode in 200..299) {
+                    val resp = BufferedReader(InputStreamReader(jConn.inputStream)).use { it.readText() }
+                    if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
+                        val root = JSONObject(resp)
+                        val keys = root.keys()
+                        var count = 0
+                        while (keys.hasNext() && count < 8) {
+                            val k = keys.next()
+                            val obj = root.optJSONObject(k) ?: continue
+                            val title = obj.optString("title", "")
+                            val statusStr = obj.optString("status", "OPEN")
+                            if (title.isNotBlank() && statusStr != "CANCELLED") {
+                                val cat = obj.optString("category", "Mason")
+                                val rate = obj.optInt("dailyRate", 600)
+                                val loc = obj.optString("location", userLocation)
+                                val cust = obj.optString("customerName", "Customer")
+                                cloudNotifications.add(
+                                    WorkoraNotificationCardItem(
+                                        id = "fb_job_$k",
+                                        type = "JOB",
+                                        titleHi = "नया काम: $title",
+                                        titleEn = "New Job: $title",
+                                        bodyHi = "$cust ने $loc में $cat के काम के लिए पोस्ट किया (₹$rate/दिन)।",
+                                        bodyEn = "$cust posted $cat work in $loc (₹$rate/day).",
+                                        timeHi = "लाइव (Firebase)",
+                                        timeEn = "Live Cloud",
+                                        isUnread = true
+                                    )
+                                )
+                                count++
+                            }
+                        }
+                    }
+                }
+                jConn.disconnect()
+
+                // 2. Fetch live worker applications from Firebase /job_applications.json
+                val aConn = URL("$LABOUR_DB_URL/job_applications.json").openConnection() as HttpURLConnection
+                aConn.connectTimeout = 5000
+                aConn.readTimeout = 5000
+                if (aConn.responseCode in 200..299) {
+                    val aResp = BufferedReader(InputStreamReader(aConn.inputStream)).use { it.readText() }
+                    if (aResp.isNotBlank() && aResp != "null" && aResp.startsWith("{")) {
+                        val root = JSONObject(aResp)
+                        val jobKeys = root.keys()
+                        var appCount = 0
+                        while (jobKeys.hasNext() && appCount < 6) {
+                            val jk = jobKeys.next()
+                            val subObj = root.optJSONObject(jk) ?: continue
+                            val appKeys = subObj.keys()
+                            while (appKeys.hasNext() && appCount < 6) {
+                                val ak = appKeys.next()
+                                val appData = subObj.optJSONObject(ak) ?: continue
+                                val wName = appData.optString("workerName", "Worker")
+                                val jTitle = appData.optString("jobTitle", "Work")
+                                val wSkill = appData.optString("workerSkill", "Skilled")
+                                val wPhone = appData.optString("workerPhone", "")
+                                cloudNotifications.add(
+                                    0,
+                                    WorkoraNotificationCardItem(
+                                        id = "fb_app_${jk}_$ak",
+                                        type = "MESSAGE",
+                                        titleHi = "$wName ने काम में रुचि दिखाई ✓",
+                                        titleEn = "$wName Applied for Job ✓",
+                                        bodyHi = "'$jTitle' ($wSkill) के लिए आवेदन प्राप्त हुआ। संपर्क: $wPhone",
+                                        bodyEn = "Interested in '$jTitle' ($wSkill). Contact: $wPhone",
+                                        timeHi = "नया अलर्ट",
+                                        timeEn = "New Alert",
+                                        isUnread = true
+                                    )
+                                )
+                                appCount++
+                            }
+                        }
+                    }
+                }
+                aConn.disconnect()
+            } catch (_: Exception) {
+            }
+
+            withContext(Dispatchers.Main) {
+                isSyncingCloud = false
+                if (cloudNotifications.isNotEmpty()) {
+                    cloudNotifications.forEach { cn ->
+                        if (notificationsList.none { it.id == cn.id }) {
+                            notificationsList.add(0, cn)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        fetchLiveNotificationsFromFirebase()
     }
 
     val filteredList = notificationsList.filter { item ->
@@ -217,7 +329,10 @@ fun WorkoraLiveNotificationCenterDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -235,20 +350,47 @@ fun WorkoraLiveNotificationCenterDialog(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = if (isHindi) "नोटिफिकेशन सेंटर" else "Notification Center",
-                            fontSize = 17.sp,
+                            text = if (isHindi) "लाइव नोटिफिकेशन सेंटर" else "Live Notification Center",
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textDark
                         )
                         Text(
                             text = "📍 $userLocation",
                             fontSize = 11.sp,
-                            color = textMuted
+                            color = textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { fetchLiveNotificationsFromFirebase() },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        if (isSyncingCloud) {
+                            CircularProgressIndicator(
+                                color = brandOrange,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = accentBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textDark)
+                    }
                 }
             }
         },
