@@ -39,15 +39,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -59,9 +56,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -75,8 +70,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -97,7 +90,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -107,7 +99,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -119,11 +110,6 @@ import java.util.Locale
 
 private const val PROFILE_FIREBASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-// =========================================================================
-// GLOBAL APP THEME MANAGER (CONTROLS ENTIRE APP FROM ONE PLACE)
-// Default Mode = "System" (Follows Phone's Default System Light/Dark Mode)
-// Options = "System" (Default) | "Light" | "Dark"
-// =========================================================================
 object WorkoraThemeManager {
     private const val SETTINGS_PREFS = "workora_app_settings"
     private const val KEY_THEME_MODE = "app_theme_mode"
@@ -253,8 +239,7 @@ suspend fun searchRealLiveLocationsIndia(context: Context, rawQuery: String): Li
                     }
                 }
             }
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
 
         try {
             val encoded = URLEncoder.encode("$cleanQuery India", "UTF-8")
@@ -299,8 +284,7 @@ suspend fun searchRealLiveLocationsIndia(context: Context, rawQuery: String): Li
                 }
             }
             conn.disconnect()
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
 
         results.take(8).toList()
     }
@@ -725,8 +709,8 @@ fun WorkoraLiveLocationModal(
 @Composable
 fun ProfileScreen(
     role: UserRole = UserRole.CUSTOMER,
-    userName: String = "Ankit Ahirwar",
-    userPhone: String = "+91 6265798340",
+    userName: String = "Workora User",
+    userPhone: String = "",
     userLocation: String = "Silwani, Raisen (MP)",
     onBack: () -> Unit = {},
     onSwitchRole: () -> Unit = {},
@@ -856,7 +840,7 @@ fun ProfileScreen(
     }
 
     fun syncProfileAndSettingsToFirebase() {
-        val cleanPhoneKey = savedPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
+        val cleanPhoneKey = savedPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "0000000000" }
         val wageInt = savedWage.toIntOrNull() ?: 600
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -924,11 +908,16 @@ fun ProfileScreen(
         }
     }
 
-    val isSuperAdmin = remember(loggedEmail, savedPhone) {
-        loggedEmail == "ankitah994@gmail.com" ||
-                loggedEmail.contains("ankitah994") ||
-                savedPhone.filter { it.isDigit() }.takeLast(10) == "6265798340" ||
-                authPrefs.getString("saved_user_role", "") == "ADMIN"
+    // Admin check via role flag or cloud authorization (No personal email/phone in code)
+    var isSuperAdmin by remember {
+        mutableStateOf(authPrefs.getString("saved_user_role", "") == "ADMIN")
+    }
+    LaunchedEffect(loggedEmail) {
+        if (loggedEmail.isNotBlank()) {
+            FirebaseManager.checkIfEmailIsAdminOnCloud(loggedEmail) { isAdmin, _ ->
+                if (isAdmin) isSuperAdmin = true
+            }
+        }
     }
 
     Column(
@@ -1033,7 +1022,7 @@ fun ProfileScreen(
                                 )
                             } else {
                                 Text(
-                                    text = savedName.take(1).uppercase(),
+                                    text = savedName.take(1).uppercase().ifBlank { "W" },
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
@@ -1090,19 +1079,21 @@ fun ProfileScreen(
                                 )
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Phone,
-                                    contentDescription = null,
-                                    tint = textMuted,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = savedPhone,
-                                    fontSize = 12.sp,
-                                    color = textMuted
-                                )
+                            if (savedPhone.isNotBlank()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = null,
+                                        tint = textMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = savedPhone,
+                                        fontSize = 12.sp,
+                                        color = textMuted
+                                    )
+                                }
                             }
                         }
                     }
@@ -1141,7 +1132,7 @@ fun ProfileScreen(
                 }
             }
 
-            // ⚙️ COMPLETE 22-OPTION SETTINGS TREE (Points 7, 9, 12, 13)
+            // ⚙️ COMPLETE 22-OPTION SETTINGS TREE
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -1193,7 +1184,6 @@ fun ProfileScreen(
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // CATEGORY 1: ACCOUNT
                             SettingsCategoryHeader(title = tr("1. अकाउंट (ACCOUNT)", "1. ACCOUNT", "1. ACCOUNT"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("👤 प्रोफाइल (Profile)", "👤 Profile", "👤 Profile"),
@@ -1206,7 +1196,7 @@ fun ProfileScreen(
                             )
                             SettingsTreeItem(
                                 label = tr("📱 मोबाइल नंबर (Phone Number)", "📱 Phone Number", "📱 Phone Number"),
-                                valueText = savedPhone,
+                                valueText = savedPhone.ifBlank { tr("जोड़ें", "Add", "Add") },
                                 cardColor = cardColor,
                                 borderColor = borderColor,
                                 textDark = textDark,
@@ -1236,7 +1226,6 @@ fun ProfileScreen(
                                 onClick = { showKycDialog = true }
                             )
 
-                            // CATEGORY 2: APP SETTINGS
                             SettingsCategoryHeader(title = tr("2. ऐप सेटिंग्स (APP SETTINGS)", "2. APP SETTINGS", "2. APP SETTINGS"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("🌐 भाषा (Language)", "🌐 Language", "🌐 Language"),
@@ -1272,7 +1261,7 @@ fun ProfileScreen(
                                 textDark = textDark,
                                 textMuted = textMuted,
                                 onClick = {
-                                    val newMode = WorkoraThemeManager.cycleNextThemeMode(context)
+                                    WorkoraThemeManager.cycleNextThemeMode(context)
                                     syncProfileAndSettingsToFirebase()
                                 }
                             )
@@ -1298,7 +1287,6 @@ fun ProfileScreen(
                                 }
                             )
 
-                            // CATEGORY 3: PRIVACY & SECURITY
                             SettingsCategoryHeader(title = tr("3. प्राइवेसी और सुरक्षा (PRIVACY & SECURITY)", "3. PRIVACY & SECURITY", "3. PRIVACY & SECURITY"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("🔒 प्राइवेसी पॉलिसी (Privacy Policy)", "🔒 Privacy Policy", "🔒 Privacy Policy"),
@@ -1360,19 +1348,17 @@ fun ProfileScreen(
                                 }
                             )
 
-                            // CATEGORY 4: WORKORA
                             SettingsCategoryHeader(title = "4. WORKORA", color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("❓ सहायता और सपोर्ट (Help & Support)", "❓ Help & Support", "❓ Help & Support"),
-                                valueText = "24x7 Call",
+                                valueText = "24x7 Support",
                                 cardColor = cardColor,
                                 borderColor = borderColor,
                                 textDark = textDark,
                                 textMuted = textMuted,
                                 onClick = {
-                                    try {
-                                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340")))
-                                    } catch (_: Exception) {}
+                                    activeInfoDialogTitle = "❓ Workora Help & Support"
+                                    activeInfoDialogBody = "For any help with jobs, hiring, or safety:\n• Support Email: support@workora.in\n• Use Workora Live Message for instant support."
                                 }
                             )
                             SettingsTreeItem(
@@ -1418,7 +1404,7 @@ fun ProfileScreen(
                                 onClick = {
                                     val sendIntent = Intent().apply {
                                         action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, "Download Workora — Find skilled workers and daily jobs near you! Visit: https://github.com/ankitah994-beep/Workora-lite")
+                                        putExtra(Intent.EXTRA_TEXT, "Download Workora App — Find skilled workers and daily jobs near you!")
                                         type = "text/plain"
                                     }
                                     context.startActivity(Intent.createChooser(sendIntent, "Share Workora App"))
@@ -1446,7 +1432,6 @@ fun ProfileScreen(
                                 }
                             )
 
-                            // CATEGORY 5: ACCOUNT ACTIONS
                             SettingsCategoryHeader(title = tr("5. अकाउंट एक्शन्स (ACCOUNT ACTIONS)", "5. ACCOUNT ACTIONS", "5. ACCOUNT ACTIONS"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("🔄 रोल बदलें (Customer ⇄ Worker)", "🔄 Switch Role", "🔄 Switch Role"),
@@ -1480,7 +1465,6 @@ fun ProfileScreen(
                 }
             }
 
-            // Quick Menu Action Rows
             Card(
                 onClick = onOpenChat,
                 modifier = Modifier.fillMaxWidth(),
@@ -1523,7 +1507,6 @@ fun ProfileScreen(
                 onClick = { showNotificationsCenterDialog = true }
             )
 
-            // Protected Super Admin Panel Button
             if (isSuperAdmin) {
                 Card(
                     onClick = { showAdminSecurityGate = true },
@@ -1558,7 +1541,6 @@ fun ProfileScreen(
         }
     }
 
-    // DIALOG 1: KYC Verification Upload Dialog (Point 9)
     if (showKycDialog) {
         var docType by remember { mutableStateOf("Aadhaar Card") }
         var docNumber by remember { mutableStateOf("") }
@@ -1649,7 +1631,6 @@ fun ProfileScreen(
         )
     }
 
-    // DIALOG 2: Live Report User/Problem Dialog (Point 7)
     if (showReportDialog) {
         val reportReasons = listOf(
             "Fake Profile",
@@ -1749,7 +1730,6 @@ fun ProfileScreen(
         )
     }
 
-    // DIALOG 3: Blocked Users Dialog (Point 7)
     if (showBlockedUsersDialog) {
         AlertDialog(
             onDismissRequest = { showBlockedUsersDialog = false },
@@ -1788,7 +1768,6 @@ fun ProfileScreen(
         )
     }
 
-    // DIALOG 4: Delete Account Confirmation Dialog (Point 13)
     if (showDeleteAccountConfirmDialog) {
         var isDeleting by remember { mutableStateOf(false) }
 
@@ -1950,8 +1929,8 @@ fun ProfileScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        savedName = editName.trim().ifBlank { "Ankit Ahirwar" }
-                        savedPhone = editPhone.trim().ifBlank { "+91 6265798340" }
+                        savedName = editName.trim().ifBlank { "Workora User" }
+                        savedPhone = editPhone.trim()
                         savedLocation = editLocation.trim().ifBlank { "Silwani, Raisen (MP)" }
                         savedSkill = editSkill.trim().ifBlank { "Mason" }
                         savedWage = editWage.trim().ifBlank { "600" }
