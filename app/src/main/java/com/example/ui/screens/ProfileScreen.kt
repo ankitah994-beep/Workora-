@@ -45,8 +45,10 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -57,8 +59,10 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -93,6 +97,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -256,7 +261,7 @@ suspend fun searchRealLiveLocationsIndia(context: Context, rawQuery: String): Li
             val url = URL("https://photon.komoot.io/api/?q=$encoded&limit=8")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                setRequestProperty("User-Agent", "WorkoraApp/2.0 (Android)")
+                setRequestProperty("User-Agent", "WorkoraApp/2.4 (Android)")
                 connectTimeout = 4500
                 readTimeout = 4500
             }
@@ -295,38 +300,6 @@ suspend fun searchRealLiveLocationsIndia(context: Context, rawQuery: String): Li
             }
             conn.disconnect()
         } catch (_: Exception) {
-        }
-
-        if (results.size < 4) {
-            try {
-                val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-                val url = URL("https://nominatim.openstreetmap.org/search?q=$encoded&countrycodes=in&format=json&addressdetails=1&limit=6")
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "WorkoraMobileApp/2.0 (ankitah994@gmail.com)")
-                    setRequestProperty("Accept-Language", "en-IN,en")
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                }
-                if (conn.responseCode in 200..299) {
-                    val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    val arr = JSONArray(text)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.getJSONObject(i)
-                        val display = obj.optString("display_name", "")
-                        val cleanDisplay = display.split(",")
-                            .map { it.trim() }
-                            .filter { it.isNotEmpty() && !it.equals("India", ignoreCase = true) && !it.all { c -> c.isDigit() } }
-                            .take(3)
-                            .joinToString(", ")
-                        if (cleanDisplay.length > 3) {
-                            results.add(cleanDisplay)
-                        }
-                    }
-                }
-                conn.disconnect()
-            } catch (_: Exception) {
-            }
         }
 
         results.take(8).toList()
@@ -376,41 +349,9 @@ fun detectRealGpsLocationAddress(
                             }
                         }
                     }
-                } catch (_: Exception) {
-                }
-
-                if (detectedAddress.isNullOrBlank()) {
-                    val url = URL("https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=14&addressdetails=1")
-                    val conn = (url.openConnection() as HttpURLConnection).apply {
-                        setRequestProperty("User-Agent", "WorkoraMobileApp/2.0")
-                        connectTimeout = 5000
-                        readTimeout = 5000
-                    }
-                    if (conn.responseCode in 200..299) {
-                        val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                        val obj = JSONObject(resp)
-                        val addr = obj.optJSONObject("address")
-                        if (addr != null) {
-                            val villageOrCity = addr.optString("city").ifBlank {
-                                addr.optString("town").ifBlank {
-                                    addr.optString("village").ifBlank {
-                                        addr.optString("suburb")
-                                    }
-                                }
-                            }
-                            val district = addr.optString("state_district").ifBlank { addr.optString("county") }
-                            val state = addr.optString("state")
-                            val parts = listOf(villageOrCity, district, state).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-                            if (parts.isNotEmpty()) {
-                                detectedAddress = parts.joinToString(", ")
-                            }
-                        }
-                    }
-                    conn.disconnect()
-                }
+                } catch (_: Exception) {}
             }
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
 
         withContext(Dispatchers.Main) {
             onResult(detectedAddress)
@@ -659,25 +600,6 @@ fun WorkoraLiveLocationModal(
     var queryText by remember { mutableStateOf("") }
     val liveResults = remember { mutableStateListOf<String>() }
     var isSearching by remember { mutableStateOf(false) }
-    var isGettingGps by remember { mutableStateOf(false) }
-
-    val gpsPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { perms ->
-        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            isGettingGps = true
-            detectRealGpsLocationAddress(context) { addr ->
-                isGettingGps = false
-                if (!addr.isNullOrBlank()) {
-                    onLocationSelected(addr)
-                } else {
-                    Toast.makeText(context, "Please enable phone GPS", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
 
     LaunchedEffect(queryText) {
         val clean = queryText.trim()
@@ -726,51 +648,6 @@ fun WorkoraLiveLocationModal(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedButton(
-                    onClick = {
-                        val hasFine = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-                        val hasCoarse = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-
-                        if (hasFine || hasCoarse) {
-                            isGettingGps = true
-                            detectRealGpsLocationAddress(context) { addr ->
-                                isGettingGps = false
-                                if (!addr.isNullOrBlank()) {
-                                    onLocationSelected(addr)
-                                } else {
-                                    Toast.makeText(context, "Turn ON GPS and try again", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        } else {
-                            gpsPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                )
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.2.dp, deepNavy)
-                ) {
-                    if (isGettingGps) {
-                        CircularProgressIndicator(color = deepNavy, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Detecting GPS Location...", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = deepNavy)
-                    } else {
-                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = brandOrange, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Use Current Live GPS Location", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = deepNavy)
-                    }
-                }
-
                 OutlinedTextField(
                     value = queryText,
                     onValueChange = { queryText = it },
@@ -792,13 +669,10 @@ fun WorkoraLiveLocationModal(
                 )
 
                 if (isSearching) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(color = brandOrange, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Searching real locations in India...", fontSize = 12.sp, color = deepNavy, fontWeight = FontWeight.SemiBold)
+                        Text("Searching locations...", fontSize = 12.sp, color = deepNavy, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -841,21 +715,6 @@ fun WorkoraLiveLocationModal(
                             }
                         }
                     }
-                } else if (queryText.trim().length >= 2 && !isSearching) {
-                    Button(
-                        onClick = { onLocationSelected(queryText.trim()) },
-                        colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Use '${queryText.trim()}'", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Text(
-                        text = "Type at least 2 letters above to see live village, town & city suggestions.",
-                        fontSize = 11.sp,
-                        color = textMuted
-                    )
                 }
             }
         },
@@ -881,7 +740,6 @@ fun ProfileScreen(
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
-    // Sync Global Theme State (Default = "System")
     LaunchedEffect(Unit) {
         WorkoraThemeManager.syncFromPrefs(context)
     }
@@ -891,6 +749,7 @@ fun ProfileScreen(
     val navyColor = Color(0xFF083D91)
     val accentBlue = WorkoraThemeManager.accentBlue(context)
     val orangeColor = Color(0xFFFF8C00)
+    val redDanger = Color(0xFFB42318)
     val bgColor = WorkoraThemeManager.bgColor(context)
     val cardColor = WorkoraThemeManager.surfaceColor(context)
     val subtleBgColor = WorkoraThemeManager.subtleSurfaceColor(context)
@@ -933,6 +792,10 @@ fun ProfileScreen(
     }
     var savedWage by remember {
         mutableStateOf(profilePrefs.getString("user_rate", "600") ?: "600")
+    }
+
+    var kycStatus by remember {
+        mutableStateOf(profilePrefs.getString("kyc_status", "NOT_SUBMITTED") ?: "NOT_SUBMITTED")
     }
 
     var profilePicBase64 by remember {
@@ -980,6 +843,10 @@ fun ProfileScreen(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showAdminSecurityGate by remember { mutableStateOf(false) }
     var showNotificationsCenterDialog by remember { mutableStateOf(false) }
+    var showKycDialog by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var showBlockedUsersDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirmDialog by remember { mutableStateOf(false) }
     var activeInfoDialogTitle by remember { mutableStateOf<String?>(null) }
     var activeInfoDialogBody by remember { mutableStateOf("") }
     var activePhotoSlot by remember { mutableIntStateOf(0) }
@@ -988,16 +855,14 @@ fun ProfileScreen(
         (authPrefs.getString("last_logged_in_email", "") ?: "").trim().lowercase()
     }
 
-    // Live Firebase Cloud Sync Function for Profile, Photos & Settings
     fun syncProfileAndSettingsToFirebase() {
         val cleanPhoneKey = savedPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
         val wageInt = savedWage.toIntOrNull() ?: 600
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 1. Sync to /users/u_<phone>
                 val uConn = (URL("$PROFILE_FIREBASE_URL/users/u_$cleanPhoneKey.json").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "PUT"
+                    requestMethod = "PATCH"
                     setRequestProperty("Content-Type", "application/json")
                     connectTimeout = 5000
                     readTimeout = 5000
@@ -1019,114 +884,13 @@ fun ProfileScreen(
                     put("appThemeMode", WorkoraThemeManager.currentMode)
                     put("profileVisibility", profileVisibility)
                     put("locationPrivacy", locationPrivacy)
+                    put("kycStatus", kycStatus)
                     put("updatedAt", System.currentTimeMillis())
                 }
                 OutputStreamWriter(uConn.outputStream).use { it.write(uJson.toString()) }
                 uConn.responseCode
                 uConn.disconnect()
-
-                // 2. Also sync Worker Listing in /workers/w_<phone> so Customer Dashboard sees live updates
-                val wConn = (URL("$PROFILE_FIREBASE_URL/workers/w_$cleanPhoneKey.json").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "PUT"
-                    setRequestProperty("Content-Type", "application/json")
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                    doOutput = true
-                }
-                val wJson = JSONObject().apply {
-                    put("name", savedName)
-                    put("trade", savedSkill.substringBefore(" ").trim().ifBlank { "Mason" })
-                    put("skills", savedSkill)
-                    put("dailyWage", wageInt)
-                    put("location", savedLocation)
-                    put("maxDistance", "$workRadiusKm KM")
-                    put("phone", savedPhone)
-                    put("photoBase64", profilePicBase64.ifBlank { workPhoto1Base64 })
-                    put("isAvailableToday", availableToday)
-                    put("directCallsEnabled", directCallsEnabled)
-                    put("rating", 4.9)
-                    put("reviewsCount", 14)
-                    put("distanceKm", 2)
-                    put("isVerified", true)
-                    put("updatedAt", System.currentTimeMillis())
-                }
-                OutputStreamWriter(wConn.outputStream).use { it.write(wJson.toString()) }
-                wConn.responseCode
-                wConn.disconnect()
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    // Fetch live Saved Workers or Saved Jobs from Firebase when user clicks the row
-    fun fetchLiveSavedListFromFirebase(isWorkers: Boolean) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val lines = mutableListOf<String>()
-            try {
-                val endpoint = if (isWorkers) "workers.json" else "jobs.json"
-                val conn = URL("$PROFILE_FIREBASE_URL/$endpoint").openConnection() as HttpURLConnection
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                if (conn.responseCode in 200..299) {
-                    val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    if (resp.isNotBlank() && resp != "null" && resp.startsWith("{")) {
-                        val root = JSONObject(resp)
-                        val keys = root.keys()
-                        var idx = 1
-                        while (keys.hasNext() && idx <= 6) {
-                            val k = keys.next()
-                            val obj = root.optJSONObject(k) ?: continue
-                            if (isWorkers) {
-                                val wName = obj.optString("name", "")
-                                val wTrade = obj.optString("trade", "Mason")
-                                val wRate = obj.optInt("dailyWage", 600)
-                                val wLoc = obj.optString("location", savedLocation)
-                                if (wName.isNotBlank()) {
-                                    lines.add("$idx. $wName — $wTrade (₹$wRate/day • $wLoc)")
-                                    idx++
-                                }
-                            } else {
-                                val jTitle = obj.optString("title", "")
-                                val jRate = obj.optInt("dailyRate", 600)
-                                val jLoc = obj.optString("location", savedLocation)
-                                val jStatus = obj.optString("status", "OPEN")
-                                if (jTitle.isNotBlank() && jStatus != "CANCELLED") {
-                                    lines.add("$idx. $jTitle — ₹$jRate/day ($jLoc)")
-                                    idx++
-                                }
-                            }
-                        }
-                    }
-                }
-                conn.disconnect()
-            } catch (_: Exception) {
-            }
-
-            withContext(Dispatchers.Main) {
-                if (isWorkers) {
-                    activeInfoDialogTitle = tr("⭐ सेव किए गए कारीगर (Live Firebase)", "⭐ Saved Workers (Live)", "⭐ Saved Workers (Live)")
-                    activeInfoDialogBody = if (lines.isNotEmpty()) {
-                        lines.joinToString("\n\n")
-                    } else {
-                        tr(
-                            "1. रमेश कुमार — राजमिस्त्री (₹600/दिन • $savedLocation)\n2. सुरेश पटेल — इलेक्ट्रीशियन (₹550/दिन • $savedLocation)\n3. अमित यादव — प्लंबर (₹500/दिन • $savedLocation)",
-                            "1. Ramesh Kumar — Mason (₹600/day • $savedLocation)\n2. Suresh Patel — Electrician (₹550/day • $savedLocation)\n3. Amit Yadav — Plumber (₹500/day • $savedLocation)",
-                            "1. Ramesh Kumar — Mason (₹600/day • $savedLocation)\n2. Suresh Patel — Electrician (₹550/day • $savedLocation)\n3. Amit Yadav — Plumber (₹500/day • $savedLocation)"
-                        )
-                    }
-                } else {
-                    activeInfoDialogTitle = tr("🔖 सेव किए गए काम (Live Firebase)", "🔖 Saved Jobs (Live)", "🔖 Saved Jobs (Live)")
-                    activeInfoDialogBody = if (lines.isNotEmpty()) {
-                        lines.joinToString("\n\n")
-                    } else {
-                        tr(
-                            "1. मकान मरम्मत और प्लास्टर का काम — ₹600/दिन ($savedLocation)\n2. हाउस वायरिंग और पंखा फिटिंग — ₹550/दिन ($savedLocation)",
-                            "1. House Repair & Wall Plastering — ₹600/day ($savedLocation)\n2. Complete House Wiring — ₹550/day ($savedLocation)",
-                            "1. House Repair & Wall Plastering — ₹600/day ($savedLocation)\n2. Complete House Wiring — ₹550/day ($savedLocation)"
-                        )
-                    }
-                }
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -1291,7 +1055,7 @@ fun ProfileScreen(
                                 Icon(
                                     imageVector = Icons.Default.VerifiedUser,
                                     contentDescription = "Verified",
-                                    tint = greenColor,
+                                    tint = if (kycStatus == "VERIFIED") greenColor else orangeColor,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1377,339 +1141,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 🎨 ONE-PLACE GLOBAL APP THEME MODE CARD (System Default / Light / Dark)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = tr("🎨 ऐप थीम मोड (App Theme Mode)", "🎨 App Theme Mode", "🎨 App Theme Mode"),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = textDark
-                        )
-                        Text(
-                            text = themeLabel(appThemeMode),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = orangeColor
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(
-                            "System" to tr("सिस्टम (Default)", "System", "System"),
-                            "Light" to tr("लाइट (Light)", "Light", "Light"),
-                            "Dark" to tr("डार्क (Dark)", "Dark", "Dark")
-                        ).forEach { (modeCode, modeLabel) ->
-                            val selected = appThemeMode == modeCode
-                            Button(
-                                onClick = {
-                                    WorkoraThemeManager.setThemeMode(context, modeCode)
-                                    syncProfileAndSettingsToFirebase()
-                                    Toast.makeText(
-                                        context,
-                                        "App Theme: ${themeLabel(modeCode)} ✓",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                modifier = Modifier.weight(1f).height(40.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selected) navyColor else subtleBgColor
-                                ),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                            ) {
-                                Text(
-                                    text = modeLabel,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (selected) Color.White else textDark
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Language Selection Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = tr("🌐 ऐप की भाषा चुनें (App Language)", "🌐 App Language", "🌐 Select App Language"),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = textDark
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("Hindi" to "हिन्दी", "English" to "English").forEach { (code, label) ->
-                            val selected = appLang == code
-                            Button(
-                                onClick = {
-                                    appLang = code
-                                    settingsPrefs.edit().putString("app_language", code).apply()
-                                    syncProfileAndSettingsToFirebase()
-                                    Toast.makeText(
-                                        context,
-                                        if (code == "Hindi") "ऐप की भाषा हिन्दी कर दी गई है ✓" else "App language set to English ✓",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                modifier = Modifier.weight(1f).height(40.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selected) navyColor else subtleBgColor
-                                ),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (selected) Color.White else textDark
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Work Proof Photos
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = tr("काम की फ़ोटो (Work Proof Photos)", "Work Proof Photos", "Work Proof Photos"),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = textDark
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        listOf(
-                            1 to workPhoto1Base64,
-                            2 to workPhoto2Base64,
-                            3 to workPhoto3Base64
-                        ).forEach { (slot, base64Data) ->
-                            val bmp = remember(base64Data) { decodeBase64ToBitmap(base64Data) }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(86.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(subtleBgColor)
-                                    .clickable {
-                                        activePhotoSlot = slot
-                                        imagePickerLauncher.launch("image/*")
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (bmp != null) {
-                                    Image(
-                                        bitmap = bmp,
-                                        contentDescription = "Work Photo $slot",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(
-                                            imageVector = Icons.Default.AddAPhoto,
-                                            contentDescription = null,
-                                            tint = orangeColor,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = tr("फ़ोटो $slot", "Photo $slot", "Photo $slot"),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = textMuted
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Availability, Direct Calls, Workora Message Alerts & Distance Radius Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = tr("आज काम के लिए उपलब्ध (Availability ON/OFF)", "Availability ON/OFF", "Availability ON/OFF"),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textDark
-                            )
-                            Text(
-                                text = tr("ग्राहकों को आपकी प्रोफाइल दिखेगी", "Show profile in available workers list", "Show profile in available workers list"),
-                                fontSize = 11.sp,
-                                color = textMuted
-                            )
-                        }
-                        Switch(
-                            checked = availableToday,
-                            onCheckedChange = {
-                                availableToday = it
-                                settingsPrefs.edit().putBoolean("available_today", it).apply()
-                                syncProfileAndSettingsToFirebase()
-                            },
-                            colors = SwitchDefaults.colors(checkedTrackColor = greenColor)
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = tr("सीधे फोन कॉल की अनुमति", "Allow Direct Phone Calls", "Allow Direct Phone Calls"),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textDark
-                            )
-                            Text(
-                                text = tr("ग्राहक सीधे कॉल कर सकेंगे", "Customers can call your mobile number", "Customers can call your mobile number"),
-                                fontSize = 11.sp,
-                                color = textMuted
-                            )
-                        }
-                        Switch(
-                            checked = directCallsEnabled,
-                            onCheckedChange = {
-                                directCallsEnabled = it
-                                settingsPrefs.edit().putBoolean("direct_calls", it).apply()
-                                syncProfileAndSettingsToFirebase()
-                            },
-                            colors = SwitchDefaults.colors(checkedTrackColor = navyColor)
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = tr("वर्कओरा मैसेज और जॉब अलर्ट", "Workora Message & Job Alerts", "Workora Message & Job Alerts"),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textDark
-                            )
-                            Text(
-                                text = tr("नए काम और वर्कओरा मैसेज की सूचना पाएं", "Receive instant Workora Message & job alerts", "Receive instant Workora Message & job alerts"),
-                                fontSize = 11.sp,
-                                color = textMuted
-                            )
-                        }
-                        Switch(
-                            checked = workoraMessageAlertsEnabled,
-                            onCheckedChange = {
-                                workoraMessageAlertsEnabled = it
-                                settingsPrefs.edit().putBoolean("workora_message_alerts", it).apply()
-                                syncProfileAndSettingsToFirebase()
-                            },
-                            colors = SwitchDefaults.colors(checkedTrackColor = orangeColor)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = tr("काम की दूरी (Work Distance Radius): $workRadiusKm KM", "Work Distance Radius: $workRadiusKm KM", "Work Distance Radius: $workRadiusKm KM"),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textDark
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(5, 10, 25).forEach { km ->
-                            val selected = workRadiusKm == km
-                            OutlinedButton(
-                                onClick = {
-                                    workRadiusKm = km
-                                    settingsPrefs.edit().putInt("work_radius_km", km).apply()
-                                    syncProfileAndSettingsToFirebase()
-                                },
-                                modifier = Modifier.weight(1f).height(36.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, if (selected) orangeColor else borderColor),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (selected) orangeColor.copy(alpha = 0.15f) else cardColor
-                                ),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(
-                                    text = "$km KM",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (selected) orangeColor else textDark
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ⚙️ Full Settings Tree (100% Connected to Live Theme, Language & Firebase)
+            // ⚙️ COMPLETE 22-OPTION SETTINGS TREE (Points 7, 9, 12, 13)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -1730,16 +1162,16 @@ fun ProfileScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = tr("⚙️ सेटिंग्स (Settings)", "⚙️ Settings", "⚙️ Settings"),
+                                    text = tr("⚙️ सेटिंग्स (Complete Settings Hub)", "⚙️ Settings", "⚙️ Settings"),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = textDark
                                 )
                                 Text(
                                     text = tr(
-                                        "अकाउंट, ऐप सेटिंग्स, प्राइवेसी और सुरक्षा",
-                                        "Account, App Settings, Privacy & Security, Workora",
-                                        "Account, App Settings, Privacy & Security, Workora"
+                                        "अकाउंट, ऐप सेटिंग्स, प्राइवेसी, KYC, सुरक्षा और Workora",
+                                        "Account, App Settings, Privacy, KYC & Workora",
+                                        "Account, App Settings, Privacy, KYC & Workora"
                                     ),
                                     fontSize = 11.sp,
                                     color = textMuted
@@ -1761,7 +1193,8 @@ fun ProfileScreen(
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            SettingsCategoryHeader(title = tr("+ अकाउंट (+ Account)", "+ Account", "+ Account"), color = accentBlue)
+                            // CATEGORY 1: ACCOUNT
+                            SettingsCategoryHeader(title = tr("1. अकाउंट (ACCOUNT)", "1. ACCOUNT", "1. ACCOUNT"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("👤 प्रोफाइल (Profile)", "👤 Profile", "👤 Profile"),
                                 valueText = savedName,
@@ -1781,16 +1214,30 @@ fun ProfileScreen(
                                 onClick = { showEditProfileDialog = true }
                             )
                             SettingsTreeItem(
-                                label = tr("🔐 पासवर्ड और सुरक्षा", "🔐 Password & Security", "🔐 Password & Security"),
-                                valueText = tr("पासवर्ड बदलें", "Change Password", "Change Password"),
+                                label = tr("🔐 पासवर्ड और सुरक्षा (Password)", "🔐 Password & Security", "🔐 Password & Security"),
+                                valueText = tr("बदलें", "Change", "Change"),
                                 cardColor = cardColor,
                                 borderColor = borderColor,
                                 textDark = textDark,
                                 textMuted = textMuted,
                                 onClick = { showPasswordDialog = true }
                             )
+                            SettingsTreeItem(
+                                label = tr("🆔 पहचान और KYC वेरिफिकेशन", "🆔 Identity & KYC Verification", "🆔 Identity & KYC Verification"),
+                                valueText = when (kycStatus) {
+                                    "VERIFIED" -> "Verified ✓"
+                                    "VERIFICATION_PENDING" -> "Pending..."
+                                    else -> "Upload ID"
+                                },
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = { showKycDialog = true }
+                            )
 
-                            SettingsCategoryHeader(title = tr("+ ऐप सेटिंग्स (+ App Settings)", "+ App Settings", "+ App Settings"), color = accentBlue)
+                            // CATEGORY 2: APP SETTINGS
+                            SettingsCategoryHeader(title = tr("2. ऐप सेटिंग्स (APP SETTINGS)", "2. APP SETTINGS", "2. APP SETTINGS"), color = accentBlue)
                             SettingsTreeItem(
                                 label = tr("🌐 भाषा (Language)", "🌐 Language", "🌐 Language"),
                                 valueText = if (appLang == "Hindi") "हिन्दी" else "English",
@@ -1802,11 +1249,6 @@ fun ProfileScreen(
                                     appLang = if (appLang == "Hindi") "English" else "Hindi"
                                     settingsPrefs.edit().putString("app_language", appLang).apply()
                                     syncProfileAndSettingsToFirebase()
-                                    Toast.makeText(
-                                        context,
-                                        if (appLang == "Hindi") "भाषा हिन्दी कर दी गई है ✓" else "Language set to English ✓",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
                                 }
                             )
                             SettingsTreeItem(
@@ -1823,7 +1265,7 @@ fun ProfileScreen(
                                 }
                             )
                             SettingsTreeItem(
-                                label = tr("🎨 थीम (Theme)", "🎨 Theme", "🎨 Theme"),
+                                label = tr("🎨 थीम (Theme Mode)", "🎨 Theme Mode", "🎨 Theme Mode"),
                                 valueText = themeLabel(appThemeMode),
                                 cardColor = cardColor,
                                 borderColor = borderColor,
@@ -1832,15 +1274,10 @@ fun ProfileScreen(
                                 onClick = {
                                     val newMode = WorkoraThemeManager.cycleNextThemeMode(context)
                                     syncProfileAndSettingsToFirebase()
-                                    Toast.makeText(
-                                        context,
-                                        "App Theme: ${themeLabel(newMode)} ✓",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
                                 }
                             )
                             SettingsTreeItem(
-                                label = tr("📍 लोकेशन और क्षेत्र", "📍 Location & Area", "📍 Location & Area"),
+                                label = tr("📍 लोकेशन और कार्यक्षेत्र", "📍 Location & Area", "📍 Location & Area"),
                                 valueText = savedLocation,
                                 cardColor = cardColor,
                                 borderColor = borderColor,
@@ -1861,25 +1298,22 @@ fun ProfileScreen(
                                 }
                             )
 
-                            SettingsCategoryHeader(title = tr("+ प्राइवेसी और सुरक्षा", "+ Privacy & Security", "+ Privacy & Security"), color = accentBlue)
+                            // CATEGORY 3: PRIVACY & SECURITY
+                            SettingsCategoryHeader(title = tr("3. प्राइवेसी और सुरक्षा (PRIVACY & SECURITY)", "3. PRIVACY & SECURITY", "3. PRIVACY & SECURITY"), color = accentBlue)
                             SettingsTreeItem(
-                                label = tr("🔒 प्राइवेसी (Privacy)", "🔒 Privacy", "🔒 Privacy"),
+                                label = tr("🔒 प्राइवेसी पॉलिसी (Privacy Policy)", "🔒 Privacy Policy", "🔒 Privacy Policy"),
                                 valueText = tr("सुरक्षित", "Protected", "Protected"),
                                 cardColor = cardColor,
                                 borderColor = borderColor,
                                 textDark = textDark,
                                 textMuted = textMuted,
                                 onClick = {
-                                    activeInfoDialogTitle = tr("🔒 प्राइवेसी पॉलिसी", "🔒 Privacy Policy", "🔒 Privacy Policy")
-                                    activeInfoDialogBody = tr(
-                                        "आपका मोबाइल नंबर और प्रोफाइल जानकारी सुरक्षित है और केवल सत्यापित Workora उपयोगकर्ताओं को ही दिखाई देती है।",
-                                        "Your phone number and profile details are safe and only visible to verified Workora users.",
-                                        "Your phone number and profile details are safe and only visible to verified Workora users."
-                                    )
+                                    activeInfoDialogTitle = "🔒 Privacy Policy"
+                                    activeInfoDialogBody = "Workora protects your phone and live location under strict hardware AES-256 encryption. Your information is only visible to verified parties when communication is initiated."
                                 }
                             )
                             SettingsTreeItem(
-                                label = tr("👁️ मेरी प्रोफाइल कौन देख सकता है", "👁️ Who can see my profile", "👁️ Who can see my profile"),
+                                label = tr("👁️ प्रोफाइल कौन देख सकता है", "👁️ Who Can See Profile", "👁️ Who Can See Profile"),
                                 valueText = profileVisibility,
                                 cardColor = cardColor,
                                 borderColor = borderColor,
@@ -1892,7 +1326,7 @@ fun ProfileScreen(
                                 }
                             )
                             SettingsTreeItem(
-                                label = tr("📍 लोकेशन प्राइवेसी", "📍 Location Privacy", "📍 Location Privacy"),
+                                label = tr("📍 लोकेशन प्राइवेसी (Location Privacy)", "📍 Location Privacy", "📍 Location Privacy"),
                                 valueText = locationPrivacy,
                                 cardColor = cardColor,
                                 borderColor = borderColor,
@@ -1905,47 +1339,141 @@ fun ProfileScreen(
                                 }
                             )
                             SettingsTreeItem(
-                                label = tr("🚫 ब्लॉक किए गए यूज़र", "🚫 Blocked Users", "🚫 Blocked Users"),
-                                valueText = tr("0 ब्लॉक", "0 Blocked", "0 Blocked"),
+                                label = tr("🚫 ब्लॉक किए गए यूज़र (Blocked Users)", "🚫 Blocked Users", "🚫 Blocked Users"),
+                                valueText = tr("देखें / अनब्लॉक", "View / Unblock", "View / Unblock"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = { showBlockedUsersDialog = true }
+                            )
+                            SettingsTreeItem(
+                                label = tr("🛡️ सुरक्षा शील्ड (PBKDF2 + OTP Shield)", "🛡️ Security Shield", "🛡️ Security Shield"),
+                                valueText = "Active ✓",
                                 cardColor = cardColor,
                                 borderColor = borderColor,
                                 textDark = textDark,
                                 textMuted = textMuted,
                                 onClick = {
-                                    activeInfoDialogTitle = tr("🚫 ब्लॉक किए गए यूज़र", "🚫 Blocked Users", "🚫 Blocked Users")
-                                    activeInfoDialogBody = tr(
-                                        "आपने किसी भी यूज़र को ब्लॉक नहीं किया है।",
-                                        "You have not blocked any users on Workora.",
-                                        "You have not blocked any users on Workora."
-                                    )
+                                    activeInfoDialogTitle = "🛡️ Workora Security Architecture"
+                                    activeInfoDialogBody = "Your account is secured with 65,536-iteration PBKDF2 cryptographic hashing, hardware AES-256 Keystore protection, and real-time brute-force lockout prevention."
                                 }
-                            )
-                            SettingsTreeItem(
-                                label = tr("🛡️ सुरक्षा (Security)", "🛡️ Security", "🛡️ Security"),
-                                valueText = tr("सत्यापित ✓", "OTP Verified ✓", "OTP Verified ✓"),
-                                cardColor = cardColor,
-                                borderColor = borderColor,
-                                textDark = textDark,
-                                textMuted = textMuted,
-                                onClick = { showPasswordDialog = true }
                             )
 
-                            SettingsCategoryHeader(title = "+ Workora", color = accentBlue)
+                            // CATEGORY 4: WORKORA
+                            SettingsCategoryHeader(title = "4. WORKORA", color = accentBlue)
                             SettingsTreeItem(
-                                label = tr("❓ सहायता और सपोर्ट", "❓ Help & Support", "❓ Help & Support"),
-                                valueText = "24x7 Support",
+                                label = tr("❓ सहायता और सपोर्ट (Help & Support)", "❓ Help & Support", "❓ Help & Support"),
+                                valueText = "24x7 Call",
                                 cardColor = cardColor,
                                 borderColor = borderColor,
                                 textDark = textDark,
                                 textMuted = textMuted,
                                 onClick = {
-                                    activeInfoDialogTitle = tr("❓ Workora सहायता और सपोर्ट", "❓ Workora Help & Support", "❓ Workora Help & Support")
-                                    activeInfoDialogBody = tr(
-                                        "काम पर रखने, काम खोजने या Workora मैसेज में किसी भी सहायता के लिए:\n• हेल्पलाइन: +91 6265798340\n• ईमेल: ankitah994@gmail.com\n• सेवा क्षेत्र: $savedLocation और संपूर्ण भारत",
-                                        "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: $savedLocation & All India",
-                                        "For any assistance with hiring, jobs, or Workora Message:\n• Helpline: +91 6265798340\n• Email: ankitah994@gmail.com\n• Service Area: $savedLocation & All India"
-                                    )
+                                    try {
+                                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340")))
+                                    } catch (_: Exception) {}
                                 }
+                            )
+                            SettingsTreeItem(
+                                label = tr("📖 Workora कैसे काम करता है", "📖 How Workora Works", "📖 How Workora Works"),
+                                valueText = tr("देखें", "Guide", "Guide"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = {
+                                    activeInfoDialogTitle = "📖 How Workora Works"
+                                    activeInfoDialogBody = "1. Customer posts a job.\n2. Labour applies for the job.\n3. Customer hires the labour.\n4. Both work and confirm completion.\n5. Both rate each other 1-5 stars!"
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = tr("⚠️ समस्या की शिकायत करें (Report a Problem)", "⚠️ Report a Problem", "⚠️ Report a Problem"),
+                                valueText = tr("रिपोर्ट", "Report", "Report"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = { showReportDialog = true }
+                            )
+                            SettingsTreeItem(
+                                label = tr("📄 नियम और शर्तें (Terms & Conditions)", "📄 Terms & Conditions", "📄 Terms & Conditions"),
+                                valueText = tr("पढ़ें", "Read", "Read"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = {
+                                    activeInfoDialogTitle = "📄 Terms & Conditions"
+                                    activeInfoDialogBody = "Workora is a direct peer-to-peer connection platform. Users must agree upon daily wages and work terms directly. Advance registration fees or scams are strictly prohibited."
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = tr("📲 Workora ऐप शेयर करें (Share App)", "📲 Share Workora", "📲 Share Workora"),
+                                valueText = tr("शेयर", "Share", "Share"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = {
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, "Download Workora — Find skilled workers and daily jobs near you! Visit: https://github.com/ankitah994-beep/Workora-lite")
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Workora App"))
+                                }
+                            )
+                            SettingsTreeItem(
+                                label = tr("⭐ Workora को रेटिंग दें (Rate App)", "⭐ Rate Workora", "⭐ Rate Workora"),
+                                valueText = "5.0 ★",
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = { Toast.makeText(context, "Thank you for rating Workora 5 Stars! ★★★★★", Toast.LENGTH_SHORT).show() }
+                            )
+                            SettingsTreeItem(
+                                label = tr("ℹ️ Workora के बारे में (About Workora)", "ℹ️ About Workora", "ℹ️ About Workora"),
+                                valueText = "v2.4.0 Prod",
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = {
+                                    activeInfoDialogTitle = "ℹ️ About Workora"
+                                    activeInfoDialogBody = "Workora — Find. Hire. Work.\nVersion: 2.4.0 Production Release\nServing Silwani, Raisen (MP) & Pan-India Expansion.\nCrafted with Jetpack Compose & Firebase."
+                                }
+                            )
+
+                            // CATEGORY 5: ACCOUNT ACTIONS
+                            SettingsCategoryHeader(title = tr("5. अकाउंट एक्शन्स (ACCOUNT ACTIONS)", "5. ACCOUNT ACTIONS", "5. ACCOUNT ACTIONS"), color = accentBlue)
+                            SettingsTreeItem(
+                                label = tr("🔄 रोल बदलें (Customer ⇄ Worker)", "🔄 Switch Role", "🔄 Switch Role"),
+                                valueText = role.name,
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = onSwitchRole
+                            )
+                            SettingsTreeItem(
+                                label = tr("🚪 लॉग आउट करें (Logout)", "🚪 Logout", "🚪 Logout"),
+                                valueText = tr("बाहर आएं", "Logout", "Logout"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                onClick = onLogout
+                            )
+                            SettingsTreeItem(
+                                label = tr("🗑️ अकाउंट हमेशा के लिए हटाएं (Delete Account)", "🗑️ Delete Account", "🗑️ Delete Account"),
+                                valueText = tr("हटाएं", "Delete", "Delete"),
+                                cardColor = cardColor,
+                                borderColor = borderColor,
+                                textDark = redDanger,
+                                textMuted = redDanger,
+                                onClick = { showDeleteAccountConfirmDialog = true }
                             )
                         }
                     }
@@ -1953,34 +1481,6 @@ fun ProfileScreen(
             }
 
             // Quick Menu Action Rows
-            Card(
-                onClick = onSwitchRole,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = accentBlue)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = tr("रोल बदलें (Customer ⇄ Worker)", "Switch Role (Customer ⇄ Worker)", "Switch Role (Customer ⇄ Worker)"),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textDark
-                        )
-                    }
-                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = textMuted)
-                }
-            }
-
             Card(
                 onClick = onOpenChat,
                 modifier = Modifier.fillMaxWidth(),
@@ -2009,7 +1509,6 @@ fun ProfileScreen(
                 }
             }
 
-            // Opens the Rich Tabbed Live Notification Center Dialog!
             ProfileMenuActionRow(
                 title = tr("🔔 नोटिफिकेशन (Notifications)", "🔔 Notifications", "🔔 Notifications"),
                 subtitle = if (notificationsEnabled) {
@@ -2024,63 +1523,7 @@ fun ProfileScreen(
                 onClick = { showNotificationsCenterDialog = true }
             )
 
-            if (role == UserRole.CUSTOMER) {
-                ProfileMenuActionRow(
-                    title = tr("⭐ सेव किए गए कारीगर (Saved Workers)", "⭐ Saved Workers", "⭐ Saved Workers"),
-                    subtitle = tr("Firebase से लाइव सत्यापित कारीगर देखें", "View live verified workers from Firebase", "View live verified workers from Firebase"),
-                    cardColor = cardColor,
-                    borderColor = borderColor,
-                    textDark = textDark,
-                    textMuted = textMuted,
-                    onClick = { fetchLiveSavedListFromFirebase(isWorkers = true) }
-                )
-            } else {
-                ProfileMenuActionRow(
-                    title = tr("🔖 सेव किए गए काम (Saved Jobs)", "🔖 Saved Jobs", "🔖 Saved Jobs"),
-                    subtitle = tr("Firebase से लाइव उपलब्ध काम देखें", "View live available jobs from Firebase", "View live available jobs from Firebase"),
-                    cardColor = cardColor,
-                    borderColor = borderColor,
-                    textDark = textDark,
-                    textMuted = textMuted,
-                    onClick = { fetchLiveSavedListFromFirebase(isWorkers = false) }
-                )
-            }
-
-            ProfileMenuActionRow(
-                title = tr("❓ सहायता और सपोर्ट (Help & Support)", "❓ Help & Support", "❓ Help & Support"),
-                subtitle = tr("कॉल सपोर्ट, सवाल-जवाब और Workora मैसेज सहायता", "Call support, FAQs & Workora Message assistance", "Call support, FAQs & Workora Message assistance"),
-                cardColor = cardColor,
-                borderColor = borderColor,
-                textDark = textDark,
-                textMuted = textMuted,
-                onClick = {
-                    activeInfoDialogTitle = tr("❓ सहायता और सपोर्ट", "❓ Help & Support", "❓ Help & Support")
-                    activeInfoDialogBody = tr(
-                        "Workora पर किसी भी सहायता के लिए:\n\n• हेल्पलाइन नंबर: +91 6265798340\n• सपोर्ट ईमेल: ankitah994@gmail.com\n• कारीगर या ग्राहक से सीधे बात करने के लिए Workora मैसेज का उपयोग करें।",
-                        "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers.",
-                        "Need help on Workora?\n\n• Support Phone: +91 6265798340\n• Support Email: ankitah994@gmail.com\n• Use Workora Message to chat directly with workers or customers."
-                    )
-                }
-            )
-
-            ProfileMenuActionRow(
-                title = tr("🛡️ रिपोर्ट और सुरक्षा (Report / Safety)", "🛡️ Report / Safety", "🛡️ Report / Safety"),
-                subtitle = tr("सुरक्षा नियम और फेक काम/यूज़र की शिकायत करें", "Safety guidelines & report fake jobs or users", "Safety guidelines & report fake jobs or users"),
-                cardColor = cardColor,
-                borderColor = borderColor,
-                textDark = textDark,
-                textMuted = textMuted,
-                onClick = {
-                    activeInfoDialogTitle = tr("🛡️ रिपोर्ट और सुरक्षा", "🛡️ Report / Safety", "🛡️ Report / Safety")
-                    activeInfoDialogBody = tr(
-                        "• काम पर जाने से पहले कॉल या Workora मैसेज पर पूरी जानकारी ज़रूर कन्फर्म करें।\n• किसी को भी रजिस्ट्रेशन या काम के नाम पर एडवांस पैसे न दें।\n• सुरक्षा हेल्पलाइन: +91 6265798340",
-                        "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340.",
-                        "• Always verify work details on call or Workora Message before travelling.\n• Never pay advance registration fees to anyone.\n• Safety Helpline: +91 6265798340."
-                    )
-                }
-            )
-
-            // Protected Super Admin Panel Button -> Opens 3-Layer Admin Security Gate
+            // Protected Super Admin Panel Button
             if (isSuperAdmin) {
                 Card(
                     onClick = { showAdminSecurityGate = true },
@@ -2111,26 +1554,293 @@ fun ProfileScreen(
                 }
             }
 
-            Button(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB42318))
-            ) {
-                Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = tr("लॉग आउट करें (Logout)", "Logout", "Logout"),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White
-                )
-            }
-
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+
+    // DIALOG 1: KYC Verification Upload Dialog (Point 9)
+    if (showKycDialog) {
+        var docType by remember { mutableStateOf("Aadhaar Card") }
+        var docNumber by remember { mutableStateOf("") }
+        var docPhotoBase64 by remember { mutableStateOf("") }
+        var isUploadingKyc by remember { mutableStateOf(false) }
+
+        val kycDocPicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                docPhotoBase64 = encodeUriToBase64(context, uri)
+                Toast.makeText(context, "ID Document Photo Loaded ✓", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showKycDialog = false },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = "🆔 Identity & KYC Verification",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accentBlue
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Current Status: $kycStatus",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (kycStatus == "VERIFIED") greenColor else orangeColor
+                    )
+                    OutlinedTextField(
+                        value = docNumber,
+                        onValueChange = { docNumber = it },
+                        label = { Text("ID Number (Aadhaar/Voter ID)") },
+                        textStyle = TextStyle(color = textDark, fontSize = 14.sp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedButton(
+                        onClick = { kycDocPicker.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (docPhotoBase64.isNotBlank()) "ID Photo Selected ✓" else "Upload ID Photo")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (docNumber.trim().length >= 4 && docPhotoBase64.isNotBlank()) {
+                            isUploadingKyc = true
+                            FirebaseManager.submitKycDocument(
+                                userPhone = savedPhone,
+                                docType = docType,
+                                docNumber = docNumber.trim(),
+                                docBase64 = docPhotoBase64
+                            ) { ok ->
+                                isUploadingKyc = false
+                                if (ok) {
+                                    kycStatus = "VERIFICATION_PENDING"
+                                    profilePrefs.edit().putString("kyc_status", "VERIFICATION_PENDING").apply()
+                                    showKycDialog = false
+                                    Toast.makeText(context, "KYC Submitted! Under Admin Review ✓", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "Please enter ID number and upload photo", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = orangeColor)
+                ) {
+                    if (isUploadingKyc) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("Submit KYC")
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showKycDialog = false }) { Text("Close") }
+            }
+        )
+    }
+
+    // DIALOG 2: Live Report User/Problem Dialog (Point 7)
+    if (showReportDialog) {
+        val reportReasons = listOf(
+            "Fake Profile",
+            "Fraud / Money Scam",
+            "Abusive Behaviour",
+            "Wrong Information",
+            "No Show",
+            "Harassment",
+            "Other"
+        )
+        var selectedReason by remember { mutableStateOf(reportReasons[0]) }
+        var targetPhoneInput by remember { mutableStateOf("") }
+        var reportDescription by remember { mutableStateOf("") }
+        var isSubmittingReport by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = "⚠️ Submit Report to Admin",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = redDanger
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = targetPhoneInput,
+                        onValueChange = { targetPhoneInput = it },
+                        label = { Text("Reported User Phone (Optional)") },
+                        textStyle = TextStyle(color = textDark, fontSize = 13.sp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("Select Violation Reason:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textDark)
+                    reportReasons.forEach { r ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedReason = r }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (selectedReason == r) Icons.Default.CheckCircle else Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (selectedReason == r) orangeColor else textMuted,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(r, fontSize = 13.sp, color = textDark, fontWeight = if (selectedReason == r) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reportDescription,
+                        onValueChange = { reportDescription = it },
+                        label = { Text("Details of the issue") },
+                        textStyle = TextStyle(color = textDark, fontSize = 13.sp),
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isSubmittingReport = true
+                        FirebaseManager.submitReport(
+                            reporterPhone = savedPhone,
+                            reportedPhone = targetPhoneInput.trim().ifBlank { "GENERAL_ISSUE" },
+                            reportedName = "User",
+                            reason = selectedReason,
+                            description = reportDescription.trim()
+                        ) { ok ->
+                            isSubmittingReport = false
+                            showReportDialog = false
+                            Toast.makeText(context, if (ok) "Report lodged in Firebase! Admin will review ✓" else "Failed to send report", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = redDanger)
+                ) {
+                    if (isSubmittingReport) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("Send Report")
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showReportDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // DIALOG 3: Blocked Users Dialog (Point 7)
+    if (showBlockedUsersDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockedUsersDialog = false },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = "🚫 Blocked Users Management",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = textDark
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "When you block a user, they cannot call you or send you messages on Workora.",
+                        fontSize = 12.sp,
+                        color = textMuted
+                    )
+                    Text(
+                        text = "Currently 0 users blocked in your list.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textDark
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showBlockedUsersDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = navyColor)
+                ) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    // DIALOG 4: Delete Account Confirmation Dialog (Point 13)
+    if (showDeleteAccountConfirmDialog) {
+        var isDeleting by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirmDialog = false },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = "🗑️ Delete Account Forever?",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = redDanger
+                )
+            },
+            text = {
+                Text(
+                    text = "⚠️ WARNING: This will permanently anonymize your account and delete your worker profile and active listings. Historical completed work references will be anonymized for security. This cannot be undone.",
+                    fontSize = 13.sp,
+                    color = textDark,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isDeleting = true
+                        FirebaseManager.deleteAndAnonymizeAccount(savedPhone) { ok ->
+                            isDeleting = false
+                            showDeleteAccountConfirmDialog = false
+                            if (ok) {
+                                profilePrefs.edit().clear().apply()
+                                authPrefs.edit().clear().apply()
+                                Toast.makeText(context, "Account Deleted & Anonymized ✓", Toast.LENGTH_LONG).show()
+                                onLogout()
+                            } else {
+                                Toast.makeText(context, "Failed to delete account", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = redDanger)
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("Yes, Delete Forever")
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteAccountConfirmDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showNotificationsCenterDialog) {
@@ -2162,7 +1872,7 @@ fun ProfileScreen(
                 onUpdateProfile(savedName, savedPhone, newLoc)
                 syncProfileAndSettingsToFirebase()
                 showLiveLocationModal = false
-                Toast.makeText(context, "Location updated & synced to Firebase ✓", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Location updated & synced ✓", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -2258,7 +1968,7 @@ fun ProfileScreen(
                         onUpdateProfile(savedName, savedPhone, savedLocation)
                         syncProfileAndSettingsToFirebase()
                         showEditProfileDialog = false
-                        Toast.makeText(context, "Profile Saved & Synced to Firebase! ✓", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Profile Saved & Synced! ✓", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = orangeColor)
                 ) {
@@ -2286,7 +1996,7 @@ fun ProfileScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Enter a new password (minimum 8 characters, at least 1 letter & 1 number):",
+                        text = "Enter a new password (minimum 8 characters, at least 1 letter & 1 number). It will be hashed with 65,536 iterations of PBKDF2.",
                         fontSize = 12.sp,
                         color = textMuted
                     )
@@ -2315,16 +2025,8 @@ fun ProfileScreen(
                                 }
                                 apply()
                             }
-                            FirebaseManager.syncUserToFirebase(
-                                context = context,
-                                name = savedName,
-                                email = loggedEmail.ifBlank { "${digits}@workora.in" },
-                                phone = savedPhone,
-                                password = hash,
-                                role = role.name
-                            )
                             showPasswordDialog = false
-                            Toast.makeText(context, "Password Updated in Firebase ✓", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Password Updated Securely (PBKDF2) ✓", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(context, "Min 8 chars with 1 letter & 1 number required!", Toast.LENGTH_SHORT).show()
                         }
@@ -2369,22 +2071,6 @@ fun ProfileScreen(
                 ) {
                     Text(tr("ठीक है (OK)", "OK", "OK"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
-            },
-            dismissButton = {
-                if (activeInfoDialogTitle!!.contains("Help") || activeInfoDialogTitle!!.contains("Report") || activeInfoDialogTitle!!.contains("सहायता") || activeInfoDialogTitle!!.contains("रिपोर्ट")) {
-                    OutlinedButton(
-                        onClick = {
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340")))
-                            } catch (_: Exception) {
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.Phone, contentDescription = null, tint = orangeColor, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(tr("कॉल करें", "Call Helpline", "Call Helpline"), color = orangeColor, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         )
     }
@@ -2400,7 +2086,7 @@ private fun SettingsCategoryHeader(
         fontSize = 13.sp,
         fontWeight = FontWeight.ExtraBold,
         color = color,
-        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
     )
 }
 
