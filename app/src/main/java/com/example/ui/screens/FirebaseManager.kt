@@ -83,7 +83,6 @@ data class WorkoraCloudChatMessage(
 object FirebaseManager {
     const val DATABASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
-    // Overloads for MainActivity.kt (2-parameter callback: isAdmin, adminTier)
     fun checkIfEmailIsAdminOnCloud(
         email: String,
         onResult: (Boolean, String) -> Unit
@@ -121,29 +120,25 @@ object FirebaseManager {
         checkIfEmailIsAdminOnCloud(email, onResult)
     }
 
-    // Universal postJobToFirebase — accepts ANY argument combination from MainActivity.kt
-    fun postJobToFirebase(vararg args: Any?) {
+    // Exact named-parameter signature matching MainActivity.kt lines 466-476
+    fun postJobToFirebase(
+        context: Context? = null,
+        title: String = "Work Needed",
+        category: String = "Mason",
+        description: String = "",
+        dailyRate: Int = 600,
+        location: String = "Silwani, Raisen (MP)",
+        workersNeeded: Int = 1,
+        urgency: String = "Immediate",
+        dateTime: String = "9:00 AM - 6:00 PM",
+        customerName: String = "Customer",
+        customerPhone: String = "+91 6265798340",
+        onSuccess: (Boolean) -> Unit = {}
+    ) {
         CoroutineScope(Dispatchers.IO).launch {
+            var ok = false
             try {
-                val jobArg = args.firstOrNull { it is JobPost } as? JobPost
-                val newJobId = jobArg?.id?.takeIf { it > 0 } ?: System.currentTimeMillis()
-
-                val nonContextArgs = args.filter { it !is Context && it !is JobPost }
-                val stringArgs = nonContextArgs.mapNotNull { it as? String }
-                val numberArgs = nonContextArgs.mapNotNull { (it as? Number)?.toInt() }
-
-                val title = jobArg?.title ?: stringArgs.getOrNull(0) ?: "Work Needed"
-                val category = jobArg?.category ?: stringArgs.getOrNull(1) ?: "Mason"
-                val description = jobArg?.description ?: stringArgs.getOrNull(2) ?: title
-                val location = jobArg?.location ?: stringArgs.getOrNull(3) ?: "Silwani, Raisen (MP)"
-                val urgency = jobArg?.urgency ?: stringArgs.getOrNull(4) ?: "Immediate"
-                val dateTime = jobArg?.dateTime ?: stringArgs.getOrNull(5) ?: "9:00 AM - 6:00 PM"
-                val customerName = jobArg?.customerName ?: stringArgs.getOrNull(6) ?: "Customer"
-                val customerPhone = jobArg?.customerPhone ?: stringArgs.getOrNull(7) ?: "+91 6265798340"
-
-                val dailyRate = jobArg?.dailyRate ?: numberArgs.firstOrNull { it >= 50 } ?: 600
-                val workersNeeded = jobArg?.workersNeeded ?: numberArgs.firstOrNull { it in 1..49 } ?: 1
-
+                val newJobId = System.currentTimeMillis()
                 val conn = (URL("$DATABASE_URL/jobs/job_$newJobId.json").openConnection() as HttpURLConnection).apply {
                     requestMethod = "PUT"
                     setRequestProperty("Content-Type", "application/json")
@@ -164,13 +159,30 @@ object FirebaseManager {
                     put("customerName", customerName)
                     put("customerPhone", customerPhone)
                     put("status", "OPEN")
-                    put("createdAt", System.currentTimeMillis())
+                    put("createdAt", newJobId)
                 }
                 OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
-                conn.responseCode
+                ok = conn.responseCode in 200..299
                 conn.disconnect()
             } catch (_: Exception) {}
+            withContext(Dispatchers.Main) { onSuccess(ok) }
         }
+    }
+
+    fun postJobToFirebase(job: JobPost, onSuccess: (Boolean) -> Unit = {}) {
+        postJobToFirebase(
+            title = job.title,
+            category = job.category,
+            description = job.description,
+            dailyRate = job.dailyRate,
+            location = job.location,
+            workersNeeded = job.workersNeeded,
+            urgency = job.urgency,
+            dateTime = job.dateTime,
+            customerName = job.customerName,
+            customerPhone = job.customerPhone,
+            onSuccess = onSuccess
+        )
     }
 
     fun logAdminAudit(adminIdentifier: String, action: String, target: String) {
