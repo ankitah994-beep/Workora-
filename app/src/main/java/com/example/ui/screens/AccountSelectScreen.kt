@@ -319,9 +319,6 @@ fun AccountSelectScreen(
     val loggedEmail = remember {
         authPrefs.getString("last_logged_in_email", "example@gmail.com") ?: "example@gmail.com"
     }
-    val isAdminAccount = remember {
-        authPrefs.getString("saved_user_role", "") == "ADMIN"
-    }
 
     if (isAdminPanelOpen) {
         AdminDashboardScreen(
@@ -525,25 +522,25 @@ fun AccountSelectScreen(
             }
         }
 
-        if (isAdminAccount) {
-            Spacer(modifier = Modifier.height(20.dp))
-            OutlinedButton(
-                onClick = { showAdminGateDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.2.dp, SelectNavy)
-            ) {
-                Icon(Icons.Default.Lock, contentDescription = null, tint = SelectNavy, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Open Admin Panel",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SelectNavy
-                )
-            }
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 3. Admin Panel Access Button (Protected by 6-Digit PIN + OTP)
+        OutlinedButton(
+            onClick = { showAdminGateDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.5.dp, SelectNavy)
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = SelectNavy, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Open Admin Panel (एडमिन पैनल)",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = SelectNavy
+            )
         }
     }
 
@@ -552,6 +549,7 @@ fun AccountSelectScreen(
             onDismiss = { showAdminGateDialog = false },
             onAdminVerifiedSuccess = {
                 showAdminGateDialog = false
+                authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
                 isAdminPanelOpen = true
                 onOpenAdmin()
                 Toast.makeText(context, "Admin Panel Unlocked ✓", Toast.LENGTH_SHORT).show()
