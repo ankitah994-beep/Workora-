@@ -53,7 +53,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.UserRole
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,14 +68,14 @@ private const val ADMIN_DB_URL = "https://workora-d8b51-default-rtdb.firebaseio.
 
 // =========================================================================
 // COMPLETE 16-SECTION HORIZONTAL PROFESSIONAL ADMIN PANEL
-// Matches exact parameter signatures in MainActivity.kt & AccountSelectScreen.kt
+// Matches exact (String) -> Unit signature in MainActivity.kt & AccountSelectScreen.kt
 // =========================================================================
 @Composable
 fun AdminDashboardScreen(
     adminEmail: String = "admin@workora.in",
     adminTier: String = "SUPER_ADMIN",
     onLogoutAdmin: () -> Unit = {},
-    onSwitchRoleFromAdmin: (UserRole) -> Unit = {},
+    onSwitchRoleFromAdmin: (String) -> Unit = {},
     onBack: () -> Unit = {},
     onSwitchToCustomer: () -> Unit = {},
     onSwitchToLabour: () -> Unit = {},
@@ -254,7 +253,7 @@ fun AdminDashboardScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(
                     onClick = {
-                        onSwitchRoleFromAdmin(UserRole.CUSTOMER)
+                        onSwitchRoleFromAdmin("CUSTOMER")
                         onSwitchToCustomer()
                     },
                     border = BorderStroke(1.dp, Color.White),
@@ -265,7 +264,7 @@ fun AdminDashboardScreen(
                 }
                 OutlinedButton(
                     onClick = {
-                        onSwitchRoleFromAdmin(UserRole.LABOUR)
+                        onSwitchRoleFromAdmin("LABOUR")
                         onSwitchToLabour()
                     },
                     border = BorderStroke(1.dp, brandOrange),
