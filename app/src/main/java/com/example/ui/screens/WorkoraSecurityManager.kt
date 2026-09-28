@@ -12,7 +12,6 @@ import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
-import javax.crypto.spec.SecretKeySpec
 
 object WorkoraSecurityManager {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
@@ -43,6 +42,11 @@ object WorkoraSecurityManager {
                 keyGen.generateKey()
             }
         } catch (_: Exception) {}
+    }
+
+    // Resolves 'Unresolved reference isStrongPassword' in LoginScreen.kt (Point 2)
+    fun isStrongPassword(password: String): Boolean {
+        return password.length >= 8 && password.any { it.isLetter() } && password.any { it.isDigit() }
     }
 
     // PBKDF2WithHmacSHA256 Cryptographic Password Hashing (Point 2)
@@ -80,7 +84,7 @@ object WorkoraSecurityManager {
         return diff == 0
     }
 
-    // Hardware-Encrypted Secret Storage (Point 4 - No hardcoded secrets)
+    // Hardware-Encrypted Secret Storage (Point 4)
     fun saveEncryptedSecret(context: Context, key: String, plainValue: String) {
         try {
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -151,7 +155,6 @@ object WorkoraSecurityManager {
             val editor = prefs.edit()
             editor.putInt("fail_count_$tag", count)
             if (count >= 5) {
-                // 15 Minutes lockout
                 editor.putLong("lock_until_$tag", System.currentTimeMillis() + (15 * 60 * 1000L))
             }
             editor.apply()
