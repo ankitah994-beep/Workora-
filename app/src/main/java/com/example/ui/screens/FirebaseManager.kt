@@ -83,13 +83,14 @@ data class WorkoraCloudChatMessage(
 object FirebaseManager {
     const val DATABASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
 
+    // Checks admin authorization from Firebase /admins node (No hardcoded personal email)
     fun checkIfEmailIsAdminOnCloud(
         email: String,
         onResult: (Boolean, String) -> Unit
     ) {
         val clean = email.trim().lowercase()
-        if (clean == "ankitah994@gmail.com" || clean.contains("ankitah994")) {
-            onResult(true, "SUPER_ADMIN")
+        if (clean.isBlank()) {
+            onResult(false, "NONE")
             return
         }
         CoroutineScope(Dispatchers.IO).launch {
@@ -101,7 +102,7 @@ object FirebaseManager {
                 conn.readTimeout = 4000
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                    if (resp.contains(clean)) {
+                    if (resp.isNotBlank() && resp != "null" && resp.lowercase().contains(clean)) {
                         isAdmin = true
                         tier = "SUPER_ADMIN"
                     }
@@ -120,7 +121,6 @@ object FirebaseManager {
         checkIfEmailIsAdminOnCloud(email, onResult)
     }
 
-    // Exact named-parameter signature matching MainActivity.kt lines 466-476
     fun postJobToFirebase(
         context: Context? = null,
         title: String = "Work Needed",
@@ -132,7 +132,7 @@ object FirebaseManager {
         urgency: String = "Immediate",
         dateTime: String = "9:00 AM - 6:00 PM",
         customerName: String = "Customer",
-        customerPhone: String = "+91 6265798340",
+        customerPhone: String = "",
         onSuccess: (Boolean) -> Unit = {}
     ) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -485,8 +485,8 @@ fun WorkoraLiveChatDialog(
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
 
-    val myName = remember { profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar" }
-    val myPhone = remember { profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340" }
+    val myName = remember { profilePrefs.getString("user_name", "Workora User") ?: "Workora User" }
+    val myPhone = remember { profilePrefs.getString("user_phone", "") ?: "" }
     val myRole = remember { authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER" }
     val myLocation = remember { profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)" }
 
@@ -509,12 +509,12 @@ fun WorkoraLiveChatDialog(
             WorkoraCloudChatMessage(
                 id = "welcome_msg",
                 senderName = "Workora Support",
-                senderPhone = "+91 6265798340",
+                senderPhone = "",
                 senderRole = "SUPPORT",
                 text = if (isHindi) {
-                    "नमस्ते $myName! Workora मैसेज में आपका स्वागत है। यहाँ से आप सीधे कारीगरों और ग्राहकों से लाइव चैट कर सकते हैं।"
+                    "नमस्ते! Workora मैसेज में आपका स्वागत है। यहाँ से आप सीधे कारीगरों और ग्राहकों से लाइव चैट कर सकते हैं।"
                 } else {
-                    "Welcome $myName to Workora Message! Chat directly with verified workers and customers."
+                    "Welcome to Workora Message! Chat directly with verified workers and customers."
                 },
                 timeLabel = "Live",
                 timestamp = 1L
@@ -726,7 +726,7 @@ fun WorkoraLiveChatDialog(
             OutlinedButton(
                 onClick = {
                     try {
-                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+916265798340")))
+                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:18001200000")))
                     } catch (_: Exception) {}
                 },
                 shape = RoundedCornerShape(10.dp),
@@ -734,7 +734,7 @@ fun WorkoraLiveChatDialog(
             ) {
                 Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(15.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isHindi) "सीधे कॉल करें" else "Direct Call", color = accentBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(if (isHindi) "सपोर्ट कॉल" else "Support Call", color = accentBlue, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     )
