@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -128,12 +129,13 @@ data class WorkoraLabourJobItem(
     val specialRequirement: String = "",
     val about: String = "",
     val customerName: String = "Customer",
-    val customerPhone: String = "+91 6265798340"
+    val customerPhone: String = "+91 6265798340",
+    val status: String = "OPEN"
 )
 
 data class WorkoraNotificationCardItem(
     val id: String,
-    val type: String, // "JOB" | "MESSAGE" | "SECURITY"
+    val type: String, // "JOB" | "MESSAGE" | "SYSTEM"
     val titleHi: String,
     val titleEn: String,
     val bodyHi: String,
@@ -144,8 +146,7 @@ data class WorkoraNotificationCardItem(
 )
 
 // =========================================================================
-// LIVE FIREBASE NOTIFICATION CENTER DIALOG (SHARED ACROSS ENTIRE APP)
-// Pulls real-time posted jobs (/jobs.json) & worker applications (/job_applications.json)
+// 4-TAB LIVE FIREBASE NOTIFICATION CENTER DIALOG (Point 11: All / Jobs / Messages / System)
 // =========================================================================
 @Composable
 fun WorkoraLiveNotificationCenterDialog(
@@ -165,8 +166,9 @@ fun WorkoraLiveNotificationCenterDialog(
     val greenTrusted = Color(0xFF22A06B)
     val isHindi = appLang == "Hindi"
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = All, 1 = Jobs, 2 = Messages
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 = All, 1 = Jobs, 2 = Messages, 3 = System
     var isSyncingCloud by remember { mutableStateOf(false) }
+    var showEmbeddedLiveChat by remember { mutableStateOf(false) }
 
     val notificationsList = remember(userLocation) {
         mutableStateListOf(
@@ -184,8 +186,8 @@ fun WorkoraLiveNotificationCenterDialog(
             WorkoraNotificationCardItem(
                 id = "n_default_msg",
                 type = "MESSAGE",
-                titleHi = "Workora मैसेज और हायरिंग अपडेट",
-                titleEn = "Workora Message & Hiring Update",
+                titleHi = "Workora मैसेज और बुकिंग अपडेट",
+                titleEn = "Workora Message & Booking Update",
                 bodyHi = "$userLocation के सत्यापित ग्राहक और कारीगर सीधे बात करने के लिए ऑनलाइन हैं।",
                 bodyEn = "Verified customers and workers in $userLocation are online for direct chat.",
                 timeHi = "सक्रिय",
@@ -193,14 +195,14 @@ fun WorkoraLiveNotificationCenterDialog(
                 isUnread = true
             ),
             WorkoraNotificationCardItem(
-                id = "n_default_sec",
-                type = "SECURITY",
-                titleHi = "प्रोफाइल और सुरक्षा सत्यापित ✓",
-                titleEn = "Profile & Security Verified ✓",
-                bodyHi = "आपका Workora अकाउंट रियल 6-डिजिट OTP और सुरक्षा शील्ड से 100% सुरक्षित है।",
-                bodyEn = "Your Workora account is 100% protected with Real 6-Digit OTP & Security Shield.",
-                timeHi = "आज",
-                timeEn = "Today",
+                id = "n_default_sys",
+                type = "SYSTEM",
+                titleHi = "PBKDF2 और OTP सुरक्षा शील्ड सक्रिय ✓",
+                titleEn = "PBKDF2 & OTP Security Shield Active ✓",
+                bodyHi = "आपका Workora अकाउंट 65,536-iteration PBKDF2 और रियल 6-डिजिट OTP से सुरक्षित है।",
+                bodyEn = "Your Workora account is protected with 65,536-iteration PBKDF2 & Real 6-Digit OTP.",
+                timeHi = "सिस्टम",
+                timeEn = "System",
                 isUnread = false
             )
         )
@@ -211,7 +213,6 @@ fun WorkoraLiveNotificationCenterDialog(
         CoroutineScope(Dispatchers.IO).launch {
             val cloudNotifications = mutableListOf<WorkoraNotificationCardItem>()
             try {
-                // 1. Fetch live posted jobs from Firebase /jobs.json
                 val jConn = URL("$LABOUR_DB_URL/jobs.json").openConnection() as HttpURLConnection
                 jConn.connectTimeout = 5000
                 jConn.readTimeout = 5000
@@ -235,8 +236,8 @@ fun WorkoraLiveNotificationCenterDialog(
                                     WorkoraNotificationCardItem(
                                         id = "fb_job_$k",
                                         type = "JOB",
-                                        titleHi = "नया काम: $title",
-                                        titleEn = "New Job: $title",
+                                        titleHi = "नया काम ($statusStr): $title",
+                                        titleEn = "Job ($statusStr): $title",
                                         bodyHi = "$cust ने $loc में $cat के काम के लिए पोस्ट किया (₹$rate/दिन)।",
                                         bodyEn = "$cust posted $cat work in $loc (₹$rate/day).",
                                         timeHi = "लाइव (Firebase)",
@@ -251,7 +252,6 @@ fun WorkoraLiveNotificationCenterDialog(
                 }
                 jConn.disconnect()
 
-                // 2. Fetch live worker applications from Firebase /job_applications.json
                 val aConn = URL("$LABOUR_DB_URL/job_applications.json").openConnection() as HttpURLConnection
                 aConn.connectTimeout = 5000
                 aConn.readTimeout = 5000
@@ -271,16 +271,16 @@ fun WorkoraLiveNotificationCenterDialog(
                                 val wName = appData.optString("workerName", "Worker")
                                 val jTitle = appData.optString("jobTitle", "Work")
                                 val wSkill = appData.optString("workerSkill", "Skilled")
-                                val wPhone = appData.optString("workerPhone", "")
+                                val status = appData.optString("status", "PENDING")
                                 cloudNotifications.add(
                                     0,
                                     WorkoraNotificationCardItem(
                                         id = "fb_app_${jk}_$ak",
                                         type = "MESSAGE",
-                                        titleHi = "$wName ने काम में रुचि दिखाई ✓",
-                                        titleEn = "$wName Applied for Job ✓",
-                                        bodyHi = "'$jTitle' ($wSkill) के लिए आवेदन प्राप्त हुआ। संपर्क: $wPhone",
-                                        bodyEn = "Interested in '$jTitle' ($wSkill). Contact: $wPhone",
+                                        titleHi = "$wName — आवेदन ($status)",
+                                        titleEn = "$wName — Application ($status)",
+                                        bodyHi = "'$jTitle' ($wSkill) पर अपडेट।",
+                                        bodyEn = "Update on '$jTitle' ($wSkill).",
                                         timeHi = "नया अलर्ट",
                                         timeEn = "New Alert",
                                         isUnread = true
@@ -292,16 +292,13 @@ fun WorkoraLiveNotificationCenterDialog(
                     }
                 }
                 aConn.disconnect()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
 
             withContext(Dispatchers.Main) {
                 isSyncingCloud = false
-                if (cloudNotifications.isNotEmpty()) {
-                    cloudNotifications.forEach { cn ->
-                        if (notificationsList.none { it.id == cn.id }) {
-                            notificationsList.add(0, cn)
-                        }
+                for (cn in cloudNotifications) {
+                    if (notificationsList.none { existing -> existing.id == cn.id }) {
+                        notificationsList.add(0, cn)
                     }
                 }
             }
@@ -312,13 +309,27 @@ fun WorkoraLiveNotificationCenterDialog(
         fetchLiveNotificationsFromFirebase()
     }
 
+    if (showEmbeddedLiveChat) {
+        WorkoraLiveChatDialog(
+            appLang = appLang,
+            onDismiss = {
+                showEmbeddedLiveChat = false
+                onDismiss()
+            }
+        )
+        return
+    }
+
     val filteredList = notificationsList.filter { item ->
         when (selectedTab) {
             1 -> item.type == "JOB"
             2 -> item.type == "MESSAGE"
+            3 -> item.type == "SYSTEM"
             else -> true
         }
     }
+
+    val unreadTotal = notificationsList.count { it.isUnread }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -350,8 +361,8 @@ fun WorkoraLiveNotificationCenterDialog(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = if (isHindi) "लाइव नोटिफिकेशन सेंटर" else "Live Notification Center",
-                            fontSize = 16.sp,
+                            text = if (isHindi) "नोटिफिकेशन ($unreadTotal नए)" else "Notifications ($unreadTotal Unread)",
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textDark
                         )
@@ -399,14 +410,16 @@ fun WorkoraLiveNotificationCenterDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // 4 Tabs: All | Jobs | Messages | System
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     listOf(
-                        0 to if (isHindi) "सभी (${notificationsList.size})" else "All (${notificationsList.size})",
-                        1 to if (isHindi) "काम (Jobs)" else "Jobs",
-                        2 to if (isHindi) "मैसेज" else "Messages"
+                        0 to if (isHindi) "सभी" else "All",
+                        1 to if (isHindi) "काम" else "Jobs",
+                        2 to if (isHindi) "मैसेज" else "Msgs",
+                        3 to if (isHindi) "सिस्टम" else "System"
                     ).forEach { (idx, tabTitle) ->
                         val active = selectedTab == idx
                         Button(
@@ -414,7 +427,7 @@ fun WorkoraLiveNotificationCenterDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (active) Color(0xFF083D91) else subtleBg
                             ),
@@ -438,7 +451,7 @@ fun WorkoraLiveNotificationCenterDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isHindi) "कोई नया नोटिफिकेशन नहीं है।" else "No new notifications.",
+                            text = if (isHindi) "कोई नया नोटिफिकेशन नहीं है।" else "No notifications in this tab.",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = textMuted
@@ -448,7 +461,7 @@ fun WorkoraLiveNotificationCenterDialog(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(260.dp)
+                            .height(250.dp)
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -459,6 +472,11 @@ fun WorkoraLiveNotificationCenterDialog(
                                 else -> greenTrusted
                             }
                             Card(
+                                onClick = {
+                                    if (item.type == "MESSAGE") {
+                                        showEmbeddedLiveChat = true
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = subtleBg),
@@ -523,8 +541,8 @@ fun WorkoraLiveNotificationCenterDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onDismiss()
                     onOpenChat()
+                    showEmbeddedLiveChat = true
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = brandOrange),
                 shape = RoundedCornerShape(10.dp)
@@ -799,19 +817,6 @@ private fun ExactLabourCategoryIconBox(category: String) {
                         size = Size(w * 0.18f, h * 0.36f),
                         cornerRadius = CornerRadius(4f, 4f)
                     )
-                    drawLine(
-                        color = Color(0xFF15803D),
-                        start = Offset(w * 0.32f, h * 0.25f),
-                        end = Offset(w * 0.52f, h * 0.25f),
-                        strokeWidth = w * 0.12f,
-                        cap = StrokeCap.Round
-                    )
-                    drawLine(
-                        color = Color(0xFF15803D),
-                        start = Offset(w * 0.42f, h * 0.25f),
-                        end = Offset(w * 0.42f, h * 0.42f),
-                        strokeWidth = w * 0.10f
-                    )
                 }
                 "Painter" -> {
                     drawRoundRect(
@@ -835,12 +840,6 @@ private fun ExactLabourCategoryIconBox(category: String) {
                         end = Offset(w * 0.64f, h * 0.34f),
                         strokeWidth = w * 0.12f,
                         cap = StrokeCap.Round
-                    )
-                    drawRoundRect(
-                        color = Color(0xFF5B21B6),
-                        topLeft = Offset(w * 0.42f, h * 0.18f),
-                        size = Size(w * 0.40f, h * 0.18f),
-                        cornerRadius = CornerRadius(4f, 4f)
                     )
                 }
                 else -> {
@@ -881,7 +880,6 @@ fun LabourDashboardScreen(
     val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
-    // Sync Global Theme Mode (Default = "System")
     LaunchedEffect(Unit) {
         WorkoraThemeManager.syncFromPrefs(context)
     }
@@ -899,7 +897,6 @@ fun LabourDashboardScreen(
     val greenTrusted = Color(0xFF22A06B)
     val redCancel = Color(0xFFB42318)
 
-    // Live Language Reader
     val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
     fun tr(hi: String, en: String): String = if (appLang == "Hindi") hi else en
 
@@ -916,12 +913,12 @@ fun LabourDashboardScreen(
     var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
+    var selectedCityScope by remember { mutableStateOf("All Cities") }
     var showLocationModal by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showLiveChatModal by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // 5-Icon Bottom Navigation State:
-    // 0 = 🏠 Home | 1 = 🔎 Find Jobs | 2 = ➕ Post Availability | 3 = 📋 My Work | 4 = 👤 Profile
     var bottomNavIndex by remember { mutableIntStateOf(0) }
 
     val appliedJobIds = remember {
@@ -931,12 +928,12 @@ fun LabourDashboardScreen(
 
     var viewingJobDetails by remember { mutableStateOf<WorkoraLabourJobItem?>(null) }
     var jobToCancelApplyConfirm by remember { mutableStateOf<WorkoraLabourJobItem?>(null) }
+    var jobToRateCustomer by remember { mutableStateOf<WorkoraLabourJobItem?>(null) }
 
     var isMyPostedAvailabilityActive by remember {
         mutableStateOf(settingsPrefs.getBoolean("available_today", true))
     }
 
-    // ==================== LABOUR - POST WORK AVAILABILITY (ALL 12 FIELDS) ====================
     var availWorkCategory by remember {
         mutableStateOf(profilePrefs.getString("user_skill", "Mason") ?: "Mason")
     }
@@ -989,7 +986,8 @@ fun LabourDashboardScreen(
                 specialRequirement = "Bring trowel & level tools",
                 about = "Near Main Market, Silwani",
                 customerName = "Ramesh Verma",
-                customerPhone = "+91 9876543210"
+                customerPhone = "+91 9876543210",
+                status = "OPEN"
             ),
             WorkoraLabourJobItem(
                 key = "job_sample_2",
@@ -1007,7 +1005,8 @@ fun LabourDashboardScreen(
                 specialRequirement = "Must have drill machine",
                 about = "Ward No. 5, Silwani",
                 customerPhone = "+91 9123456780",
-                customerName = "Suresh Yadav"
+                customerName = "Suresh Yadav",
+                status = "OPEN"
             ),
             WorkoraLabourJobItem(
                 key = "job_sample_3",
@@ -1025,7 +1024,8 @@ fun LabourDashboardScreen(
                 specialRequirement = "CPVC pipe fitting experience",
                 about = "Bhopal Road, Silwani",
                 customerName = "Vikash Singh",
-                customerPhone = "+91 9654321098"
+                customerPhone = "+91 9654321098",
+                status = "OPEN"
             )
         )
     }
@@ -1033,26 +1033,6 @@ fun LabourDashboardScreen(
     fun loadCustomerPostedJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val bConn = URL("$LABOUR_DB_URL/app_branding.json").openConnection() as HttpURLConnection
-                if (bConn.responseCode in 200..299) {
-                    val bResp = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
-                    if (bResp.isNotBlank() && bResp != "null" && bResp.startsWith("{")) {
-                        val bObj = JSONObject(bResp)
-                        val cName = bObj.optString("app_name", liveAppName)
-                        val cTag = bObj.optString("app_tagline", liveAppTagline)
-                        brandingPrefs.edit().apply {
-                            putString("app_name", cName)
-                            putString("app_tagline", cTag)
-                            apply()
-                        }
-                        withContext(Dispatchers.Main) {
-                            liveAppName = cName
-                            liveAppTagline = cTag
-                        }
-                    }
-                }
-                bConn.disconnect()
-
                 val conn = URL("$LABOUR_DB_URL/jobs.json").openConnection() as HttpURLConnection
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
@@ -1083,15 +1063,17 @@ fun LabourDashboardScreen(
                                         specialRequirement = obj.optString("specialRequirement", ""),
                                         about = obj.optString("about", ""),
                                         customerName = obj.optString("customerName", "Customer"),
-                                        customerPhone = obj.optString("customerPhone", "+91 6265798340")
+                                        customerPhone = obj.optString("customerPhone", "+91 6265798340"),
+                                        status = statusStr
                                     )
                                 )
                             }
                         }
                         if (loaded.isNotEmpty()) {
                             withContext(Dispatchers.Main) {
-                                loaded.sortedByDescending { it.id }.forEach { cj ->
-                                    if (liveAvailableJobs.none { it.id == cj.id }) {
+                                val sorted = loaded.sortedByDescending { item -> item.id }
+                                for (cj in sorted) {
+                                    if (liveAvailableJobs.none { existing -> existing.id == cj.id }) {
                                         liveAvailableJobs.add(0, cj)
                                     }
                                 }
@@ -1100,8 +1082,7 @@ fun LabourDashboardScreen(
                     }
                 }
                 conn.disconnect()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -1118,7 +1099,14 @@ fun LabourDashboardScreen(
         val matchCat = selectedCategory.isNullOrBlank() ||
                 selectedCategory.equals("All", ignoreCase = true) ||
                 j.category.equals(selectedCategory, ignoreCase = true)
-        matchQuery && matchCat
+
+        val locTokens = currentRealLocation.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val matchCityScope = when (selectedCityScope) {
+            "My Area" -> locTokens.firstOrNull()?.let { j.location.contains(it, ignoreCase = true) } ?: true
+            "My District" -> locTokens.getOrNull(1)?.let { j.location.contains(it, ignoreCase = true) } ?: true
+            else -> true
+        }
+        matchQuery && matchCat && matchCityScope
     }
 
     fun applyToCustomerJob(job: WorkoraLabourJobItem) {
@@ -1146,23 +1134,23 @@ fun LabourDashboardScreen(
                     put("workerName", workerName)
                     put("workerPhone", workerPhone)
                     put("workerSkill", availWorkCategory)
-                    put("status", "INTERESTED")
+                    put("status", "PENDING")
                     put("timestamp", System.currentTimeMillis())
                 }
                 OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
                 conn.responseCode
                 conn.disconnect()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
         Toast.makeText(
             context,
-            tr("${job.customerName} को काम की रुचि भेजी गई ✓", "Applied / Interested sent to ${job.customerName}! ✓"),
+            tr("${job.customerName} को काम की रुचि भेजी गई ✓", "Application sent to ${job.customerName}! ✓"),
             Toast.LENGTH_LONG
         ).show()
     }
 
-    fun cancelAppliedJob(job: WorkoraLabourJobItem) {
+    // Soft Withdrawal (Point 6: Status = WITHDRAWN instead of permanent delete)
+    fun withdrawAppliedJob(job: WorkoraLabourJobItem, reason: String = "Withdrawn by Worker") {
         appliedJobIds.remove(job.id)
         profilePrefs.edit()
             .putStringSet("applied_job_ids", appliedJobIds.map { it.toString() }.toSet())
@@ -1174,19 +1162,24 @@ fun LabourDashboardScreen(
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appKey = "app_$cleanPhoneKey"
-                val delConn = (URL("$LABOUR_DB_URL/job_applications/${job.key}/$appKey.json").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "DELETE"
-                    connectTimeout = 5000
-                    readTimeout = 5000
+                val patchConn = (URL("$LABOUR_DB_URL/job_applications/${job.key}/$appKey.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PATCH"
+                    setRequestProperty("Content-Type", "application/json")
+                    doOutput = true
                 }
-                delConn.responseCode
-                delConn.disconnect()
-            } catch (_: Exception) {
-            }
+                val patchJson = JSONObject().apply {
+                    put("status", "WITHDRAWN")
+                    put("cancelReason", reason)
+                    put("withdrawnAt", System.currentTimeMillis())
+                }
+                OutputStreamWriter(patchConn.outputStream).use { it.write(patchJson.toString()) }
+                patchConn.responseCode
+                patchConn.disconnect()
+            } catch (_: Exception) {}
         }
         Toast.makeText(
             context,
-            tr("काम का आवेदन सफलतापूर्वक रद्द (Cancel) कर दिया गया ✓", "Job Application Cancelled Successfully ✓"),
+            tr("आवेदन वापस (Withdrawn) ले लिया गया ✓", "Application Withdrawn Successfully ✓"),
             Toast.LENGTH_SHORT
         ).show()
     }
@@ -1549,7 +1542,7 @@ fun LabourDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔎 FIND JOBS ====================
+                // ==================== 1: 🔎 FIND JOBS (WITH MULTI-CITY FILTERS) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1586,41 +1579,32 @@ fun LabourDashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Card(
-                            onClick = { showLocationModal = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = cardColor),
-                            border = BorderStroke(1.dp, borderLight)
+                        // Multi-City Scope Filter Chips (Point 15)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = accentBlue,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                            listOf("All Cities", "My Area", "My District", "My State").forEach { scope ->
+                                val active = selectedCityScope == scope
+                                OutlinedButton(
+                                    onClick = { selectedCityScope = scope },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, if (active) brandOrange else borderLight),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (active) brandOrange.copy(alpha = 0.15f) else cardColor
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
                                     Text(
-                                        text = currentRealLocation,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = textDark
+                                        text = scope,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (active) brandOrange else textDark
                                     )
                                 }
-                                Text(
-                                    text = tr("बदलें", "Change"),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accentBlue
-                                )
                             }
                         }
 
@@ -1681,26 +1665,6 @@ fun LabourDashboardScreen(
                                     )
                                 }
                             }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = tr("${filteredJobs.size} काम मिले", "${filteredJobs.size} Jobs Found"),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = textDark
-                            )
-                            Text(
-                                text = tr("रिफ्रेश ↻", "Refresh ↻"),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = brandOrange,
-                                modifier = Modifier.clickable { loadCustomerPostedJobsFromFirebase() }
-                            )
                         }
 
                         filteredJobs.forEach { job ->
@@ -1816,7 +1780,6 @@ fun LabourDashboardScreen(
                                 onValueChange = { availSkills = it },
                                 textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("2. Skills (आप क्या-क्या काम जानते हैं)") },
-                                placeholder = { Text("e.g. Plastering, Brickwork, Tile Fitting") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp)
@@ -1827,92 +1790,10 @@ fun LabourDashboardScreen(
                                 onValueChange = { availExperience = it },
                                 textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("3. Experience (काम का अनुभव)") },
-                                placeholder = { Text("e.g. 5 Years Experience") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp)
                             )
-
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "4. Work Photos (${availWorkPhotos.size}/5 Uploaded)",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = textDark
-                                    )
-                                    if (availWorkPhotos.size < 5) {
-                                        Text(
-                                            text = "+ Add Photo",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = brandOrange,
-                                            modifier = Modifier.clickable {
-                                                workPhotoPicker.launch("image/*")
-                                            }
-                                        )
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    availWorkPhotos.forEachIndexed { idx, base64Pic ->
-                                        val bmp = remember(base64Pic) { decodeLabourBase64Photo(base64Pic) }
-                                        Box(
-                                            modifier = Modifier
-                                                .size(74.dp)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(subtleBgColor)
-                                        ) {
-                                            if (bmp != null) {
-                                                Image(
-                                                    bitmap = bmp,
-                                                    contentDescription = "Work Photo",
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(3.dp)
-                                                    .size(20.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color.Black.copy(alpha = 0.65f))
-                                                    .clickable { availWorkPhotos.removeAt(idx) },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(13.dp))
-                                            }
-                                        }
-                                    }
-
-                                    if (availWorkPhotos.size < 5) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(74.dp)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(brandOrange.copy(alpha = 0.15f))
-                                                .clickable { workPhotoPicker.launch("image/*") },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = brandOrange, modifier = Modifier.size(22.dp))
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text("Upload", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = brandOrange)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
 
                             LiveLocationAutoCompleteField(
                                 value = availWorkArea,
@@ -1923,42 +1804,8 @@ fun LabourDashboardScreen(
                                         profilePrefs.edit().putString("user_location", it).apply()
                                     }
                                 },
-                                label = "5. Work Area / Location (Live Auto-Suggest)"
+                                label = "4. Work Area / Location (Live Auto-Suggest)"
                             )
-
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    text = "6. Maximum Distance (कितनी दूर तक काम कर सकते हैं)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = textDark
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    listOf("5 KM", "10 KM", "15 KM", "25 KM").forEach { dist ->
-                                        val selected = availMaxDistance == dist
-                                        OutlinedButton(
-                                            onClick = { availMaxDistance = dist },
-                                            modifier = Modifier.weight(1f).height(36.dp),
-                                            shape = RoundedCornerShape(10.dp),
-                                            border = BorderStroke(1.dp, if (selected) brandOrange else borderLight),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (selected) brandOrange.copy(alpha = 0.15f) else cardColor
-                                            ),
-                                            contentPadding = PaddingValues(0.dp)
-                                        ) {
-                                            Text(
-                                                text = dist,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (selected) brandOrange else textDark
-                                            )
-                                        }
-                                    }
-                                }
-                            }
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1968,7 +1815,7 @@ fun LabourDashboardScreen(
                                     value = availDailyRate,
                                     onValueChange = { availDailyRate = it.filter { c -> c.isDigit() } },
                                     textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                    label = { Text("7. Daily Rate (₹/day)") },
+                                    label = { Text("5. Daily Rate (₹/day)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier.weight(1f),
@@ -1979,8 +1826,7 @@ fun LabourDashboardScreen(
                                     value = availFromDate,
                                     onValueChange = { availFromDate = it },
                                     textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                    label = { Text("8. Available From") },
-                                    placeholder = { Text("Today / Tomorrow") },
+                                    label = { Text("6. Available From") },
                                     singleLine = true,
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp)
@@ -1988,59 +1834,11 @@ fun LabourDashboardScreen(
                             }
 
                             OutlinedTextField(
-                                value = availDays,
-                                onValueChange = { availDays = it },
-                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                label = { Text("9. Available Days (किन दिनों में उपलब्ध हैं)") },
-                                placeholder = { Text("e.g. All 7 Days / Mon to Sat") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    text = "10. Team Size (अकेले या टीम के साथ)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = textDark
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    listOf("Individual (Akela)", "2–3 Workers", "5+ Team").forEach { tSize ->
-                                        val selected = availTeamSize == tSize
-                                        OutlinedButton(
-                                            onClick = { availTeamSize = tSize },
-                                            modifier = Modifier.weight(1f).height(38.dp),
-                                            shape = RoundedCornerShape(10.dp),
-                                            border = BorderStroke(1.dp, if (selected) accentBlue else borderLight),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (selected) accentBlue.copy(alpha = 0.15f) else cardColor
-                                            ),
-                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                        ) {
-                                            Text(
-                                                text = tSize,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (selected) accentBlue else textDark,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            OutlinedTextField(
                                 value = availShortDescription,
                                 onValueChange = { availShortDescription = it },
                                 textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                label = { Text("11. Short Description (अपने काम का विवरण)") },
-                                placeholder = { Text("Tell customers about your work quality and tools...") },
-                                minLines = 3,
+                                label = { Text("7. Short Description (अपने काम का विवरण)") },
+                                minLines = 2,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp)
                             )
@@ -2051,8 +1849,6 @@ fun LabourDashboardScreen(
                                     val workerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
                                     val rateInt = availDailyRate.toIntOrNull() ?: 600
                                     val finalArea = availWorkArea.trim().ifBlank { currentRealLocation }
-                                    val profilePic = availWorkPhotos.firstOrNull()
-                                        ?: (profilePrefs.getString("profile_photo_base64", "") ?: "")
 
                                     currentRealLocation = finalArea
                                     isMyPostedAvailabilityActive = true
@@ -2086,7 +1882,6 @@ fun LabourDashboardScreen(
                                                 put("teamSize", availTeamSize)
                                                 put("description", availShortDescription.trim().ifBlank { "Verified $availWorkCategory ($availExperience)" })
                                                 put("phone", workerPhone)
-                                                put("photoBase64", profilePic)
                                                 put("rating", 4.9)
                                                 put("reviewsCount", 14)
                                                 put("distanceKm", 2)
@@ -2097,15 +1892,14 @@ fun LabourDashboardScreen(
                                             OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
                                             conn.responseCode
                                             conn.disconnect()
-                                        } catch (_: Exception) {
-                                        }
+                                        } catch (_: Exception) {}
 
                                         withContext(Dispatchers.Main) {
                                             isPostingAvailability = false
                                             bottomNavIndex = 3
                                             Toast.makeText(
                                                 context,
-                                                "Availability Posted Live! Customers can now view & hire you ✓",
+                                                "Availability Posted Live! ✓",
                                                 Toast.LENGTH_LONG
                                             ).show()
                                         }
@@ -2124,7 +1918,7 @@ fun LabourDashboardScreen(
                                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = tr("12. उपलब्धता पोस्ट करें ✓", "12. Post Availability ✓"),
+                                        text = tr("उपलब्धता पोस्ट करें ✓", "Post Availability ✓"),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color.White
@@ -2137,7 +1931,7 @@ fun LabourDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY WORK (WITH CANCEL APPLY & AVAILABILITY CONTROL) ====================
+                // ==================== 3: 📋 MY WORK ====================
                 val myAppliedJobs = liveAvailableJobs.filter { appliedJobIds.contains(it.id) }
 
                 Column(
@@ -2167,8 +1961,8 @@ fun LabourDashboardScreen(
                             )
                             Text(
                                 text = tr(
-                                    "अपनी उपलब्धता और अप्लाई किए गए काम मैनेज या रद्द करें",
-                                    "Manage or cancel your availability & applied jobs"
+                                    "अपनी उपलब्धता, बुकिंग और रेटिंग मैनेज करें",
+                                    "Manage your availability, applications & ratings"
                                 ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
@@ -2217,7 +2011,7 @@ fun LabourDashboardScreen(
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = if (isMyPostedAvailabilityActive) tr("सक्रिय", "ACTIVE") else tr("बंद (PAUSED)", "PAUSED"),
+                                            text = if (isMyPostedAvailabilityActive) tr("सक्रिय", "ACTIVE") else tr("रोका गया", "PAUSED"),
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = if (isMyPostedAvailabilityActive) greenTrusted else redCancel
@@ -2231,7 +2025,7 @@ fun LabourDashboardScreen(
                                     color = textDark
                                 )
                                 Text(
-                                    text = "📍 $availWorkArea (Max $availMaxDistance) • $availTeamSize",
+                                    text = "📍 $availWorkArea (Max $availMaxDistance)",
                                     fontSize = 12.sp,
                                     color = textMuted
                                 )
@@ -2263,15 +2057,6 @@ fun LabourDashboardScreen(
                                             settingsPrefs.edit()
                                                 .putBoolean("available_today", isMyPostedAvailabilityActive)
                                                 .apply()
-                                            Toast.makeText(
-                                                context,
-                                                if (isMyPostedAvailabilityActive) {
-                                                    tr("उपलब्धता फिर से चालू कर दी गई ✓", "Availability Activated ✓")
-                                                } else {
-                                                    tr("उपलब्धता रोक / रद्द कर दी गई ✓", "Availability Paused / Cancelled ✓")
-                                                },
-                                                Toast.LENGTH_SHORT
-                                            ).show()
                                         },
                                         modifier = Modifier
                                             .weight(1f)
@@ -2284,7 +2069,7 @@ fun LabourDashboardScreen(
                                     ) {
                                         Text(
                                             text = if (isMyPostedAvailabilityActive) {
-                                                tr("उपलब्धता रद्द करें ✕", "Cancel / Pause ✕")
+                                                tr("उपलब्धता रोकें ✕", "Pause ✕")
                                             } else {
                                                 tr("चालू करें ✓", "Activate ✓")
                                             },
@@ -2298,56 +2083,29 @@ fun LabourDashboardScreen(
                         }
 
                         Text(
-                            text = tr("अप्लाई किए गए काम (${myAppliedJobs.size})", "Applied / Interested Jobs (${myAppliedJobs.size})"),
+                            text = tr("अप्लाई किए गए काम (${myAppliedJobs.size})", "Applied / Active Jobs (${myAppliedJobs.size})"),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textDark
                         )
 
-                        if (myAppliedJobs.isEmpty()) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = cardColor),
-                                border = BorderStroke(1.dp, borderLight)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = tr("अभी तक किसी काम के लिए अप्लाई नहीं किया है।", "No applied jobs yet."),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = textDark
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = { bottomNavIndex = 1 },
-                                        colors = ButtonDefaults.buttonColors(containerColor = deepNavy)
-                                    ) {
-                                        Text(tr("पास के काम खोजें", "Find Jobs Near You"), color = Color.White, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        } else {
-                            myAppliedJobs.forEach { job ->
-                                LabourJobActionCard(
-                                    job = job,
-                                    appLang = appLang,
-                                    cardColor = cardColor,
-                                    borderColor = borderLight,
-                                    textDark = textDark,
-                                    textMuted = textMuted,
-                                    accentBlue = accentBlue,
-                                    isApplied = true,
-                                    onViewDetails = { viewingJobDetails = job },
-                                    onApplyClick = { onOpenChat() },
-                                    onCancelApplyClick = { jobToCancelApplyConfirm = job }
-                                )
-                            }
+                        myAppliedJobs.forEach { job ->
+                            LabourJobActionCard(
+                                job = job,
+                                appLang = appLang,
+                                cardColor = cardColor,
+                                borderColor = borderLight,
+                                textDark = textDark,
+                                textMuted = textMuted,
+                                accentBlue = accentBlue,
+                                isApplied = true,
+                                onViewDetails = { jobToRateCustomer = job },
+                                onApplyClick = {
+                                    onOpenChat()
+                                    showLiveChatModal = true
+                                },
+                                onCancelApplyClick = { jobToCancelApplyConfirm = job }
+                            )
                         }
                     }
                 }
@@ -2357,7 +2115,10 @@ fun LabourDashboardScreen(
         // Floating Workora Message Pill Button
         if (bottomNavIndex != 2) {
             Button(
-                onClick = onOpenChat,
+                onClick = {
+                    onOpenChat()
+                    showLiveChatModal = true
+                },
                 shape = RoundedCornerShape(28.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = deepNavy),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
@@ -2526,40 +2287,124 @@ fun LabourDashboardScreen(
         }
     }
 
-    // Confirmation Dialog for Cancelling an Applied Job
+    if (showLiveChatModal) {
+        WorkoraLiveChatDialog(
+            appLang = appLang,
+            onDismiss = { showLiveChatModal = false }
+        )
+    }
+
+    // Labour -> Customer 1-5 Star Rating Dialog (Point 10)
+    if (jobToRateCustomer != null) {
+        val targetJob = jobToRateCustomer!!
+        var stars by remember { mutableIntStateOf(5) }
+        var reviewComment by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { jobToRateCustomer = null },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = "⭐ Rate Customer (${targetJob.customerName})",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accentBlue
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (1..5).forEach { s ->
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "$s Stars",
+                                tint = if (s <= stars) Color(0xFFF59E0B) else textMuted,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clickable { stars = s }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reviewComment,
+                        onValueChange = { reviewComment = it },
+                        label = { Text("Write feedback about customer") },
+                        textStyle = TextStyle(color = textDark, fontSize = 13.sp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val myName = profilePrefs.getString("user_name", "Worker") ?: "Worker"
+                        val myPhone = profilePrefs.getString("user_phone", "") ?: ""
+                        FirebaseManager.submitReview(
+                            bookingId = targetJob.key,
+                            reviewerPhone = myPhone,
+                            reviewerName = myName,
+                            targetPhone = targetJob.customerPhone,
+                            rating = stars,
+                            comment = reviewComment.trim()
+                        ) {
+                            jobToRateCustomer = null
+                            Toast.makeText(context, "Customer Rated $stars ★ ✓", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
+                ) {
+                    Text("Submit Rating")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { jobToRateCustomer = null }) { Text("Close") }
+            }
+        )
+    }
+
+    // Withdraw Application Confirmation with Reason (Point 6)
     if (jobToCancelApplyConfirm != null) {
         val targetJob = jobToCancelApplyConfirm!!
+        var withdrawReason by remember { mutableStateOf("Found another work / Schedule change") }
+
         AlertDialog(
             onDismissRequest = { jobToCancelApplyConfirm = null },
             containerColor = cardColor,
             title = {
                 Text(
-                    text = tr("आवेदन रद्द (Cancel) करें?", "Cancel Job Application?"),
+                    text = tr("आवेदन वापस (Withdraw) लें?", "Withdraw Job Application?"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = redCancel
                 )
             },
             text = {
-                Text(
-                    text = tr(
-                        "क्या आप वाकई '${targetJob.title}' के लिए अपना आवेदन रद्द (Cancel) करना चाहते हैं?",
-                        "Are you sure you want to cancel your application for '${targetJob.title}'?"
-                    ),
-                    fontSize = 13.sp,
-                    color = textDark
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Your application for '${targetJob.title}' will be marked as WITHDRAWN in history.",
+                        fontSize = 13.sp,
+                        color = textDark
+                    )
+                    OutlinedTextField(
+                        value = withdrawReason,
+                        onValueChange = { withdrawReason = it },
+                        label = { Text("Reason for withdrawal") },
+                        textStyle = TextStyle(color = textDark, fontSize = 13.sp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        cancelAppliedJob(targetJob)
+                        withdrawAppliedJob(targetJob, withdrawReason.trim())
                         jobToCancelApplyConfirm = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = redCancel)
                 ) {
                     Text(
-                        text = tr("हाँ, रद्द करें ✕", "Yes, Cancel ✕"),
+                        text = tr("हाँ, वापस लें ✕", "Confirm Withdraw ✕"),
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
@@ -2578,7 +2423,10 @@ fun LabourDashboardScreen(
             userLocation = currentRealLocation,
             appLang = appLang,
             onDismiss = { showNotificationsDialog = false },
-            onOpenChat = onOpenChat
+            onOpenChat = {
+                onOpenChat()
+                showLiveChatModal = true
+            }
         )
     }
 
@@ -2609,12 +2457,6 @@ fun LabourDashboardScreen(
                     Text("• Location: ${j.location}", fontSize = 12.sp, color = textDark, fontWeight = FontWeight.SemiBold)
                     Text("• Preferred Date: ${j.preferredDate} (${j.numberOfDays} Days)", fontSize = 12.sp, color = textDark)
                     Text("• Workers Needed: ${j.workersNeeded} Worker(s) • Time: ${j.workTime}", fontSize = 12.sp, color = textDark)
-                    if (j.specialRequirement.isNotBlank()) {
-                        Text("• Special Requirement: ${j.specialRequirement}", fontSize = 12.sp, color = brandOrange, fontWeight = FontWeight.Bold)
-                    }
-                    if (j.about.isNotBlank()) {
-                        Text("• About Site: ${j.about}", fontSize = 12.sp, color = textMuted)
-                    }
                     Text("• Work Details: ${j.description}", fontSize = 12.sp, color = textMuted)
                 }
             },
@@ -2628,7 +2470,7 @@ fun LabourDashboardScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = redCancel)
                     ) {
                         Text(
-                            text = tr("अप्लाई रद्द करें ✕", "Cancel Apply ✕"),
+                            text = tr("अप्लाई रद्द करें ✕", "Withdraw Apply ✕"),
                             color = Color.White,
                             fontWeight = FontWeight.Bold
                         )
@@ -2654,8 +2496,7 @@ fun LabourDashboardScreen(
                     onClick = {
                         try {
                             context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${j.customerPhone}")))
-                        } catch (_: Exception) {
-                        }
+                        } catch (_: Exception) {}
                     }
                 ) {
                     Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
@@ -2803,7 +2644,7 @@ private fun LabourJobActionCard(
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
                         Text(
-                            text = if (isHindi) "जानकारी" else "View Details",
+                            text = if (isHindi) "रेटिंग ★" else "Rate ★",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = accentBlue,
@@ -2821,7 +2662,7 @@ private fun LabourJobActionCard(
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
                         Text(
-                            text = if (isHindi) "अप्लाई ✓" else "Applied ✓",
+                            text = if (isHindi) "मैसेज ✓" else "Message ✓",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
@@ -2839,7 +2680,7 @@ private fun LabourJobActionCard(
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
                         Text(
-                            text = if (isHindi) "रद्द करें ✕" else "Cancel Apply ✕",
+                            text = if (isHindi) "वापस लें ✕" else "Withdraw ✕",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
