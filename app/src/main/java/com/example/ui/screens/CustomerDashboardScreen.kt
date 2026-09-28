@@ -127,7 +127,7 @@ data class ExactWorkerItem(
     val availableDays: String = "All Days",
     val teamSize: String = "Individual (1 Worker)",
     val shortDescription: String = "Experienced and verified professional worker.",
-    val phone: String = "+91 9876543210",
+    val phone: String = "",
     val photoBase64: String = "",
     val shirtColor: Color = Color(0xFF083D91)
 )
@@ -145,7 +145,9 @@ data class CustomerMyJobEntry(
     val numberOfDays: String,
     val workersNeeded: Int,
     val workTime: String,
-    val status: String
+    val status: String, // OPEN | BOOKED | IN_PROGRESS | COMPLETED | CANCELLED
+    val cancelReason: String = "",
+    val workerPhone: String = ""
 )
 
 private fun decodeWorkerPhoto(base64Str: String): ImageBitmap? {
@@ -271,39 +273,11 @@ private fun ExactBannerWorkerGraphic(size: Dp = 105.dp) {
             size = Size(w * 0.38f, h * 0.34f),
             cornerRadius = CornerRadius(w * 0.05f, w * 0.05f)
         )
-        drawRect(
-            color = Color(0xFF0F172A),
-            topLeft = Offset(w * 0.36f, h * 0.52f),
-            size = Size(w * 0.06f, h * 0.10f)
-        )
-        drawRect(
-            color = Color(0xFF0F172A),
-            topLeft = Offset(w * 0.64f, h * 0.52f),
-            size = Size(w * 0.06f, h * 0.10f)
-        )
 
-        drawRoundRect(
-            color = Color(0xFFFDBA74),
-            topLeft = Offset(w * 0.46f, h * 0.44f),
-            size = Size(w * 0.14f, h * 0.12f),
-            cornerRadius = CornerRadius(8f, 8f)
-        )
         drawCircle(
             color = Color(0xFFFED7AA),
             radius = w * 0.16f,
             center = Offset(w * 0.53f, h * 0.34f)
-        )
-
-        drawCircle(color = Color(0xFF1E293B), radius = w * 0.018f, center = Offset(w * 0.48f, h * 0.33f))
-        drawCircle(color = Color(0xFF1E293B), radius = w * 0.018f, center = Offset(w * 0.58f, h * 0.33f))
-        drawArc(
-            color = Color(0xFF1E293B),
-            startAngle = 20f,
-            sweepAngle = 140f,
-            useCenter = false,
-            topLeft = Offset(w * 0.48f, h * 0.35f),
-            size = Size(w * 0.10f, h * 0.06f),
-            style = Stroke(width = 3f, cap = StrokeCap.Round)
         )
 
         val helmetPath = Path().apply {
@@ -351,13 +325,6 @@ private fun ExactCategoryIconBox(category: String) {
                         close()
                     }
                     drawPath(blade, color = Color(0xFF083D91))
-                    drawLine(
-                        color = Color(0xFF083D91),
-                        start = Offset(w * 0.42f, h * 0.58f),
-                        end = Offset(w * 0.20f, h * 0.80f),
-                        strokeWidth = w * 0.12f,
-                        cap = StrokeCap.Round
-                    )
                 }
                 "Electrician" -> {
                     val bolt = Path().apply {
@@ -378,25 +345,6 @@ private fun ExactCategoryIconBox(category: String) {
                         size = Size(w * 0.55f, h * 0.18f),
                         cornerRadius = CornerRadius(4f, 4f)
                     )
-                    drawRoundRect(
-                        color = Color(0xFF16A34A),
-                        topLeft = Offset(w * 0.58f, h * 0.42f),
-                        size = Size(w * 0.18f, h * 0.36f),
-                        cornerRadius = CornerRadius(4f, 4f)
-                    )
-                    drawLine(
-                        color = Color(0xFF15803D),
-                        start = Offset(w * 0.32f, h * 0.25f),
-                        end = Offset(w * 0.52f, h * 0.25f),
-                        strokeWidth = w * 0.12f,
-                        cap = StrokeCap.Round
-                    )
-                    drawLine(
-                        color = Color(0xFF15803D),
-                        start = Offset(w * 0.42f, h * 0.25f),
-                        end = Offset(w * 0.42f, h * 0.42f),
-                        strokeWidth = w * 0.10f
-                    )
                 }
                 "Painter" -> {
                     drawRoundRect(
@@ -404,13 +352,6 @@ private fun ExactCategoryIconBox(category: String) {
                         topLeft = Offset(w * 0.20f, h * 0.18f),
                         size = Size(w * 0.56f, h * 0.24f),
                         cornerRadius = CornerRadius(6f, 6f)
-                    )
-                    drawLine(
-                        color = Color(0xFF991B1B),
-                        start = Offset(w * 0.48f, h * 0.42f),
-                        end = Offset(w * 0.48f, h * 0.84f),
-                        strokeWidth = w * 0.12f,
-                        cap = StrokeCap.Round
                     )
                 }
                 "Carpenter" -> {
@@ -420,12 +361,6 @@ private fun ExactCategoryIconBox(category: String) {
                         end = Offset(w * 0.64f, h * 0.34f),
                         strokeWidth = w * 0.12f,
                         cap = StrokeCap.Round
-                    )
-                    drawRoundRect(
-                        color = Color(0xFF5B21B6),
-                        topLeft = Offset(w * 0.42f, h * 0.18f),
-                        size = Size(w * 0.40f, h * 0.18f),
-                        cornerRadius = CornerRadius(4f, 4f)
                     )
                 }
                 else -> {
@@ -466,7 +401,6 @@ private fun ExactWorkerAvatar(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = this.size.width
                 val h = this.size.height
-
                 drawArc(
                     color = shirtColor,
                     startAngle = 180f,
@@ -474,11 +408,6 @@ private fun ExactWorkerAvatar(
                     useCenter = true,
                     topLeft = Offset(w * 0.14f, h * 0.62f),
                     size = Size(w * 0.72f, h * 0.54f)
-                )
-                drawRect(
-                    color = Color(0xFFE0A96D),
-                    topLeft = Offset(w * 0.42f, h * 0.52f),
-                    size = Size(w * 0.16f, h * 0.14f)
                 )
                 drawCircle(
                     color = Color(0xFFF1C27D),
@@ -493,15 +422,6 @@ private fun ExactWorkerAvatar(
                         useCenter = true,
                         topLeft = Offset(w * 0.28f, h * 0.14f),
                         size = Size(w * 0.44f, h * 0.32f)
-                    )
-                } else {
-                    drawArc(
-                        color = Color(0xFF1E293B),
-                        startAngle = 180f,
-                        sweepAngle = 180f,
-                        useCenter = true,
-                        topLeft = Offset(w * 0.30f, h * 0.17f),
-                        size = Size(w * 0.40f, h * 0.26f)
                     )
                 }
             }
@@ -547,7 +467,6 @@ fun CustomerDashboardScreen(
     val brandingPrefs = remember { context.getSharedPreferences("workora_app_branding", Context.MODE_PRIVATE) }
     val settingsPrefs = remember { context.getSharedPreferences("workora_app_settings", Context.MODE_PRIVATE) }
 
-    // Sync Global Theme Mode (Default = "System")
     LaunchedEffect(Unit) {
         WorkoraThemeManager.syncFromPrefs(context)
     }
@@ -565,7 +484,6 @@ fun CustomerDashboardScreen(
     val greenTrusted = Color(0xFF22A06B)
     val redCancel = Color(0xFFB42318)
 
-    // Live Language Reader
     val appLang = settingsPrefs.getString("app_language", "English") ?: "English"
     fun tr(hi: String, en: String): String = if (appLang == "Hindi") hi else en
 
@@ -588,23 +506,18 @@ fun CustomerDashboardScreen(
     var currentRealLocation by remember {
         mutableStateOf(profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)")
     }
+    var selectedCityScope by remember { mutableStateOf("All Cities") }
     var showLocationModal by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
     var showLiveChatModal by remember { mutableStateOf(false) }
 
-    // 5-Icon Bottom Navigation State:
-    // 0 = 🏠 Home | 1 = 🔍 Find Workers | 2 = ➕ Post Job | 3 = 📋 My Jobs | 4 = 👤 Profile
     var bottomNavIndex by remember { mutableIntStateOf(0) }
 
     var viewingWorkerProfile by remember { mutableStateOf<ExactWorkerItem?>(null) }
     var jobToCancelConfirm by remember { mutableStateOf<CustomerMyJobEntry?>(null) }
+    var jobToRateWorker by remember { mutableStateOf<CustomerMyJobEntry?>(null) }
 
-    val cancelledJobIds = remember {
-        val saved = profilePrefs.getStringSet("cancelled_customer_job_ids", emptySet()) ?: emptySet()
-        mutableStateListOf<Long>().apply { addAll(saved.mapNotNull { it.toLongOrNull() }) }
-    }
-
-    // ==================== CUSTOMER - POST A JOB (ALL 13 FIELDS) ====================
+    // ==================== CUSTOMER - POST A JOB FIELDS ====================
     var jobWorkName by remember { mutableStateOf("") }
     var jobCategory by remember { mutableStateOf("Mason") }
     var jobDescription by remember { mutableStateOf("") }
@@ -640,38 +553,67 @@ fun CustomerDashboardScreen(
                 numberOfDays = "3",
                 workersNeeded = 2,
                 workTime = "9:00 AM – 6:00 PM",
-                status = "ACTIVE"
+                status = "OPEN"
             )
-        ).apply {
-            removeAll { cancelledJobIds.contains(it.id) }
-        }
+        )
     }
 
-    fun cancelCustomerJobOrHire(targetJob: CustomerMyJobEntry) {
-        myPostedJobsList.removeAll { it.id == targetJob.id || it.key == targetJob.key }
-        if (!cancelledJobIds.contains(targetJob.id)) {
-            cancelledJobIds.add(targetJob.id)
-            profilePrefs.edit()
-                .putStringSet("cancelled_customer_job_ids", cancelledJobIds.map { it.toString() }.toSet())
-                .apply()
+    // Point 6: Soft Cancellation (Do NOT delete from database; save status=CANCELLED, cancelReason, cancelledAt)
+    fun softCancelCustomerJob(targetJob: CustomerMyJobEntry, reason: String) {
+        val idx = myPostedJobsList.indexOfFirst { it.id == targetJob.id || it.key == targetJob.key }
+        if (idx >= 0) {
+            myPostedJobsList[idx] = targetJob.copy(status = "CANCELLED", cancelReason = reason)
         }
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val delConn = (URL("$CUSTOMER_DB_URL/jobs/${targetJob.key}.json").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "DELETE"
+                val patchConn = (URL("$CUSTOMER_DB_URL/jobs/${targetJob.key}.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PATCH"
+                    setRequestProperty("Content-Type", "application/json")
                     connectTimeout = 5000
                     readTimeout = 5000
+                    doOutput = true
                 }
-                delConn.responseCode
-                delConn.disconnect()
-            } catch (_: Exception) {
-            }
+                val patchJson = JSONObject().apply {
+                    put("status", "CANCELLED")
+                    put("cancelReason", reason)
+                    put("cancelledAt", System.currentTimeMillis())
+                }
+                OutputStreamWriter(patchConn.outputStream).use { it.write(patchJson.toString()) }
+                patchConn.responseCode
+                patchConn.disconnect()
+            } catch (_: Exception) {}
         }
         Toast.makeText(
             context,
-            tr("काम / हायरिंग सफलतापूर्वक रद्द (Cancel) कर दी गई ✓", "Job / Hiring Cancelled Successfully ✓"),
+            tr("काम रद्द (CANCELLED) कर दिया गया और हिस्ट्री में सेव है ✓", "Job marked CANCELLED & saved in history ✓"),
             Toast.LENGTH_SHORT
         ).show()
+    }
+
+    // Point 5 & 10: Mark Job Completed & Open 1-5 Star Rating Popup
+    fun markCustomerJobCompleted(targetJob: CustomerMyJobEntry) {
+        val idx = myPostedJobsList.indexOfFirst { it.id == targetJob.id || it.key == targetJob.key }
+        if (idx >= 0) {
+            myPostedJobsList[idx] = targetJob.copy(status = "COMPLETED")
+        }
+        onCompleteJob(targetJob.id)
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val patchConn = (URL("$CUSTOMER_DB_URL/jobs/${targetJob.key}.json").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PATCH"
+                    setRequestProperty("Content-Type", "application/json")
+                    doOutput = true
+                }
+                val patchJson = JSONObject().apply {
+                    put("status", "COMPLETED")
+                    put("completedAt", System.currentTimeMillis())
+                }
+                OutputStreamWriter(patchConn.outputStream).use { it.write(patchJson.toString()) }
+                patchConn.responseCode
+                patchConn.disconnect()
+            } catch (_: Exception) {}
+        }
+        jobToRateWorker = targetJob.copy(status = "COMPLETED")
     }
 
     val jobPhotoPicker = rememberLauncherForActivityResult(
@@ -705,7 +647,7 @@ fun CustomerDashboardScreen(
                 availableDays = "All 7 Days",
                 teamSize = "Team of 3 Workers",
                 shortDescription = "Expert Rajmistri for house construction, plastering and tile work.",
-                phone = "+91 9876543210",
+                phone = "+91 9876500001",
                 shirtColor = Color(0xFF083D91)
             ),
             ExactWorkerItem(
@@ -725,7 +667,7 @@ fun CustomerDashboardScreen(
                 availableDays = "Mon – Sat",
                 teamSize = "Individual (1 Worker)",
                 shortDescription = "Complete domestic & shop wiring, MCB box and ceiling fan fitting.",
-                phone = "+91 9123456780",
+                phone = "+91 9876500002",
                 shirtColor = Color(0xFF334155)
             ),
             ExactWorkerItem(
@@ -745,7 +687,7 @@ fun CustomerDashboardScreen(
                 availableDays = "All Days",
                 teamSize = "Individual (1 Worker)",
                 shortDescription = "Fast bathroom fitting, pipeline leakage repair and tank installation.",
-                phone = "+91 9988776655",
+                phone = "+91 9876500003",
                 shirtColor = Color(0xFF0F766E)
             )
         )
@@ -754,32 +696,6 @@ fun CustomerDashboardScreen(
     fun loadLiveWorkersAndMyJobsFromFirebase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val bConn = URL("$CUSTOMER_DB_URL/app_branding.json").openConnection() as HttpURLConnection
-                if (bConn.responseCode in 200..299) {
-                    val bResp = BufferedReader(InputStreamReader(bConn.inputStream)).use { it.readText() }
-                    if (bResp.isNotBlank() && bResp != "null" && bResp.startsWith("{")) {
-                        val bObj = JSONObject(bResp)
-                        val cName = bObj.optString("app_name", liveAppName)
-                        val cTag = bObj.optString("app_tagline", liveAppTagline)
-                        val cHead = bObj.optString("banner_text", liveBannerHeading)
-                        val cSub = bObj.optString("banner_subtext", liveBannerSubtext)
-                        brandingPrefs.edit().apply {
-                            putString("app_name", cName)
-                            putString("app_tagline", cTag)
-                            putString("banner_text", cHead)
-                            putString("banner_subtext", cSub)
-                            apply()
-                        }
-                        withContext(Dispatchers.Main) {
-                            liveAppName = cName
-                            liveAppTagline = cTag
-                            liveBannerHeading = cHead
-                            liveBannerSubtext = cSub
-                        }
-                    }
-                }
-                bConn.disconnect()
-
                 val conn = URL("$CUSTOMER_DB_URL/workers.json").openConnection() as HttpURLConnection
                 if (conn.responseCode in 200..299) {
                     val resp = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
@@ -810,7 +726,7 @@ fun CustomerDashboardScreen(
                                         availableDays = obj.optString("availableDays", "All Days"),
                                         teamSize = obj.optString("teamSize", "Individual"),
                                         shortDescription = obj.optString("description", "Verified Workora professional."),
-                                        phone = obj.optString("phone", "+91 9876543210"),
+                                        phone = obj.optString("phone", ""),
                                         photoBase64 = obj.optString("photoBase64", ""),
                                         shirtColor = deepNavy
                                     )
@@ -819,8 +735,8 @@ fun CustomerDashboardScreen(
                         }
                         if (cloudList.isNotEmpty()) {
                             withContext(Dispatchers.Main) {
-                                cloudList.forEach { cw ->
-                                    if (exactWorkers.none { it.name.equals(cw.name, ignoreCase = true) }) {
+                                for (cw in cloudList) {
+                                    if (exactWorkers.none { existing -> existing.name.equals(cw.name, ignoreCase = true) }) {
                                         exactWorkers.add(0, cw)
                                     }
                                 }
@@ -842,8 +758,8 @@ fun CustomerDashboardScreen(
                             val obj = root.optJSONObject(k) ?: continue
                             val title = obj.optString("title", "")
                             val jobId = obj.optLong("id", System.currentTimeMillis())
-                            val statusStr = obj.optString("status", "ACTIVE")
-                            if (title.isNotBlank() && statusStr != "CANCELLED" && !cancelledJobIds.contains(jobId)) {
+                            val statusStr = obj.optString("status", "OPEN")
+                            if (title.isNotBlank()) {
                                 loadedJobs.add(
                                     CustomerMyJobEntry(
                                         key = k,
@@ -858,15 +774,17 @@ fun CustomerDashboardScreen(
                                         numberOfDays = obj.optString("numberOfDays", "2"),
                                         workersNeeded = obj.optInt("workersNeeded", 1),
                                         workTime = obj.optString("workTime", "9:00 AM – 6:00 PM"),
-                                        status = statusStr
+                                        status = statusStr,
+                                        cancelReason = obj.optString("cancelReason", "")
                                     )
                                 )
                             }
                         }
                         if (loadedJobs.isNotEmpty()) {
                             withContext(Dispatchers.Main) {
-                                loadedJobs.sortedByDescending { it.id }.forEach { cj ->
-                                    if (myPostedJobsList.none { it.id == cj.id } && !cancelledJobIds.contains(cj.id)) {
+                                val sorted = loadedJobs.sortedByDescending { j -> j.id }
+                                for (cj in sorted) {
+                                    if (myPostedJobsList.none { existing -> existing.id == cj.id }) {
                                         myPostedJobsList.add(0, cj)
                                     }
                                 }
@@ -875,8 +793,7 @@ fun CustomerDashboardScreen(
                     }
                 }
                 jConn.disconnect()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -893,7 +810,14 @@ fun CustomerDashboardScreen(
         val matchCat = selectedCategory.isNullOrBlank() ||
                 selectedCategory.equals("All", ignoreCase = true) ||
                 w.trade.equals(selectedCategory, ignoreCase = true)
-        matchQuery && matchCat
+
+        val locTokens = currentRealLocation.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val matchCityScope = when (selectedCityScope) {
+            "My Area" -> locTokens.firstOrNull()?.let { w.area.contains(it, ignoreCase = true) } ?: true
+            "My District" -> locTokens.getOrNull(1)?.let { w.area.contains(it, ignoreCase = true) } ?: true
+            else -> true
+        }
+        matchQuery && matchCat && matchCityScope
     }
 
     Box(
@@ -1239,6 +1163,18 @@ fun CustomerDashboardScreen(
                                     showHelmet = idx == 0,
                                     onViewProfile = { viewingWorkerProfile = worker },
                                     onHireClick = {
+                                        val custName = profilePrefs.getString("user_name", "Customer") ?: "Customer"
+                                        val custPhone = profilePrefs.getString("user_phone", "") ?: ""
+                                        FirebaseManager.createBooking(
+                                            customerPhone = custPhone,
+                                            customerName = custName,
+                                            workerPhone = worker.phone,
+                                            workerName = worker.name,
+                                            jobTitle = "Hire ${worker.name} (${worker.trade})",
+                                            category = worker.trade,
+                                            dailyRate = worker.dailyWage,
+                                            location = currentRealLocation
+                                        )
                                         jobCategory = worker.trade
                                         jobRateOrBudget = worker.dailyWage.toString()
                                         jobWorkLocation = currentRealLocation
@@ -1253,7 +1189,7 @@ fun CustomerDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔍 FIND WORKERS ====================
+                // ==================== 1: 🔍 FIND WORKERS (WITH MULTI-CITY FILTERS) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1290,41 +1226,32 @@ fun CustomerDashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Card(
-                            onClick = { showLocationModal = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = cardColor),
-                            border = BorderStroke(1.dp, borderLight)
+                        // Multi-City Scope Filter Chips (Point 15)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = accentBlue,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                            listOf("All Cities", "My Area", "My District", "My State").forEach { scope ->
+                                val active = selectedCityScope == scope
+                                OutlinedButton(
+                                    onClick = { selectedCityScope = scope },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, if (active) brandOrange else borderLight),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (active) brandOrange.copy(alpha = 0.15f) else cardColor
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
                                     Text(
-                                        text = currentRealLocation,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = textDark
+                                        text = scope,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (active) brandOrange else textDark
                                     )
                                 }
-                                Text(
-                                    text = tr("बदलें", "Change"),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accentBlue
-                                )
                             }
                         }
 
@@ -1385,26 +1312,6 @@ fun CustomerDashboardScreen(
                                     )
                                 }
                             }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = tr("${filteredWorkers.size} कारीगर मिले", "${filteredWorkers.size} Workers Found"),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = textDark
-                            )
-                            Text(
-                                text = tr("रिफ्रेश ↻", "Refresh ↻"),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = brandOrange,
-                                modifier = Modifier.clickable { loadLiveWorkersAndMyJobsFromFirebase() }
-                            )
                         }
 
                         filteredWorkers.forEachIndexed { index, worker ->
@@ -1533,92 +1440,10 @@ fun CustomerDashboardScreen(
                                 onValueChange = { jobDescription = it },
                                 textStyle = TextStyle(color = textDark, fontSize = 14.sp),
                                 label = { Text("3. Work Description (काम के बारे में जानकारी)") },
-                                placeholder = { Text("Describe what work needs to be done...") },
                                 minLines = 3,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp)
                             )
-
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "4. Work Photos (${jobWorkPhotos.size}/5 Uploaded)",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = textDark
-                                    )
-                                    if (jobWorkPhotos.size < 5) {
-                                        Text(
-                                            text = "+ Add Photo",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = brandOrange,
-                                            modifier = Modifier.clickable {
-                                                jobPhotoPicker.launch("image/*")
-                                            }
-                                        )
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    jobWorkPhotos.forEachIndexed { idx, base64Pic ->
-                                        val bmp = remember(base64Pic) { decodeWorkerPhoto(base64Pic) }
-                                        Box(
-                                            modifier = Modifier
-                                                .size(74.dp)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(subtleBgColor)
-                                        ) {
-                                            if (bmp != null) {
-                                                Image(
-                                                    bitmap = bmp,
-                                                    contentDescription = "Work Photo",
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(3.dp)
-                                                    .size(20.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color.Black.copy(alpha = 0.65f))
-                                                    .clickable { jobWorkPhotos.removeAt(idx) },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(13.dp))
-                                            }
-                                        }
-                                    }
-
-                                    if (jobWorkPhotos.size < 5) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(74.dp)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(brandOrange.copy(alpha = 0.15f))
-                                                .clickable { jobPhotoPicker.launch("image/*") },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = brandOrange, modifier = Modifier.size(22.dp))
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text("Upload", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = brandOrange)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
 
                             LiveLocationAutoCompleteField(
                                 value = jobWorkLocation,
@@ -1629,7 +1454,7 @@ fun CustomerDashboardScreen(
                                         profilePrefs.edit().putString("user_location", it).apply()
                                     }
                                 },
-                                label = "5. Work Location (Area / Village / City - Live Search)"
+                                label = "4. Work Location (Area / Village / City)"
                             )
 
                             Row(
@@ -1640,8 +1465,7 @@ fun CustomerDashboardScreen(
                                     value = jobPreferredDate,
                                     onValueChange = { jobPreferredDate = it },
                                     textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                    label = { Text("6. Preferred Date") },
-                                    placeholder = { Text("e.g. 28 Sep / Today") },
+                                    label = { Text("5. Preferred Date") },
                                     singleLine = true,
                                     modifier = Modifier.weight(1.2f),
                                     shape = RoundedCornerShape(12.dp)
@@ -1651,7 +1475,7 @@ fun CustomerDashboardScreen(
                                     value = jobNumberOfDays,
                                     onValueChange = { jobNumberOfDays = it.filter { c -> c.isDigit() } },
                                     textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                    label = { Text("7. No. of Days") },
+                                    label = { Text("6. No. of Days") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier.weight(0.8f),
@@ -1667,7 +1491,7 @@ fun CustomerDashboardScreen(
                                     value = jobNumberOfWorkers,
                                     onValueChange = { jobNumberOfWorkers = it.filter { c -> c.isDigit() } },
                                     textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                    label = { Text("8. Workers Needed") },
+                                    label = { Text("7. Workers Needed") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier.weight(0.9f),
@@ -1678,72 +1502,13 @@ fun CustomerDashboardScreen(
                                     value = jobRateOrBudget,
                                     onValueChange = { jobRateOrBudget = it.filter { c -> c.isDigit() } },
                                     textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                    label = { Text("9. Rate / Budget (₹)") },
+                                    label = { Text("8. Rate / Budget (₹)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier.weight(1.1f),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                             }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf("Per Day (₹/day)", "Total Budget (कुल बजट)").forEach { bType ->
-                                    val selected = jobBudgetType == bType
-                                    OutlinedButton(
-                                        onClick = { jobBudgetType = bType },
-                                        modifier = Modifier.weight(1f).height(36.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, if (selected) brandOrange else borderLight),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = if (selected) brandOrange.copy(alpha = 0.15f) else cardColor
-                                        ),
-                                        contentPadding = PaddingValues(0.dp)
-                                    ) {
-                                        Text(
-                                            text = bType,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (selected) brandOrange else textDark
-                                        )
-                                    }
-                                }
-                            }
-
-                            OutlinedTextField(
-                                value = jobWorkTime,
-                                onValueChange = { jobWorkTime = it },
-                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                label = { Text("10. Work Time (काम का समय)") },
-                                placeholder = { Text("e.g. 9:00 AM to 6:00 PM") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-
-                            OutlinedTextField(
-                                value = jobSpecialRequirement,
-                                onValueChange = { jobSpecialRequirement = it },
-                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                label = { Text("11. Special Requirement (कोई विशेष आवश्यकता)") },
-                                placeholder = { Text("e.g. Must bring own tools / helmet") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-
-                            OutlinedTextField(
-                                value = jobAbout,
-                                onValueChange = { jobAbout = it },
-                                textStyle = TextStyle(color = textDark, fontSize = 14.sp),
-                                label = { Text("12. About Site / Customer Note") },
-                                placeholder = { Text("Landmark, house details or extra note...") },
-                                minLines = 2,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
 
                             Button(
                                 onClick = {
@@ -1752,18 +1517,13 @@ fun CustomerDashboardScreen(
                                     val workersCount = jobNumberOfWorkers.toIntOrNull() ?: 1
                                     val daysCount = jobNumberOfDays.ifBlank { "1" }
                                     val finalLoc = jobWorkLocation.trim().ifBlank { currentRealLocation }
-                                    val customerName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
-                                    val customerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
+                                    val customerName = profilePrefs.getString("user_name", "Customer") ?: "Customer"
+                                    val customerPhone = profilePrefs.getString("user_phone", "") ?: ""
 
                                     currentRealLocation = finalLoc
                                     profilePrefs.edit().putString("user_location", finalLoc).apply()
 
-                                    val fullCombinedDesc = buildString {
-                                        append(jobDescription.trim().ifBlank { "$cleanTitle at $finalLoc" })
-                                        append(" | Days: $daysCount | Workers: $workersCount | Time: $jobWorkTime | Type: $jobBudgetType")
-                                        if (jobSpecialRequirement.isNotBlank()) append(" | Special: ${jobSpecialRequirement.trim()}")
-                                        if (jobAbout.isNotBlank()) append(" | About: ${jobAbout.trim()}")
-                                    }
+                                    val fullCombinedDesc = jobDescription.trim().ifBlank { "$cleanTitle at $finalLoc" }
 
                                     isPostingJobToCloud = true
                                     onPostJob(
@@ -1793,7 +1553,7 @@ fun CustomerDashboardScreen(
                                             numberOfDays = daysCount,
                                             workersNeeded = workersCount,
                                             workTime = jobWorkTime,
-                                            status = "ACTIVE"
+                                            status = "OPEN"
                                         )
                                     )
 
@@ -1816,27 +1576,19 @@ fun CustomerDashboardScreen(
                                                 put("numberOfDays", daysCount)
                                                 put("workersNeeded", workersCount)
                                                 put("workTime", jobWorkTime)
-                                                put("specialRequirement", jobSpecialRequirement.trim())
-                                                put("about", jobAbout.trim())
-                                                put("photosCount", jobWorkPhotos.size)
                                                 put("customerName", customerName)
                                                 put("customerPhone", customerPhone)
-                                                put("urgency", "$jobPreferredDate • $daysCount Days")
                                                 put("status", "OPEN")
                                             }
                                             OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
                                             conn.responseCode
                                             conn.disconnect()
-                                        } catch (_: Exception) {
-                                        }
+                                        } catch (_: Exception) {}
 
                                         withContext(Dispatchers.Main) {
                                             isPostingJobToCloud = false
                                             jobWorkName = ""
                                             jobDescription = ""
-                                            jobSpecialRequirement = ""
-                                            jobAbout = ""
-                                            jobWorkPhotos.clear()
                                             bottomNavIndex = 3
                                             Toast.makeText(
                                                 context,
@@ -1859,7 +1611,7 @@ fun CustomerDashboardScreen(
                                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = tr("13. काम पोस्ट करें (Post Job) ✓", "13. Post Job ✓"),
+                                        text = tr("काम पोस्ट करें (Post Job) ✓", "Post Job ✓"),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color.White
@@ -1872,7 +1624,7 @@ fun CustomerDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY JOBS (WITH CANCEL HIRE / JOB & LIVE CHAT) ====================
+                // ==================== 3: 📋 MY JOBS (WITH HISTORY, SOFT CANCEL & 1-5 STAR RATING) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1893,15 +1645,15 @@ fun CustomerDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = tr("मेरे पोस्ट किए काम (My Jobs)", "My Jobs"),
+                                text = tr("मेरे काम और हिस्ट्री (My Jobs & History)", "My Jobs & History"),
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
                             Text(
                                 text = tr(
-                                    "अपने पोस्ट किए काम और हायर किए कारीगरों को मैनेज या रद्द करें",
-                                    "Manage or cancel your posted jobs & hired workers"
+                                    "अपने पोस्ट किए काम, बुकिंग और रेटिंग हिस्ट्री देखें",
+                                    "Manage your posted jobs, bookings & rating history"
                                 ),
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f)
@@ -1915,96 +1667,81 @@ fun CustomerDashboardScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        if (myPostedJobsList.isEmpty()) {
+                        myPostedJobsList.forEach { myJob ->
+                            val statusColor = when (myJob.status) {
+                                "CANCELLED" -> redCancel
+                                "COMPLETED" -> greenTrusted
+                                else -> brandOrange
+                            }
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = cardColor),
-                                border = BorderStroke(1.dp, borderLight)
+                                border = BorderStroke(1.dp, borderLight),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = tr("कोई सक्रिय काम या हायरिंग नहीं है।", "No active posted jobs or hired workers."),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = textDark
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Button(
-                                        onClick = { bottomNavIndex = 2 },
-                                        colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(tr("+ नया काम पोस्ट करें", "+ Post New Job"), color = Color.White, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        } else {
-                            myPostedJobsList.forEach { myJob ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = cardColor),
-                                    border = BorderStroke(1.dp, borderLight),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = myJob.title,
-                                                    fontSize = 16.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = textDark
-                                                )
-                                                Text(
-                                                    text = "${translateCategoryLabel(myJob.category, appLang)} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = accentBlue
-                                                )
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .background(Color(0xFFDCFCE7), shape = RoundedCornerShape(8.dp))
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                                            ) {
-                                                Text(
-                                                    text = myJob.status,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = greenTrusted
-                                                )
-                                            }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = myJob.title,
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = textDark
+                                            )
+                                            Text(
+                                                text = "${translateCategoryLabel(myJob.category, appLang)} • ${myJob.workersNeeded} Worker(s) • ${myJob.numberOfDays} Days",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = accentBlue
+                                            )
                                         }
+                                        Box(
+                                            modifier = Modifier
+                                                .background(statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = myJob.status,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = statusColor
+                                            )
+                                        }
+                                    }
 
+                                    Text(
+                                        text = "📍 ${myJob.location} • 🗓️ ${myJob.preferredDate} (${myJob.workTime})",
+                                        fontSize = 12.sp,
+                                        color = textMuted
+                                    )
+
+                                    if (myJob.cancelReason.isNotBlank()) {
                                         Text(
-                                            text = "📍 ${myJob.location} • 🗓️ ${myJob.preferredDate} (${myJob.workTime})",
-                                            fontSize = 12.sp,
-                                            color = textMuted
+                                            text = "Cancel Reason: ${myJob.cancelReason}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = redCancel
                                         )
+                                    }
 
-                                        Text(
-                                            text = "₹${myJob.dailyRate} (${myJob.budgetType})",
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = brandOrange
-                                        )
+                                    Text(
+                                        text = "₹${myJob.dailyRate} (${myJob.budgetType})",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = brandOrange
+                                    )
 
-                                        // Clean 3-Button Row: Message | Complete ✓ | Cancel ✕
+                                    if (myJob.status != "CANCELLED") {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2032,10 +1769,7 @@ fun CustomerDashboardScreen(
                                             }
 
                                             Button(
-                                                onClick = {
-                                                    onCompleteJob(myJob.id)
-                                                    Toast.makeText(context, tr("काम पूरा हुआ ✓", "Job marked Completed ✓"), Toast.LENGTH_SHORT).show()
-                                                },
+                                                onClick = { markCustomerJobCompleted(myJob) },
                                                 shape = RoundedCornerShape(10.dp),
                                                 colors = ButtonDefaults.buttonColors(containerColor = greenTrusted),
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
@@ -2044,7 +1778,7 @@ fun CustomerDashboardScreen(
                                                     .height(38.dp)
                                             ) {
                                                 Text(
-                                                    text = tr("पूरा हुआ ✓", "Complete ✓"),
+                                                    text = if (myJob.status == "COMPLETED") tr("रेटिंग दें ★", "Rate ★") else tr("पूरा हुआ ✓", "Complete ✓"),
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.ExtraBold,
                                                     color = Color.White,
@@ -2079,7 +1813,7 @@ fun CustomerDashboardScreen(
             }
         }
 
-        // Floating Workora Message Pill Button -> Opens Real-Time Firebase Chat!
+        // Floating Workora Message Pill Button
         if (bottomNavIndex != 2) {
             Button(
                 onClick = {
@@ -2263,40 +1997,118 @@ fun CustomerDashboardScreen(
         )
     }
 
-    // Confirmation Dialog for Cancelling a Hired Worker / Posted Job
+    // Point 10: Customer -> Labour 1-5 Star Rating & Review Dialog
+    if (jobToRateWorker != null) {
+        val completedJob = jobToRateWorker!!
+        var stars by remember { mutableIntStateOf(5) }
+        var reviewComment by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { jobToRateWorker = null },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = "⭐ Rate Completed Work (1–5 Stars)",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accentBlue
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Job: ${completedJob.title}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textDark)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (1..5).forEach { s ->
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "$s Stars",
+                                tint = if (s <= stars) Color(0xFFF59E0B) else textMuted,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clickable { stars = s }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reviewComment,
+                        onValueChange = { reviewComment = it },
+                        label = { Text("Write optional review for worker") },
+                        textStyle = TextStyle(color = textDark, fontSize = 13.sp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val myName = profilePrefs.getString("user_name", "Customer") ?: "Customer"
+                        val myPhone = profilePrefs.getString("user_phone", "") ?: ""
+                        FirebaseManager.submitReview(
+                            bookingId = completedJob.key,
+                            reviewerPhone = myPhone,
+                            reviewerName = myName,
+                            targetPhone = completedJob.workerPhone.ifBlank { completedJob.category },
+                            rating = stars,
+                            comment = reviewComment.trim()
+                        ) {
+                            jobToRateWorker = null
+                            Toast.makeText(context, "Thank you! $stars ★ Review Saved ✓", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
+                ) {
+                    Text("Submit Review")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { jobToRateWorker = null }) { Text("Skip") }
+            }
+        )
+    }
+
+    // Point 6: Soft Cancellation Dialog with Cancel Reason
     if (jobToCancelConfirm != null) {
         val target = jobToCancelConfirm!!
+        var cancelReasonInput by remember { mutableStateOf("Work postponed / Hired another worker") }
+
         AlertDialog(
             onDismissRequest = { jobToCancelConfirm = null },
             containerColor = cardColor,
             title = {
                 Text(
-                    text = tr("काम / हायरिंग रद्द करें?", "Cancel Job / Hiring?"),
+                    text = tr("काम रद्द (Cancel) करें?", "Cancel Job / Hiring?"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = redCancel
                 )
             },
             text = {
-                Text(
-                    text = tr(
-                        "क्या आप वाकई '${target.title}' को रद्द (Cancel) करना चाहते हैं?",
-                        "Are you sure you want to cancel '${target.title}'?"
-                    ),
-                    fontSize = 13.sp,
-                    color = textDark
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Record will not be deleted; it will be marked as CANCELLED in history.",
+                        fontSize = 12.sp,
+                        color = textMuted
+                    )
+                    OutlinedTextField(
+                        value = cancelReasonInput,
+                        onValueChange = { cancelReasonInput = it },
+                        label = { Text("Reason for cancellation") },
+                        textStyle = TextStyle(color = textDark, fontSize = 13.sp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        cancelCustomerJobOrHire(target)
+                        softCancelCustomerJob(target, cancelReasonInput.trim())
                         jobToCancelConfirm = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = redCancel)
                 ) {
                     Text(
-                        text = tr("हाँ, रद्द करें ✕", "Yes, Cancel ✕"),
+                        text = tr("हाँ, रद्द करें ✕", "Confirm Cancel ✕"),
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
@@ -2304,7 +2116,7 @@ fun CustomerDashboardScreen(
             },
             dismissButton = {
                 OutlinedButton(onClick = { jobToCancelConfirm = null }) {
-                    Text(tr("वापस जाएं", "Keep It"), color = textDark, fontWeight = FontWeight.Bold)
+                    Text(tr("वापस जाएं", "Keep Active"), color = textDark, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -2360,6 +2172,34 @@ fun CustomerDashboardScreen(
                     Text("• Availability: ${w.availability} (From: ${w.availableFrom}, ${w.availableDays})", fontSize = 12.sp, color = greenTrusted, fontWeight = FontWeight.Bold)
                     Text("• Team Size: ${w.teamSize}", fontSize = 12.sp, color = textDark)
                     Text("• About: ${w.shortDescription}", fontSize = 12.sp, color = textMuted)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val myPhone = profilePrefs.getString("user_phone", "") ?: ""
+                                FirebaseManager.submitReport(myPhone, w.phone, w.name, "Reported from Worker Profile", "Profile review requested") {
+                                    Toast.makeText(context, "Worker Reported to Admin ✓", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Report", fontSize = 11.sp, color = redCancel, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val myPhone = profilePrefs.getString("user_phone", "") ?: ""
+                                FirebaseManager.setBlockStatus(myPhone, w.phone, true) {
+                                    Toast.makeText(context, "${w.name} Blocked ✓", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Block", fontSize = 11.sp, color = redCancel, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -2379,17 +2219,18 @@ fun CustomerDashboardScreen(
                 }
             },
             dismissButton = {
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${w.phone}")))
-                        } catch (_: Exception) {
+                if (w.phone.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${w.phone}")))
+                            } catch (_: Exception) {}
                         }
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(tr("कॉल करें", "Call"), color = accentBlue, fontWeight = FontWeight.Bold)
                     }
-                ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(tr("कॉल करें", "Call"), color = accentBlue, fontWeight = FontWeight.Bold)
                 }
             }
         )
