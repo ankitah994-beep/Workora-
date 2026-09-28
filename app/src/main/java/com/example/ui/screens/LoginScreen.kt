@@ -72,7 +72,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -88,6 +87,7 @@ import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.security.SecureRandom
 
 private const val LOGIN_FIREBASE_URL = "https://workora-d8b51-default-rtdb.firebaseio.com"
@@ -117,19 +117,30 @@ private fun encodeLoginUriToBase64(context: Context, uri: Uri): String {
     }
 }
 
-// =========================================================================
-// SIMPLE & CLEAN OTP ENGINE
-// =========================================================================
 object WorkoraRealOtpEngine {
     private const val OTP_PREFS = "workora_otp_store"
-    private const val OTP_VALIDITY_MS = 5 * 60 * 1000L // 5 Minutes
+    const val OTP_TTL_MS = 5 * 60 * 1000L
+    const val CHANNEL_ID = "workora_otp_channel"
+
+    fun sha256(input: String): String {
+        return try {
+            val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            input
+        }
+    }
+
+    fun triggerSystemOtpNotification(context: Context, target: String, otpCode: String, purpose: String = "OTP") {
+        Toast.makeText(context, "OTP: $otpCode", Toast.LENGTH_LONG).show()
+    }
 
     fun sendRealOtp(
         context: Context,
         phoneOrEmail: String,
         emailOptional: String = "",
         purpose: String = "LOGIN",
-        onDispatched: (String) -> Unit
+        onDispatched: (String) -> Unit = {}
     ) {
         val cleanTarget = phoneOrEmail.trim().lowercase()
         val otpCode = (100000 + SecureRandom().nextInt(900000)).toString()
@@ -138,7 +149,7 @@ object WorkoraRealOtpEngine {
         val prefs = context.getSharedPreferences(OTP_PREFS, Context.MODE_PRIVATE)
         prefs.edit().apply {
             putString("otp_code_$cleanTarget", otpCode)
-            putLong("otp_exp_$cleanTarget", now + OTP_VALIDITY_MS)
+            putLong("otp_exp_$cleanTarget", now + OTP_TTL_MS)
             putInt("otp_tries_$cleanTarget", 0)
             apply()
         }
@@ -164,13 +175,14 @@ object WorkoraRealOtpEngine {
             } catch (_: Exception) {}
 
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "Your Verification OTP is: $otpCode", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "OTP: $otpCode", Toast.LENGTH_LONG).show()
                 onDispatched(cleanTarget)
             }
         }
     }
 
-    fun verifyOtp(context: Context, targetKey: String, enteredOtp: String): Pair<Boolean, String> {
+    // Both verifyRealOtp and verifyOtp supported for AccountSelectScreen.kt & SignUpScreen.kt
+    fun verifyRealOtp(context: Context, targetKey: String, enteredOtp: String): Pair<Boolean, String> {
         val cleanTarget = targetKey.trim().lowercase()
         val prefs = context.getSharedPreferences(OTP_PREFS, Context.MODE_PRIVATE)
         val savedCode = prefs.getString("otp_code_$cleanTarget", null)
@@ -188,6 +200,10 @@ object WorkoraRealOtpEngine {
             prefs.edit().putInt("otp_tries_$cleanTarget", tries + 1).apply()
             Pair(false, "Invalid OTP")
         }
+    }
+
+    fun verifyOtp(context: Context, targetKey: String, enteredOtp: String): Pair<Boolean, String> {
+        return verifyRealOtp(context, targetKey, enteredOtp)
     }
 
     fun peekLatestOtpForHint(context: Context, targetKey: String): String {
@@ -236,7 +252,7 @@ fun WorkoraRealOtpVerificationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Enter the 6-digit verification code sent to $maskedTargetDisplay",
+                    text = "Enter 6-digit OTP sent to $maskedTargetDisplay",
                     fontSize = 13.sp,
                     color = Color(0xFF475467)
                 )
@@ -258,13 +274,13 @@ fun WorkoraRealOtpVerificationDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "OTP Code: $latestCodeHint",
+                                text = "OTP: $latestCodeHint",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = WorkoraNavy
                             )
                             Text(
-                                text = "Tap to Auto-Fill",
+                                text = "Tap to Fill",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = WorkoraOrange
@@ -286,7 +302,7 @@ fun WorkoraRealOtpVerificationDialog(
                     value = otpInput,
                     onValueChange = { if (it.length <= 6) otpInput = it.filter { c -> c.isDigit() } },
                     label = { Text("6-Digit OTP") },
-                    placeholder = { Text("Enter 6-digit code") },
+                    placeholder = { Text("123456") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -308,7 +324,7 @@ fun WorkoraRealOtpVerificationDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val (ok, msg) = WorkoraRealOtpEngine.verifyOtp(context, targetKey, otpInput)
+                    val (ok, msg) = WorkoraRealOtpEngine.verifyRealOtp(context, targetKey, otpInput)
                     if (ok) {
                         onVerifiedSuccess()
                     } else {
@@ -318,7 +334,7 @@ fun WorkoraRealOtpVerificationDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Verify & Continue", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Verify", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -362,9 +378,6 @@ private fun WorkoraBrandCircleLogo() {
     }
 }
 
-// =========================================================================
-// MAIN LOGIN & COMPLETE REGISTRATION SCREEN
-// =========================================================================
 @Composable
 fun LoginScreen(
     onLogin: (email: String, password: String) -> Unit = { _, _ -> },
@@ -378,7 +391,7 @@ fun LoginScreen(
 
     // Login States
     var loginChannelTab by remember { mutableIntStateOf(0) } // 0 = Mobile Number, 1 = Gmail / Email
-    var authMethodTab by remember { mutableIntStateOf(0) } // 0 = Password, 1 = OTP Login
+    var authMethodTab by remember { mutableIntStateOf(0) } // 0 = Password, 1 = OTP
     var identifierInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
@@ -393,7 +406,7 @@ fun LoginScreen(
     var forgotMaskedTarget by remember { mutableStateOf("") }
     var showForgotOtpVerify by remember { mutableStateOf(false) }
 
-    // ==================== COMPLETE NEW REGISTRATION STATES ====================
+    // Sign Up / Registration States
     var regRole by remember { mutableStateOf("CUSTOMER") } // "CUSTOMER" | "LABOUR"
     var regFullName by remember { mutableStateOf("") }
     var regMobile by remember { mutableStateOf("") }
@@ -402,19 +415,18 @@ fun LoginScreen(
     var regLocation by remember { mutableStateOf("") }
     var regSelectedCategory by remember { mutableStateOf("Default") }
     var regSubSkills by remember { mutableStateOf("") }
-    var regExperience by remember { mutableStateOf("3 Years") }
-    var regDailyWage by remember { mutableStateOf("600") }
-    var regTeamSize by remember { mutableStateOf("Individual") }
-    var regAboutWork by remember { mutableStateOf("") }
+    var regExperience by remember { mutableStateOf("") }
+    var regDailyWage by remember { mutableStateOf("") }
+    var regTeamSize by remember { mutableStateOf("Individual (अकेले)") }
     var regPassword by remember { mutableStateOf("") }
     var regShowPassword by remember { mutableStateOf(false) }
 
-    // Profile Photo + 3 Work Proof Photos
+    // Profile Photo + 3 Work Proof Images
     var regProfilePhotoB64 by remember { mutableStateOf("") }
     var regWorkProof1B64 by remember { mutableStateOf("") }
     var regWorkProof2B64 by remember { mutableStateOf("") }
     var regWorkProof3B64 by remember { mutableStateOf("") }
-    var activeUploadSlot by remember { mutableIntStateOf(0) } // 0=Profile, 1=Proof1, 2=Proof2, 3=Proof3
+    var activeUploadSlot by remember { mutableIntStateOf(0) }
 
     var showRegOtpDialog by remember { mutableStateOf(false) }
     var regOtpTargetKey by remember { mutableStateOf("") }
@@ -431,7 +443,7 @@ fun LoginScreen(
                     2 -> regWorkProof2B64 = encoded
                     3 -> regWorkProof3B64 = encoded
                 }
-                Toast.makeText(context, "Photo Uploaded ✓", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Photo Added ✓", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -443,9 +455,6 @@ fun LoginScreen(
     )
 
     if (isRegistrationScreen) {
-        // =========================================================================
-        // CREATE WORKORA ACCOUNT (COMPLETE REGISTRATION FORM WITH 3 WORK PROOF PHOTOS)
-        // =========================================================================
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -454,7 +463,6 @@ fun LoginScreen(
                 .navigationBarsPadding()
                 .imePadding()
         ) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -481,12 +489,11 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Profile Photo Upload Circle
                 val profileBmp = remember(regProfilePhotoB64) { decodeLoginBase64Image(regProfilePhotoB64) }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(82.dp)
+                            .size(80.dp)
                             .clip(CircleShape)
                             .background(WorkoraNavy)
                             .clickable {
@@ -505,15 +512,15 @@ fun LoginScreen(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.AddAPhoto,
-                                contentDescription = "Upload Photo",
+                                contentDescription = "Profile Photo",
                                 tint = Color.White,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(26.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Upload Profile Photo",
+                        text = "Profile Photo",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = WorkoraNavy
@@ -533,9 +540,8 @@ fun LoginScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 1. Account Role Selection
                         Text(
-                            text = "1. Select Account Role",
+                            text = "Account Type",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF102A43)
@@ -545,8 +551,8 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             listOf(
-                                "CUSTOMER" to "🏠 (ग्राहक)",
-                                "LABOUR" to "👷 (कारीगर)"
+                                "CUSTOMER" to "Customer (ग्राहक)",
+                                "LABOUR" to "Worker (कारीगर)"
                             ).forEach { (rKey, rLabel) ->
                                 val selected = regRole == rKey
                                 Button(
@@ -570,19 +576,16 @@ fun LoginScreen(
                             }
                         }
 
-                        // 2. Full Name
                         OutlinedTextField(
                             value = regFullName,
                             onValueChange = { regFullName = it },
-                            label = { Text("Full Name") },
-                            placeholder = { Text("Enter your full name") },
+                            label = { Text("Full Name (आपका पूरा नाम)") },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        // 3. Mobile Number & Age
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -603,7 +606,6 @@ fun LoginScreen(
                                 value = regAge,
                                 onValueChange = { if (it.length <= 2) regAge = it.filter { c -> c.isDigit() } },
                                 label = { Text("Age (उम्र)") },
-                                placeholder = { Text("25") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier.weight(0.8f),
@@ -611,7 +613,6 @@ fun LoginScreen(
                             )
                         }
 
-                        // 4. Gmail / Email ID
                         OutlinedTextField(
                             value = regEmail,
                             onValueChange = { regEmail = it },
@@ -624,16 +625,14 @@ fun LoginScreen(
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        // 5. Village / City Live Search
                         LiveLocationAutoCompleteField(
                             value = regLocation,
                             onValueChange = { regLocation = it },
                             label = "Village / City (गाँव या शहर - Live Search)"
                         )
 
-                        // 6. Choose Work Category (No typing, selection only)
                         Text(
-                            text = "Choose Work Category (काम की श्रेणी चुनें)",
+                            text = "Select Work Category (काम की श्रेणी चुनें)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF102A43)
@@ -669,7 +668,6 @@ fun LoginScreen(
                             }
                         }
 
-                        // 7. Experience & Daily Wage
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -678,7 +676,6 @@ fun LoginScreen(
                                 value = regExperience,
                                 onValueChange = { regExperience = it },
                                 label = { Text("Experience (अनुभव)") },
-                                placeholder = { Text("e.g. 4 Years") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp)
@@ -688,7 +685,6 @@ fun LoginScreen(
                                 value = regDailyWage,
                                 onValueChange = { regDailyWage = it.filter { c -> c.isDigit() } },
                                 label = { Text("Daily Wage (₹/day)") },
-                                placeholder = { Text("600") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
@@ -696,13 +692,6 @@ fun LoginScreen(
                             )
                         }
 
-                        // 8. Team Size Selection
-                        Text(
-                            text = "Work Mode / Team Size (अकेले या टीम)",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF102A43)
-                        )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -730,20 +719,17 @@ fun LoginScreen(
                             }
                         }
 
-                        // 9. Sub-Skills & Short Work Details
                         OutlinedTextField(
                             value = regSubSkills,
                             onValueChange = { regSubSkills = it },
-                            label = { Text("Skills / Work Details (काम का विवरण)") },
-                            placeholder = { Text("e.g. Plastering, Wiring, Pipe Fitting...") },
+                            label = { Text("Work Details (काम का विवरण)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        // 10. Upload 3 Work Proof Photos (काम का प्रमाण - 3 फोटो)
                         Text(
-                            text = "Upload 3 Work Proof Photos (काम के प्रमाण की 3 फोटो अपलोड करें)",
+                            text = "Work Proof Photos (काम के प्रमाण की 3 फोटो)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF102A43)
@@ -782,7 +768,7 @@ fun LoginScreen(
                                         if (bmp != null) {
                                             Image(
                                                 bitmap = bmp,
-                                                contentDescription = "Work Proof $slotNum",
+                                                contentDescription = "Photo $slotNum",
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             )
@@ -799,7 +785,7 @@ fun LoginScreen(
                                                 )
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(
-                                                    text = "Proof $slotNum",
+                                                    text = "Photo $slotNum",
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFF475467)
@@ -811,12 +797,10 @@ fun LoginScreen(
                             }
                         }
 
-                        // 11. Create Password
                         OutlinedTextField(
                             value = regPassword,
                             onValueChange = { regPassword = it },
                             label = { Text("Create Password") },
-                            placeholder = { Text("Minimum 8 characters") },
                             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
                             trailingIcon = {
                                 IconButton(onClick = { regShowPassword = !regShowPassword }) {
@@ -833,7 +817,6 @@ fun LoginScreen(
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        // Password Checklist Card
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -868,13 +851,11 @@ fun LoginScreen(
                             }
                         }
 
-                        // Submit Registration Button
                         Button(
                             onClick = {
                                 val cleanName = regFullName.trim()
                                 val cleanPhone = regMobile.filter { it.isDigit() }.takeLast(10)
                                 val cleanEmail = regEmail.trim().lowercase()
-                                val cleanLoc = regLocation.trim().ifBlank { "Your address" }
                                 val cleanPass = regPassword.trim()
 
                                 if (cleanName.length < 2) {
@@ -882,11 +863,11 @@ fun LoginScreen(
                                     return@Button
                                 }
                                 if (cleanPhone.length != 10) {
-                                    Toast.makeText(context, "Please enter a valid 10-digit mobile number", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Please enter 10-digit mobile number", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
                                 if (!WorkoraSecurityManager.isStrongPassword(cleanPass)) {
-                                    Toast.makeText(context, "Password must be at least 8 characters with 1 letter & 1 number", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Password must be 8+ characters with 1 letter & 1 number", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
 
@@ -926,7 +907,7 @@ fun LoginScreen(
             WorkoraRealOtpVerificationDialog(
                 targetKey = regOtpTargetKey,
                 maskedTargetDisplay = "+91 $regOtpTargetKey",
-                purposeTitle = "Verify Account OTP",
+                purposeTitle = "Verify OTP",
                 onResendClick = {
                     WorkoraRealOtpEngine.sendRealOtp(
                         context = context,
@@ -941,7 +922,7 @@ fun LoginScreen(
                     val cleanName = regFullName.trim()
                     val cleanPhone = regMobile.filter { it.isDigit() }.takeLast(10)
                     val finalEmail = regEmail.trim().lowercase().ifBlank { "${cleanPhone}@workora.in" }
-                    val cleanLoc = regLocation.trim().ifBlank { "Your Address" }
+                    val cleanLoc = regLocation.trim().ifBlank { "Silwani, Raisen (MP)" }
                     val cleanPass = regPassword.trim()
                     val passHash = WorkoraSecurityManager.hashPasswordSecure(cleanPass)
 
@@ -980,7 +961,7 @@ fun LoginScreen(
                         role = regRole
                     )
 
-                    Toast.makeText(context, "Account Created Successfully", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Account Created ✓", Toast.LENGTH_LONG).show()
                     onLogin(finalEmail, cleanPass)
                 }
             )
@@ -989,7 +970,7 @@ fun LoginScreen(
     }
 
     // =========================================================================
-    // SIMPLE & CLEAN LOGIN SCREEN
+    // LOGIN SCREEN
     // =========================================================================
     Column(
         modifier = Modifier
@@ -1037,7 +1018,6 @@ fun LoginScreen(
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Channel Tabs: Mobile Number | Gmail / Email
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1085,7 +1065,6 @@ fun LoginScreen(
                     }
                 }
 
-                // Auth Mode Tabs: Password | OTP
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1121,7 +1100,7 @@ fun LoginScreen(
                         )
                     ) {
                         Text(
-                            text = "⚡ OTP Login",
+                            text = "⚡ OTP",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (authMethodTab == 1) WorkoraOrange else Color(0xFF102A43)
@@ -1129,13 +1108,12 @@ fun LoginScreen(
                     }
                 }
 
-                // Identifier Field (Mobile or Gmail)
                 if (loginChannelTab == 0) {
                     OutlinedTextField(
                         value = identifierInput,
                         onValueChange = { if (it.length <= 10) identifierInput = it.filter { c -> c.isDigit() } },
                         label = { Text("10-Digit Mobile Number") },
-                        placeholder = { Text("e.g. 1234567980") },
+                        placeholder = { Text("1234567890") },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
@@ -1164,13 +1142,11 @@ fun LoginScreen(
                     )
                 }
 
-                // Password Field (Only when Password tab is active)
                 if (authMethodTab == 0) {
                     OutlinedTextField(
                         value = passwordInput,
                         onValueChange = { passwordInput = it },
                         label = { Text("Enter Password") },
-                        placeholder = { Text("Enter your password") },
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
                         trailingIcon = {
                             IconButton(onClick = { showPassword = !showPassword }) {
@@ -1203,7 +1179,6 @@ fun LoginScreen(
                     )
                 }
 
-                // Login Button
                 Button(
                     onClick = {
                         val rawId = identifierInput.trim()
@@ -1212,11 +1187,11 @@ fun LoginScreen(
                         val lookupKey = if (isEmail) rawId.lowercase() else cleanDigits
 
                         if (isEmail && (!rawId.contains("@") || rawId.length < 5)) {
-                            Toast.makeText(context, "Please enter a valid email address", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please enter valid email", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (!isEmail && cleanDigits.length != 10) {
-                            Toast.makeText(context, "Please enter a valid 10-digit mobile number", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please enter 10-digit mobile number", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
 
@@ -1229,7 +1204,7 @@ fun LoginScreen(
                         if (authMethodTab == 0) {
                             val cleanPass = passwordInput.trim()
                             if (cleanPass.length < 6) {
-                                Toast.makeText(context, "Please enter your password", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Please enter password", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
 
@@ -1272,7 +1247,7 @@ fun LoginScreen(
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
                         Text(
-                            text = if (authMethodTab == 0) "Log In ✓" else "Send OTP & Log In ✓",
+                            text = if (authMethodTab == 0) "Log In ✓" else "Send OTP ✓",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
@@ -1303,7 +1278,6 @@ fun LoginScreen(
         }
     }
 
-    // ==================== LOGIN OTP VERIFICATION DIALOG ====================
     if (showLoginOtpDialog) {
         val rawId = identifierInput.trim()
         val isEmail = loginChannelTab == 1 || rawId.contains("@")
@@ -1313,7 +1287,7 @@ fun LoginScreen(
         WorkoraRealOtpVerificationDialog(
             targetKey = targetKey,
             maskedTargetDisplay = maskedOtpTarget,
-            purposeTitle = "Verify Login OTP",
+            purposeTitle = "Verify OTP",
             onResendClick = {
                 WorkoraRealOtpEngine.sendRealOtp(
                     context = context,
@@ -1345,13 +1319,12 @@ fun LoginScreen(
                     profilePrefs.edit().putString("user_phone", "+91 $cleanDigits").apply()
                 }
 
-                Toast.makeText(context, "Welcome to Workora", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Welcome to Workora! ✓", Toast.LENGTH_SHORT).show()
                 onLogin(finalEmail, passwordInput.ifBlank { "OTP_VERIFIED" })
             }
         )
     }
 
-    // ==================== FORGOT PASSWORD DIALOG ====================
     if (showForgotDialog) {
         AlertDialog(
             onDismissRequest = { showForgotDialog = false },
@@ -1369,15 +1342,15 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = forgotIdentifier,
                         onValueChange = { forgotIdentifier = it },
-                        label = { Text("Registered Mobile or Gmail") },
-                        placeholder = { Text("example@gmail.com") },
+                        label = { Text("Mobile Number or Gmail") },
+                        placeholder = { Text("1234567890 / example@gmail.com") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = forgotNewPassword,
                         onValueChange = { forgotNewPassword = it },
-                        label = { Text("New Password (Min 8 chars)") },
+                        label = { Text("New Password") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1389,7 +1362,7 @@ fun LoginScreen(
                         val cleanId = forgotIdentifier.trim()
                         val newPass = forgotNewPassword.trim()
                         if (cleanId.length < 5 || !WorkoraSecurityManager.isStrongPassword(newPass)) {
-                            Toast.makeText(context, "Enter valid ID password!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Enter valid ID & 8-char password!", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         WorkoraRealOtpEngine.sendRealOtp(
@@ -1405,7 +1378,7 @@ fun LoginScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
                 ) {
-                    Text("Send Reset OTP", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Send OTP", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1422,7 +1395,7 @@ fun LoginScreen(
         WorkoraRealOtpVerificationDialog(
             targetKey = key,
             maskedTargetDisplay = forgotMaskedTarget,
-            purposeTitle = "Verify Reset OTP",
+            purposeTitle = "Verify OTP",
             onResendClick = {
                 WorkoraRealOtpEngine.sendRealOtp(
                     context = context,
@@ -1443,7 +1416,7 @@ fun LoginScreen(
                     apply()
                 }
                 passwordInput = forgotNewPassword.trim()
-                Toast.makeText(context, "Password Reset Successfully! ✓", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Password Reset ✓", Toast.LENGTH_LONG).show()
             }
         )
     }
