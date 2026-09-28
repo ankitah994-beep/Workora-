@@ -129,7 +129,7 @@ data class WorkoraLabourJobItem(
     val specialRequirement: String = "",
     val about: String = "",
     val customerName: String = "Customer",
-    val customerPhone: String = "+91 6265798340",
+    val customerPhone: String = "",
     val status: String = "OPEN"
 )
 
@@ -146,7 +146,7 @@ data class WorkoraNotificationCardItem(
 )
 
 // =========================================================================
-// 4-TAB LIVE FIREBASE NOTIFICATION CENTER DIALOG (Point 11: All / Jobs / Messages / System)
+// 4-TAB LIVE FIREBASE NOTIFICATION CENTER DIALOG (Clickable Notifications)
 // =========================================================================
 @Composable
 fun WorkoraLiveNotificationCenterDialog(
@@ -169,6 +169,7 @@ fun WorkoraLiveNotificationCenterDialog(
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = All, 1 = Jobs, 2 = Messages, 3 = System
     var isSyncingCloud by remember { mutableStateOf(false) }
     var showEmbeddedLiveChat by remember { mutableStateOf(false) }
+    var clickedNotification by remember { mutableStateOf<WorkoraNotificationCardItem?>(null) }
 
     val notificationsList = remember(userLocation) {
         mutableStateListOf(
@@ -318,6 +319,58 @@ fun WorkoraLiveNotificationCenterDialog(
             }
         )
         return
+    }
+
+    if (clickedNotification != null) {
+        val item = clickedNotification!!
+        AlertDialog(
+            onDismissRequest = { clickedNotification = null },
+            containerColor = cardColor,
+            title = {
+                Text(
+                    text = if (isHindi) item.titleHi else item.titleEn,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = textDark
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isHindi) item.bodyHi else item.bodyEn,
+                        fontSize = 14.sp,
+                        color = textDark,
+                        lineHeight = 20.sp
+                    )
+                    Text(
+                        text = if (isHindi) "स्थिति: ${item.timeHi}" else "Status: ${item.timeEn}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = brandOrange
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clickedNotification = null
+                        showEmbeddedLiveChat = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = brandOrange)
+                ) {
+                    Text(
+                        text = if (isHindi) "मैसेज / संपर्क करें" else "Open Message",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { clickedNotification = null }) {
+                    Text(if (isHindi) "बंद करें" else "Close", color = textDark)
+                }
+            }
+        )
     }
 
     val filteredList = notificationsList.filter { item ->
@@ -473,9 +526,7 @@ fun WorkoraLiveNotificationCenterDialog(
                             }
                             Card(
                                 onClick = {
-                                    if (item.type == "MESSAGE") {
-                                        showEmbeddedLiveChat = true
-                                    }
+                                    clickedNotification = item
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
@@ -986,7 +1037,7 @@ fun LabourDashboardScreen(
                 specialRequirement = "Bring trowel & level tools",
                 about = "Near Main Market, Silwani",
                 customerName = "Ramesh Verma",
-                customerPhone = "+91 9876543210",
+                customerPhone = "+91 9876500001",
                 status = "OPEN"
             ),
             WorkoraLabourJobItem(
@@ -1004,7 +1055,7 @@ fun LabourDashboardScreen(
                 workTime = "10:00 AM – 6:00 PM",
                 specialRequirement = "Must have drill machine",
                 about = "Ward No. 5, Silwani",
-                customerPhone = "+91 9123456780",
+                customerPhone = "+91 9876500002",
                 customerName = "Suresh Yadav",
                 status = "OPEN"
             ),
@@ -1024,7 +1075,7 @@ fun LabourDashboardScreen(
                 specialRequirement = "CPVC pipe fitting experience",
                 about = "Bhopal Road, Silwani",
                 customerName = "Vikash Singh",
-                customerPhone = "+91 9654321098",
+                customerPhone = "+91 9876500003",
                 status = "OPEN"
             )
         )
@@ -1063,7 +1114,7 @@ fun LabourDashboardScreen(
                                         specialRequirement = obj.optString("specialRequirement", ""),
                                         about = obj.optString("about", ""),
                                         customerName = obj.optString("customerName", "Customer"),
-                                        customerPhone = obj.optString("customerPhone", "+91 6265798340"),
+                                        customerPhone = obj.optString("customerPhone", ""),
                                         status = statusStr
                                     )
                                 )
@@ -1116,9 +1167,9 @@ fun LabourDashboardScreen(
                 .putStringSet("applied_job_ids", appliedJobIds.map { it.toString() }.toSet())
                 .apply()
         }
-        val workerName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
-        val workerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
-        val cleanPhoneKey = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
+        val workerName = profilePrefs.getString("user_name", "Workora Worker") ?: "Workora Worker"
+        val workerPhone = profilePrefs.getString("user_phone", "") ?: ""
+        val cleanPhoneKey = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "0000000000" }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -1149,15 +1200,14 @@ fun LabourDashboardScreen(
         ).show()
     }
 
-    // Soft Withdrawal (Point 6: Status = WITHDRAWN instead of permanent delete)
     fun withdrawAppliedJob(job: WorkoraLabourJobItem, reason: String = "Withdrawn by Worker") {
         appliedJobIds.remove(job.id)
         profilePrefs.edit()
             .putStringSet("applied_job_ids", appliedJobIds.map { it.toString() }.toSet())
             .apply()
 
-        val workerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
-        val cleanPhoneKey = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
+        val workerPhone = profilePrefs.getString("user_phone", "") ?: ""
+        val cleanPhoneKey = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "0000000000" }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -1542,7 +1592,7 @@ fun LabourDashboardScreen(
             }
 
             1 -> {
-                // ==================== 1: 🔎 FIND JOBS (WITH MULTI-CITY FILTERS) ====================
+                // ==================== 1: 🔎 FIND JOBS ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1579,7 +1629,6 @@ fun LabourDashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Multi-City Scope Filter Chips (Point 15)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1845,8 +1894,8 @@ fun LabourDashboardScreen(
 
                             Button(
                                 onClick = {
-                                    val workerName = profilePrefs.getString("user_name", "Ankit Ahirwar") ?: "Ankit Ahirwar"
-                                    val workerPhone = profilePrefs.getString("user_phone", "+91 6265798340") ?: "+91 6265798340"
+                                    val workerName = profilePrefs.getString("user_name", "Workora Worker") ?: "Workora Worker"
+                                    val workerPhone = profilePrefs.getString("user_phone", "") ?: ""
                                     val rateInt = availDailyRate.toIntOrNull() ?: 600
                                     val finalArea = availWorkArea.trim().ifBlank { currentRealLocation }
 
@@ -1863,7 +1912,7 @@ fun LabourDashboardScreen(
                                     isPostingAvailability = true
                                     CoroutineScope(Dispatchers.IO).launch {
                                         try {
-                                            val cleanDigits = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "6265798340" }
+                                            val cleanDigits = workerPhone.filter { it.isDigit() }.takeLast(10).ifBlank { "0000000000" }
                                             val conn = (URL("$LABOUR_DB_URL/workers/w_$cleanDigits.json").openConnection() as HttpURLConnection).apply {
                                                 requestMethod = "PUT"
                                                 setRequestProperty("Content-Type", "application/json")
@@ -2294,7 +2343,6 @@ fun LabourDashboardScreen(
         )
     }
 
-    // Labour -> Customer 1-5 Star Rating Dialog (Point 10)
     if (jobToRateCustomer != null) {
         val targetJob = jobToRateCustomer!!
         var stars by remember { mutableIntStateOf(5) }
@@ -2362,7 +2410,6 @@ fun LabourDashboardScreen(
         )
     }
 
-    // Withdraw Application Confirmation with Reason (Point 6)
     if (jobToCancelApplyConfirm != null) {
         val targetJob = jobToCancelApplyConfirm!!
         var withdrawReason by remember { mutableStateOf("Found another work / Schedule change") }
@@ -2492,16 +2539,18 @@ fun LabourDashboardScreen(
                 }
             },
             dismissButton = {
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${j.customerPhone}")))
-                        } catch (_: Exception) {}
+                if (j.customerPhone.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${j.customerPhone}")))
+                            } catch (_: Exception) {}
+                        }
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(tr("कॉल करें", "Call"), color = accentBlue, fontWeight = FontWeight.Bold)
                     }
-                ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, tint = accentBlue, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(tr("कॉल करें", "Call"), color = accentBlue, fontWeight = FontWeight.Bold)
                 }
             }
         )
