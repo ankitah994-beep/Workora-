@@ -521,9 +521,9 @@ fun WorkoraApp(
                 ScreenState.PROFILE -> {
                     ProfileScreen(
                         role = selectedRole ?: UserRole.CUSTOMER,
-                        userName = "Ankit Ahirwar",
-                        userPhone = "+91 6265798340",
-                        userLocation = "Silwani, Raisen",
+                        userName = "workora user",
+                        userPhone = "+91 1234567890",
+                        userLocation = "india",
                         onBack = {
                             checkUserAreaServiceStatus()
                             if (selectedRole == UserRole.CUSTOMER) viewModel.navigateTo(ScreenState.CUSTOMER_HOME)
