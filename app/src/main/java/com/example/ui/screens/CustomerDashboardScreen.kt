@@ -590,6 +590,7 @@ fun CustomerDashboardScreen(
     }
     var showLocationModal by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showLiveChatModal by remember { mutableStateOf(false) }
 
     // 5-Icon Bottom Navigation State:
     // 0 = 🏠 Home | 1 = 🔍 Find Workers | 2 = ➕ Post Job | 3 = 📋 My Jobs | 4 = 👤 Profile
@@ -598,7 +599,6 @@ fun CustomerDashboardScreen(
     var viewingWorkerProfile by remember { mutableStateOf<ExactWorkerItem?>(null) }
     var jobToCancelConfirm by remember { mutableStateOf<CustomerMyJobEntry?>(null) }
 
-    // Track cancelled job IDs so they stay cancelled permanently
     val cancelledJobIds = remember {
         val saved = profilePrefs.getStringSet("cancelled_customer_job_ids", emptySet()) ?: emptySet()
         mutableStateListOf<Long>().apply { addAll(saved.mapNotNull { it.toLongOrNull() }) }
@@ -1872,7 +1872,7 @@ fun CustomerDashboardScreen(
             }
 
             else -> {
-                // ==================== 3: 📋 MY JOBS (WITH CANCEL HIRE / JOB OPTION) ====================
+                // ==================== 3: 📋 MY JOBS (WITH CANCEL HIRE / JOB & LIVE CHAT) ====================
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -2011,7 +2011,10 @@ fun CustomerDashboardScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             OutlinedButton(
-                                                onClick = onOpenChat,
+                                                onClick = {
+                                                    onOpenChat()
+                                                    showLiveChatModal = true
+                                                },
                                                 shape = RoundedCornerShape(10.dp),
                                                 border = BorderStroke(1.dp, accentBlue),
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
@@ -2076,10 +2079,13 @@ fun CustomerDashboardScreen(
             }
         }
 
-        // Floating Workora Message Pill Button
+        // Floating Workora Message Pill Button -> Opens Real-Time Firebase Chat!
         if (bottomNavIndex != 2) {
             Button(
-                onClick = onOpenChat,
+                onClick = {
+                    onOpenChat()
+                    showLiveChatModal = true
+                },
                 shape = RoundedCornerShape(28.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = deepNavy),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
@@ -2250,6 +2256,13 @@ fun CustomerDashboardScreen(
         }
     }
 
+    if (showLiveChatModal) {
+        WorkoraLiveChatDialog(
+            appLang = appLang,
+            onDismiss = { showLiveChatModal = false }
+        )
+    }
+
     // Confirmation Dialog for Cancelling a Hired Worker / Posted Job
     if (jobToCancelConfirm != null) {
         val target = jobToCancelConfirm!!
@@ -2302,7 +2315,10 @@ fun CustomerDashboardScreen(
             userLocation = currentRealLocation,
             appLang = appLang,
             onDismiss = { showNotificationsDialog = false },
-            onOpenChat = onOpenChat
+            onOpenChat = {
+                onOpenChat()
+                showLiveChatModal = true
+            }
         )
     }
 
