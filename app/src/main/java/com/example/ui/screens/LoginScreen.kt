@@ -81,6 +81,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
@@ -121,9 +122,6 @@ private fun encodeLoginUriToBase64(context: Context, uri: Uri): String {
     }
 }
 
-// =========================================================================
-// ORIGINAL SYSTEM NOTIFICATION & SHA-256 OTP ENGINE (NO IN-APP AUTO-FILL)
-// =========================================================================
 object WorkoraRealOtpEngine {
     private const val OTP_PREFS = "workora_otp_store"
     const val OTP_TTL_MS = 5 * 60 * 1000L
@@ -559,13 +557,15 @@ fun LoginScreen(
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (selected) WorkoraNavy else Color(0xFFF1F5F9)
                                     ),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                 ) {
                                     Text(
                                         text = rLabel,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (selected) Color.White else Color(0xFF102A43)
+                                        color = if (selected) Color.White else Color(0xFF102A43),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -641,7 +641,8 @@ fun LoginScreen(
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = if (isSelected) WorkoraOrange else Color(0xFF102A43),
-                                            maxLines = 1
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -732,7 +733,8 @@ fun LoginScreen(
                                                     text = "Photo $slotNum",
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF475467)
+                                                    color = Color(0xFF475467),
+                                                    maxLines = 1
                                                 )
                                             }
                                         }
@@ -913,7 +915,7 @@ fun LoginScreen(
     }
 
     // =========================================================================
-    // LOGIN SCREEN (STRICT PASSWORD VERIFICATION)
+    // LOGIN SCREEN
     // =========================================================================
     Column(
         modifier = Modifier
@@ -963,7 +965,7 @@ fun LoginScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = {
@@ -974,15 +976,18 @@ fun LoginScreen(
                             .weight(1f)
                             .height(44.dp),
                         shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (loginChannelTab == 0) WorkoraNavy else Color(0xFFF1F5F9)
                         )
                     ) {
                         Text(
-                            text = "📱 Mobile Number",
-                            fontSize = 12.sp,
+                            text = "📱 Mobile",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (loginChannelTab == 0) Color.White else Color(0xFF102A43)
+                            color = if (loginChannelTab == 0) Color.White else Color(0xFF102A43),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -995,22 +1000,25 @@ fun LoginScreen(
                             .weight(1f)
                             .height(44.dp),
                         shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (loginChannelTab == 1) WorkoraNavy else Color(0xFFF1F5F9)
                         )
                     ) {
                         Text(
-                            text = "✉️ Gmail / Email",
-                            fontSize = 12.sp,
+                            text = "✉️️ Gmail",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (loginChannelTab == 1) Color.White else Color(0xFF102A43)
+                            color = if (loginChannelTab == 1) Color.White else Color(0xFF102A43),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
                         onClick = { authMethodTab = 0 },
@@ -1018,6 +1026,7 @@ fun LoginScreen(
                             .weight(1f)
                             .height(40.dp),
                         shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
                         border = BorderStroke(1.dp, if (authMethodTab == 0) WorkoraOrange else Color(0xFFE5E7EB)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = if (authMethodTab == 0) WorkoraOrange.copy(alpha = 0.12f) else Color.White
@@ -1027,7 +1036,9 @@ fun LoginScreen(
                             text = "🔒 Password",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (authMethodTab == 0) WorkoraOrange else Color(0xFF102A43)
+                            color = if (authMethodTab == 0) WorkoraOrange else Color(0xFF102A43),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -1037,6 +1048,7 @@ fun LoginScreen(
                             .weight(1f)
                             .height(40.dp),
                         shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
                         border = BorderStroke(1.dp, if (authMethodTab == 1) WorkoraOrange else Color(0xFFE5E7EB)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = if (authMethodTab == 1) WorkoraOrange.copy(alpha = 0.12f) else Color.White
@@ -1046,7 +1058,9 @@ fun LoginScreen(
                             text = "⚡ OTP",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (authMethodTab == 1) WorkoraOrange else Color(0xFF102A43)
+                            color = if (authMethodTab == 1) WorkoraOrange else Color(0xFF102A43),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -1144,7 +1158,6 @@ fun LoginScreen(
                             return@Button
                         }
 
-                        // STRICT PASSWORD CHECK: Never allow random passwords!
                         if (authMethodTab == 0) {
                             val cleanPass = passwordInput.trim()
                             if (cleanPass.length < 6) {
