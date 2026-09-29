@@ -1,91 +1,90 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R // अगर आपका पैकेज नाम अलग है, तो इसे बदल लें
 import kotlinx.coroutines.delay
-
-private val SplashBg = Color(0xFFF8FAFC)
-private val SplashNavy = Color(0xFF083D91)
-private val SplashOrange = Color(0xFFFF8C00)
 
 @Composable
 fun SplashScreen(
     onSplashFinished: () -> Unit = {}
 ) {
+    // 2.5 सेकंड तक यह लोडिंग स्क्रीन दिखेगी, फिर ऐप चालू होगा
     LaunchedEffect(Unit) {
-        delay(1800L)
+        delay(2500L)
         onSplashFinished()
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(SplashBg),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFF0061FF)), // डिज़ाइन वाला गाढ़ा नीला रंग
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier.size(96.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    drawCircle(
-                        color = SplashOrange,
-                        radius = w * 0.46f,
-                        style = Stroke(width = w * 0.06f)
-                    )
-                    val path = Path().apply {
-                        moveTo(w * 0.24f, h * 0.36f)
-                        lineTo(w * 0.37f, h * 0.66f)
-                        lineTo(w * 0.50f, h * 0.44f)
-                        lineTo(w * 0.63f, h * 0.66f)
-                        lineTo(w * 0.76f, h * 0.36f)
-                    }
-                    drawPath(
-                        path = path,
-                        color = SplashNavy,
-                        style = Stroke(width = w * 0.085f, cap = StrokeCap.Round)
-                    )
-                }
-            }
+        // ऊपर से थोड़ी जगह छोड़ने के लिए
+        Spacer(modifier = Modifier.height(100.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
+        // 1. आपका लोगो (W Workora)
+        Image(
+            painter = painterResource(id = R.drawable.workora_splash_logo),
+            contentDescription = "Workora Logo",
+            modifier = Modifier.width(220.dp), // लोगो का साइज़
+            contentScale = ContentScale.Fit
+        )
+        
+        // 2. लोगो के नीचे वाली टैगलाइन (डिज़ाइन के अनुसार)
+        Text(
+            text = "Find. Hire. Work.",
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(top = 12.dp)
+        )
 
-            Text(
-                text = "WORKORA",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = SplashNavy,
-                letterSpacing = 2.sp
-            )
-            Text(
-                text = "Find. Hire. Work.",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF667085)
-            )
-        }
+        // यह खाली जगह बीच में आएगी, जिससे Loading Bar सबसे नीचे चला जाएगा
+        Spacer(modifier = Modifier.weight(1f)) 
+
+        // 3. लोडिंग वाली लाइन (Progress Bar)
+        LinearProgressIndicator(
+            color = Color.White,
+            trackColor = Color.White.copy(alpha = 0.3f),
+            modifier = Modifier
+                .width(180.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(4.dp))
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 4. Loading... टेक्स्ट
+        Text(
+            text = "Loading...",
+            color = Color.White.copy(alpha = 0.9f),
+            fontSize = 14.sp
+        )
+
+        // नीचे से थोड़ी जगह (Padding)
+        Spacer(modifier = Modifier.height(60.dp))
     }
 }
