@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -251,7 +252,7 @@ fun ProfileScreen(
 
 @Composable
 fun ProfileDetailRow(icon: ImageVector, title: String, value: String) {
-    val displayValue = value.trim().ifBlank { "No details provided" } // FIX: NO DETAILS PROVIDED LOGIC
+    val displayValue = value.trim().ifBlank { "No details provided" }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Icon(icon, contentDescription = null, tint = ProfileOrange, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
@@ -280,7 +281,6 @@ fun WorkProofImageBox(base64Str: String, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                // FIX: NO IMAGE LOGIC
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Image, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.height(4.dp))
@@ -293,7 +293,7 @@ fun WorkProofImageBox(base64Str: String, modifier: Modifier = Modifier) {
 
 
 // =========================================================================
-// IMAGE 5 FIX: WORKER PROFILE DIALOG (PUBLIC VIEW)
+// WORKER PROFILE DIALOG (PUBLIC VIEW)
 // =========================================================================
 @Composable
 fun WorkerProfileDialog(
@@ -315,7 +315,6 @@ fun WorkerProfileDialog(
     onReport: () -> Unit,
     onBlock: () -> Unit
 ) {
-    // FIX: Fallbacks if details are missing
     val displaySkills = skills.ifBlank { "No details provided" }
     val displayExp = experience.ifBlank { "No details provided" }
     val displayRate = dailyRate.ifBlank { "No details provided" }
