@@ -1,318 +1,166 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val WorkoraBlue = Color(0xFF0062FF)
+private val AuthNavy = Color(0xFF083D91)
+private val AuthOrange = Color(0xFFFF8C00)
+private val AuthBg = Color(0xFFF8FAFC)
 
 @Composable
 fun AuthScreen(
-    onBackClick: () -> Unit = {},
-    onLoginSuccess: () -> Unit = {}
+    onNavigateToLogin: () -> Unit = {},
+    onNavigateToSignUp: () -> Unit = {}
 ) {
-    // Ye variable decide karega ki Login dikhana hai ya Sign Up
-    var isLoginMode by remember { mutableStateOf(true) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
-            .padding(24.dp)
+            .background(AuthBg)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
             .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        // Back Button
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
-            tint = WorkoraBlue,
-            modifier = Modifier
-                .size(28.dp)
-                .clickable { onBackClick() }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Headings
-        Text(
-            text = if (isLoginMode) "Login" else "Create Account",
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = if (isLoginMode) "Welcome back! Please login\nto your Workora account." else "Join Workora today",
-            fontSize = 16.sp,
-            color = Color.Gray,
-            lineHeight = 22.sp
-        )
-
         Spacer(modifier = Modifier.height(32.dp))
 
-        if (isLoginMode) {
-            LoginSection(onSwitchToSignUp = { isLoginMode = false }, onLoginSuccess = onLoginSuccess)
-        } else {
-            SignUpSection(onSwitchToLogin = { isLoginMode = true })
-        }
-    }
-}
-
-@Composable
-fun LoginSection(onSwitchToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
-    var emailOrPhone by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-
-    Column {
-        OutlinedTextField(
-            value = emailOrPhone,
-            onValueChange = { emailOrPhone = it },
-            label = { Text("Phone number or Email") },
-            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray) },
-            trailingIcon = {
-                val image = if (passwordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = image, contentDescription = null, tint = Color.Gray)
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                drawCircle(
+                    color = AuthOrange,
+                    radius = w * 0.46f,
+                    style = Stroke(width = w * 0.06f)
+                )
+                val path = Path().apply {
+                    moveTo(w * 0.24f, h * 0.36f)
+                    lineTo(w * 0.37f, h * 0.66f)
+                    lineTo(w * 0.50f, h * 0.44f)
+                    lineTo(w * 0.63f, h * 0.66f)
+                    lineTo(w * 0.76f, h * 0.36f)
                 }
-            },
-            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
+                drawPath(
+                    path = path,
+                    color = AuthNavy,
+                    style = Stroke(width = w * 0.085f, cap = StrokeCap.Round)
+                )
+            }
+        }
 
-        // Forgot Password
+        Spacer(modifier = Modifier.height(24.dp))
+
         Text(
-            text = "Forgot password?",
-            color = WorkoraBlue,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .clickable { /* Handle forgot password */ },
-            textAlign = TextAlign.End
+            text = "WORKORA",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = AuthNavy,
+            letterSpacing = 1.sp
+        )
+        Text(
+            text = "Find. Hire. Work.",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF667085)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
-        // Login Button
-        Button(
-            onClick = onLoginSuccess,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue),
-            shape = RoundedCornerShape(12.dp)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Text(text = "Login", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Welcome to Workora",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF102A43)
+                )
 
-        Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Join our community to find local jobs or hire trusted workers near you.",
+                    fontSize = 13.sp,
+                    color = Color(0xFF475467),
+                    textAlign = TextAlign.Center
+                )
 
-        // OR Divider
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-            Text(text = "or", color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp))
-            HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-        }
+                Spacer(modifier = Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onNavigateToLogin,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AuthOrange)
+                ) {
+                    Text("Log In", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
 
-        // Google Button
-        OutlinedButton(
-            onClick = { /* Handle Google Sign in */ },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
-        ) {
-            Text(text = "Continue with Google", color = Color.Black, fontSize = 16.sp)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Switch to Sign Up
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(text = "Don't have an account? ", color = Color.Gray)
-            Text(
-                text = "Sign Up",
-                color = WorkoraBlue,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onSwitchToSignUp() }
-            )
-        }
-    }
-}
-
-@Composable
-fun SignUpSection(onSwitchToLogin: () -> Unit) {
-    var fullName by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-
-    Column {
-        OutlinedTextField(
-            value = fullName,
-            onValueChange = { fullName = it },
-            label = { Text("Full Name") },
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = phone,
-            onValueChange = { phone = it },
-            label = { Text("Phone Number") },
-            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = Color.Gray) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email (optional)") },
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray) },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("Confirm Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray) },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = WorkoraBlue
-            )
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Sign Up Button
-        Button(
-            onClick = { /* Handle Signup */ },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(text = "Sign Up", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Switch to Login
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(text = "Already have an account? ", color = Color.Gray)
-            Text(
-                text = "Login",
-                color = WorkoraBlue,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onSwitchToLogin() }
-            )
+                OutlinedButton(
+                    onClick = onNavigateToSignUp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.5.dp, AuthNavy)
+                ) {
+                    Text("Create Account (Sign Up)", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AuthNavy)
+                }
+            }
         }
     }
 }
