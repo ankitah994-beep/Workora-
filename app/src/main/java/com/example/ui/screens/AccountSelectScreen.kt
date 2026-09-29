@@ -74,9 +74,11 @@ fun WorkoraAdminSecurityGateDialog(
     onAdminVerifiedSuccess: () -> Unit
 ) {
     val context = LocalContext.current
-    val cardColor = WorkoraThemeManager.surfaceColor(context)
-    val textDark = WorkoraThemeManager.textPrimary(context)
-    val textMuted = WorkoraThemeManager.textSecondary(context)
+    
+    // FIX: Removed WorkoraThemeManager, added direct colors
+    val cardColor = Color.White
+    val textDark = Color.Black
+    val textMuted = Color.Gray
 
     var step by remember { mutableIntStateOf(1) }
     var pinInput by remember { mutableStateOf("") }
