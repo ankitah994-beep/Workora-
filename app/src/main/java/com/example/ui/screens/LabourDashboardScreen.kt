@@ -57,6 +57,23 @@ fun LabourDashboardScreen(
             .background(Color(0xFFF8FAFC))
             .padding(bottom = 60.dp) // Bottom nav padding
     ) {
+        // ✅ NEW: WORKER MODE BADGE
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFF7ED)) // Light Orange
+                .padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "👷‍♂️ WORKER MODE (कारीगर)",
+                color = WorkoraOrange, 
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+        }
+
         // Header
         Row(
             modifier = Modifier
