@@ -490,12 +490,13 @@ fun WorkoraLiveChatDialog(
     val myRole = remember { authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER" }
     val myLocation = remember { profilePrefs.getString("user_location", "Silwani, Raisen (MP)") ?: "Silwani, Raisen (MP)" }
 
-    val cardColor = WorkoraThemeManager.surfaceColor(context)
-    val subtleBg = WorkoraThemeManager.subtleSurfaceColor(context)
-    val textDark = WorkoraThemeManager.textPrimary(context)
-    val textMuted = WorkoraThemeManager.textSecondary(context)
-    val borderCol = WorkoraThemeManager.borderColor(context)
-    val accentBlue = WorkoraThemeManager.accentBlue(context)
+        val cardColor = Color.White
+    val subtleBg = Color(0xFFF8FAFC)
+    val textDark = Color.Black
+    val textMuted = Color.Gray
+    val borderCol = Color(0xFFE2E8F0)
+    val accentBlue = Color(0xFF083D91)
+
     val deepNavy = Color(0xFF083D91)
     val brandOrange = Color(0xFFFF8C00)
     val greenTrusted = Color(0xFF22A06B)
