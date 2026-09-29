@@ -58,6 +58,23 @@ fun CustomerDashboardScreen(
             .background(Color(0xFFF8FAFC))
             .padding(bottom = 60.dp) // Bottom Navigation Padding
     ) {
+        // ✅ NEW: CUSTOMER MODE BADGE
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFE0E7FF))
+                .padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "👨‍💼 CUSTOMER MODE (ग्राहक)",
+                color = CustNavy,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+        }
+
         // Top Location Header
         Row(
             modifier = Modifier
