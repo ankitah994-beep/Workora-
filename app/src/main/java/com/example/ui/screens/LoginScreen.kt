@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -392,8 +393,8 @@ fun LoginScreen(
     var isRegistrationScreen by remember { mutableStateOf(false) }
 
     // Login States
-    var loginChannelTab by remember { mutableIntStateOf(0) } // 0 = Mobile Number, 1 = Gmail / Email
-    var authMethodTab by remember { mutableIntStateOf(0) } // 0 = Password, 1 = OTP
+    var loginChannelTab by remember { mutableIntStateOf(0) }
+    var authMethodTab by remember { mutableIntStateOf(0) }
     var identifierInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
@@ -605,10 +606,15 @@ fun LoginScreen(
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        LiveLocationAutoCompleteField(
+                        // FIX: Replaced custom LiveLocationAutoCompleteField with standard OutlinedTextField
+                        OutlinedTextField(
                             value = regLocation,
                             onValueChange = { regLocation = it },
-                            label = "Village / City (गाँव या शहर - Live Search)"
+                            label = { Text("Village / City (गाँव या शहर)") },
+                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
                         )
 
                         Text(
@@ -1006,7 +1012,7 @@ fun LoginScreen(
                         )
                     ) {
                         Text(
-                            text = "✉️️ Gmail",
+                            text = "✉ Gmail",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = if (loginChannelTab == 1) Color.White else Color(0xFF102A43),
