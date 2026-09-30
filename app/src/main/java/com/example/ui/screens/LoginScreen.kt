@@ -224,53 +224,6 @@ object WorkoraRealOtpEngine {
 }
 
 @Composable
-fun WorkoraRealOtpVerificationDialog(
-    targetKey: String, maskedTargetDisplay: String, purposeTitle: String = "Verify OTP",
-    onResendClick: () -> Unit, onDismiss: () -> Unit, onVerifiedSuccess: () -> Unit
-) {
-    val context = LocalContext.current
-    var otpInput by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss, containerColor = Color.White,
-        title = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = purposeTitle, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
-                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF102A43)) }
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Enter the 6-digit OTP sent to $maskedTargetDisplay", fontSize = 13.sp, color = Color(0xFF475467))
-                if (errorMessage != null) { Text(text = errorMessage!!, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraRed) }
-                OutlinedTextField(
-                    value = otpInput, onValueChange = { if (it.length <= 6) otpInput = it.filter { c -> c.isDigit() } },
-                    label = { Text("Enter 6-Digit OTP") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
-                )
-                Text(
-                    text = "Resend OTP", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue,
-                    modifier = Modifier.clickable { errorMessage = null; otpInput = ""; onResendClick() }
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val verifyResult = WorkoraRealOtpEngine.verifyRealOtp(context, targetKey, otpInput)
-                    if (verifyResult.first) onVerifiedSuccess() else errorMessage = verifyResult.second
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue), shape = RoundedCornerShape(10.dp)
-            ) { Text("Verify", color = Color.White, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(10.dp)) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
 fun LoginScreen(
     onLogin: (email: String, password: String) -> Unit = { _, _ -> },
     onNavigateToSignUp: () -> Unit = {},
