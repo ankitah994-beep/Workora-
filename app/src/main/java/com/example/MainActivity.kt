@@ -85,13 +85,14 @@ class MainActivity : ComponentActivity() {
                                 onJobPosted = { currentScreen = "DASHBOARD" } // <-- ERROR FIXED HERE
                             )
                         }
-                        "DASHBOARD" -> {
-                            if (currentRole == "LABOUR") {
-                                LabourDashboardScreen()
-                            } else {
-                                CustomerHomeScreen()
-                                    onPostJobClick = { currentScreen = "POST_JOB" }
-                                )
+                        ""DASHBOARD" -> {
+    if (currentRole == "LABOUR") {
+        LabourDashboardScreen()
+    } else {
+        CustomerHomeScreen()
+    }
+}
+
                             }
                         }
                     }
