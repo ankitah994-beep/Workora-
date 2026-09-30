@@ -6,7 +6,6 @@ import android.util.Base64
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,7 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.UserRole
 
-private val ProfileNavy = Color(0xFF083D91)
+private val ProfileNavy = Color(0xFF0061FF) // Updated to Workora Blue theme consistency
 private val ProfileOrange = Color(0xFFFF8C00)
 private val ProfileGreen = Color(0xFF22A06B)
 
@@ -70,9 +69,7 @@ private fun decodeProfileBase64Image(base64Str: String?): ImageBitmap? {
     return try {
         val bytes = Base64.decode(base64Str, Base64.DEFAULT)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-    } catch (_: Exception) {
-        null
-    }
+    } catch (_: Exception) { null }
 }
 
 @Composable
@@ -94,7 +91,7 @@ fun ProfileScreen(
     val context = LocalContext.current
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
-
+    
     val savedName = profilePrefs.getString("user_name", userName) ?: userName
     val savedPhone = profilePrefs.getString("user_phone", userPhone) ?: userPhone
     val savedLoc = profilePrefs.getString("user_location", userLocation) ?: userLocation
@@ -108,7 +105,6 @@ fun ProfileScreen(
     val proof1B64 = profilePrefs.getString("work_photo_1", "") ?: ""
     val proof2B64 = profilePrefs.getString("work_photo_2", "") ?: ""
     val proof3B64 = profilePrefs.getString("work_photo_3", "") ?: ""
-
     val isAdmin = authPrefs.getString("saved_user_role", "") == "ADMIN"
 
     Column(
@@ -165,9 +161,8 @@ fun ProfileScreen(
                     Icon(Icons.Default.Person, contentDescription = null, tint = ProfileNavy, modifier = Modifier.size(40.dp))
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
             
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = savedName.ifBlank { "No details provided" },
                 fontSize = 20.sp,
@@ -179,7 +174,7 @@ fun ProfileScreen(
                 fontSize = 14.sp,
                 color = Color.Gray
             )
-
+            
             Spacer(modifier = Modifier.height(20.dp))
 
             // Details Card
@@ -189,12 +184,15 @@ fun ProfileScreen(
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, Color(0xFFE2E8F0))
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     ProfileDetailRow(Icons.Default.LocationOn, "Location", savedLoc)
                     ProfileDetailRow(Icons.Default.Build, "Primary Skill", savedSkill)
                     ProfileDetailRow(Icons.Default.Work, "Experience", savedExp)
                     ProfileDetailRow(Icons.Default.Person, "Age", savedAge)
-                    ProfileDetailRow(Icons.Default.Star, "Daily Wage", if(savedRate.isNotBlank()) "₹$savedRate/day" else "")
+                    ProfileDetailRow(Icons.Default.Star, "Daily Wage", if (savedRate.isNotBlank()) "₹$savedRate/day" else "")
                 }
             }
 
@@ -208,6 +206,7 @@ fun ProfileScreen(
                 color = ProfileNavy,
                 modifier = Modifier.align(Alignment.Start)
             )
+            
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -223,7 +222,9 @@ fun ProfileScreen(
             // Buttons
             Button(
                 onClick = onSwitchRole,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = ProfileOrange)
             ) {
@@ -238,13 +239,15 @@ fun ProfileScreen(
 
             OutlinedButton(
                 onClick = onLogout,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 shape = RoundedCornerShape(10.dp),
                 border = BorderStroke(1.dp, Color(0xFFB42318))
             ) {
                 Text("Log Out (लॉग आउट)", fontWeight = FontWeight.Bold, color = Color(0xFFB42318))
             }
-            
+
             Spacer(modifier = Modifier.height(30.dp))
         }
     }
@@ -291,10 +294,6 @@ fun WorkProofImageBox(base64Str: String, modifier: Modifier = Modifier) {
     }
 }
 
-
-// =========================================================================
-// WORKER PROFILE DIALOG (PUBLIC VIEW)
-// =========================================================================
 @Composable
 fun WorkerProfileDialog(
     workerName: String,
@@ -336,7 +335,10 @@ fun WorkerProfileDialog(
                 // Header
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(54.dp).clip(CircleShape).background(Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE2E8F0)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Default.Person, contentDescription = null, tint = ProfileNavy, modifier = Modifier.size(30.dp))
@@ -347,7 +349,7 @@ fun WorkerProfileDialog(
                         Text("$displaySkills • $displayExp", fontSize = 12.sp, color = ProfileOrange, fontWeight = FontWeight.Bold)
                     }
                 }
-                
+
                 Divider(color = Color(0xFFE2E8F0))
 
                 // Details
@@ -358,10 +360,13 @@ fun WorkerProfileDialog(
                 Text("• Availability: $availability", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ProfileGreen)
                 Text("• Team Size: $displayTeam", fontSize = 13.sp, color = Color.Gray)
                 Text("• About: $displayAbout", fontSize = 13.sp, color = Color.Gray)
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Work Proofs:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ProfileNavy)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     WorkProofImageBox(photo1B64, modifier = Modifier.weight(1f).height(60.dp))
                     WorkProofImageBox(photo2B64, modifier = Modifier.weight(1f).height(60.dp))
                     WorkProofImageBox(photo3B64, modifier = Modifier.weight(1f).height(60.dp))
@@ -370,10 +375,15 @@ fun WorkerProfileDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Report & Block
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedButton(
                         onClick = onReport,
-                        modifier = Modifier.weight(1f).height(38.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp),
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(0.dp),
                         border = BorderStroke(1.dp, Color(0xFFB42318))
@@ -382,7 +392,9 @@ fun WorkerProfileDialog(
                     }
                     OutlinedButton(
                         onClick = onBlock,
-                        modifier = Modifier.weight(1f).height(38.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp),
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(0.dp),
                         border = BorderStroke(1.dp, Color(0xFFB42318))
@@ -390,14 +402,19 @@ fun WorkerProfileDialog(
                         Text("Block", color = Color(0xFFB42318), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 // Call & Hire
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedButton(
                         onClick = onCall,
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
                         shape = RoundedCornerShape(24.dp),
                         border = BorderStroke(1.2.dp, ProfileNavy)
                     ) {
@@ -407,7 +424,9 @@ fun WorkerProfileDialog(
                     }
                     Button(
                         onClick = onHire,
-                        modifier = Modifier.weight(1.2f).height(44.dp),
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(44.dp),
                         shape = RoundedCornerShape(24.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = ProfileOrange)
                     ) {
