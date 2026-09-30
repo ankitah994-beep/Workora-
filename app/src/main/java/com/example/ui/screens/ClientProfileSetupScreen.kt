@@ -63,6 +63,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign // <--- यह इम्पोर्ट ज़रूरी था
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -98,10 +99,8 @@ fun ClientProfileSetupScreen(
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     
-    // Step Control
     var currentStep by remember { mutableIntStateOf(1) }
 
-    // Form States
     var profilePhotoB64 by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf(initialPhone) }
@@ -136,7 +135,6 @@ fun ClientProfileSetupScreen(
             .navigationBarsPadding()
             .imePadding()
     ) {
-        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,7 +169,6 @@ fun ClientProfileSetupScreen(
         ) {
             when (currentStep) {
                 1 -> {
-                    // STEP 1: Basic Info
                     val profileBmp = remember(profilePhotoB64) { decodeBase64Image(profilePhotoB64) }
                     Box(
                         modifier = Modifier
@@ -226,7 +223,6 @@ fun ClientProfileSetupScreen(
                 }
                 
                 2 -> {
-                    // STEP 2: Business Info
                     Text("Business Type", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -258,7 +254,6 @@ fun ClientProfileSetupScreen(
                 }
 
                 3 -> {
-                    // STEP 3: Review Details
                     Text("Review Your Profile", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Check your details before submitting.", fontSize = 14.sp, color = TextGray, modifier = Modifier.fillMaxWidth())
@@ -296,7 +291,6 @@ fun ClientProfileSetupScreen(
             }
         }
 
-        // Bottom Navigation Buttons
         Row(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (currentStep == 3) {
                 OutlinedButton(
@@ -311,7 +305,6 @@ fun ClientProfileSetupScreen(
                     if (currentStep < 3) {
                         currentStep++
                     } else {
-                        // FINAL SUBMIT (Saving Client Data)
                         profilePrefs.edit().apply {
                             putString("user_name", fullName)
                             putString("user_phone", "+91 $phone")
@@ -325,7 +318,7 @@ fun ClientProfileSetupScreen(
                         authPrefs.edit().putString("saved_user_role", "CUSTOMER").apply()
                         
                         Toast.makeText(context, "Client Profile Created ✓", Toast.LENGTH_LONG).show()
-                        onSetupComplete() // Navigate to next screen (Client Dashboard)
+                        onSetupComplete()
                     }
                 },
                 modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(12.dp),
