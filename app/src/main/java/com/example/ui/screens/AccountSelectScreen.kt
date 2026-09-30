@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.model.UserRole
 
-// --- 1. आपका पुराना एडमिन गेट डायलॉग (इसमें कोई बदलाव नहीं किया गया है) ---
+// --- 1. आपका पुराना एडमिन गेट डायलॉग (सुरक्षित) ---
 @Composable
 fun WorkoraAdminSecurityGateDialog(
     onDismiss: () -> Unit,
@@ -71,16 +71,12 @@ fun WorkoraAdminSecurityGateDialog(
     val cardColor = Color.White
     val textDark = Color.Black
     val textMuted = Color.Gray
-
     var step by remember { mutableIntStateOf(1) }
     var pinInput by remember { mutableStateOf("") }
     var otpInput by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     val targetKey = "admin_security_gate"
-
-    val savedPinHash = remember {
-        WorkoraSecurityManager.readEncryptedSecret(context, "admin_master_pin_hash", "")
-    }
+    val savedPinHash = remember { WorkoraSecurityManager.readEncryptedSecret(context, "admin_master_pin_hash", "") }
     val isFirstTimePinSetup = savedPinHash.isBlank()
 
     AlertDialog(
@@ -142,18 +138,29 @@ fun WorkoraAdminSecurityGateDialog(
             Button(
                 onClick = {
                     val allowedCheck = WorkoraSecurityManager.checkLoginBruteForceAllowed(context, "admin_gate")
-                    if (!allowedCheck.first) { errorMsg = allowedCheck.second; return@Button }
-
+                    if (!allowedCheck.first) {
+                        errorMsg = allowedCheck.second
+                        return@Button
+                    }
                     if (step == 1) {
-                        if (pinInput.length != 6) { errorMsg = "Please enter a 6-digit PIN"; return@Button }
+                        if (pinInput.length != 6) {
+                            errorMsg = "Please enter a 6-digit PIN"
+                            return@Button
+                        }
                         if (isFirstTimePinSetup) {
                             val newHash = WorkoraSecurityManager.hashPasswordSecure(pinInput)
                             WorkoraSecurityManager.saveEncryptedSecret(context, "admin_master_pin_hash", newHash)
-                            WorkoraRealOtpEngine.sendRealOtp(context, targetKey, "ADMIN_UNLOCK") { step = 2; errorMsg = null }
+                            WorkoraRealOtpEngine.sendRealOtp(context, targetKey, "ADMIN_UNLOCK") {
+                                step = 2
+                                errorMsg = null
+                            }
                         } else {
                             if (WorkoraSecurityManager.verifyPasswordSecure(pinInput, savedPinHash)) {
                                 WorkoraSecurityManager.recordLoginAttempt(context, "admin_gate", true)
-                                WorkoraRealOtpEngine.sendRealOtp(context, targetKey, "ADMIN_UNLOCK") { step = 2; errorMsg = null }
+                                WorkoraRealOtpEngine.sendRealOtp(context, targetKey, "ADMIN_UNLOCK") {
+                                    step = 2
+                                    errorMsg = null
+                                }
                             } else {
                                 WorkoraSecurityManager.recordLoginAttempt(context, "admin_gate", false)
                                 errorMsg = "Incorrect Admin PIN!"
@@ -172,15 +179,19 @@ fun WorkoraAdminSecurityGateDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
                 shape = RoundedCornerShape(10.dp)
-            ) { Text(text = if (step == 1) "Continue" else "Unlock Admin Panel", color = Color.White) }
+            ) {
+                Text(text = if (step == 1) "Continue" else "Unlock Admin Panel", color = Color.White)
+            }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(10.dp)) { Text("Cancel") }
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(10.dp)) {
+                Text("Cancel")
+            }
         }
     )
 }
 
-// --- 2. नई डिज़ाइन वाली Role Selection Screen ---
+// --- 2. Role Selection & Admin Navigation Screen ---
 @Composable
 fun AccountSelectScreen(
     onSelectRole: (UserRole) -> Unit = {},
@@ -192,33 +203,22 @@ fun AccountSelectScreen(
     val context = LocalContext.current
     val activity = context as? ComponentActivity
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
-
-    // Admin state - पुराना लॉजिक सुरक्षित
+    
     var showAdminGateDialog by remember { mutableStateOf(false) }
     var isAdminPanelOpen by remember { mutableStateOf(false) }
 
-    val loggedEmail = remember {
-        authPrefs.getString("last_logged_in_email", "example@gmail.com") ?: "example@gmail.com"
-    }
-
     if (isAdminPanelOpen) {
+        // CLEAN ADMIN DASHBOARD CALL (MATCHING MASTERPLAN)
         AdminDashboardScreen(
-            adminEmail = loggedEmail,
-            adminTier = "SUPER_ADMIN",
-            onLogoutAdmin = { isAdminPanelOpen = false; onLogout() },
-            onSwitchRoleFromAdmin = { roleStr ->
-                isAdminPanelOpen = false
-                if (roleStr == "CUSTOMER") { onSelectRole(UserRole.CUSTOMER); onRoleSelected(UserRole.CUSTOMER) } 
-                else { onSelectRole(UserRole.LABOUR); onRoleSelected(UserRole.LABOUR) }
-            },
-            onBack = { isAdminPanelOpen = false },
-            onSwitchToCustomer = { isAdminPanelOpen = false; onSelectRole(UserRole.CUSTOMER); onRoleSelected(UserRole.CUSTOMER) },
-            onSwitchToLabour = { isAdminPanelOpen = false; onSelectRole(UserRole.LABOUR); onRoleSelected(UserRole.LABOUR) }
+            onNavigateToUsers = {},
+            onNavigateToJobs = {},
+            onNavigateToReports = {},
+            onNavigateToAppControl = {},
+            onNavigateToStateControl = {}
         )
         return
     }
 
-    // नया UI डिज़ाइन शुरू
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -228,7 +228,6 @@ fun AccountSelectScreen(
             .imePadding()
             .padding(horizontal = 24.dp, vertical = 20.dp)
     ) {
-        // Header: Back Arrow & Secret Admin Lock
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -240,20 +239,18 @@ fun AccountSelectScreen(
                 tint = Color(0xFF0061FF),
                 modifier = Modifier
                     .size(28.dp)
-                    .clickable { activity?.finish() } // Back button logic
+                    .clickable { activity?.finish() }
             )
-            // Admin panel access (subtle lock icon to preserve UI design)
             Icon(
                 imageVector = Icons.Default.Lock,
                 contentDescription = "Admin",
-                tint = Color(0xFFE2E8F0), // Very light gray so it blends in
+                tint = Color(0xFFE2E8F0),
                 modifier = Modifier.clickable { showAdminGateDialog = true }
             )
         }
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // Titles
         Text(
             text = "Choose Your Role",
             fontSize = 28.sp,
@@ -267,10 +264,10 @@ fun AccountSelectScreen(
             fontWeight = FontWeight.Medium,
             color = Color(0xFF64748B)
         )
-
+        
         Spacer(modifier = Modifier.height(36.dp))
 
-        // Card 1: Worker (I want to work)
+        // Worker Role Card
         Card(
             onClick = {
                 authPrefs.edit().putString("saved_user_role", UserRole.LABOUR.name).apply()
@@ -291,7 +288,6 @@ fun AccountSelectScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Worker Image
                 Image(
                     painter = painterResource(id = R.drawable.img_role_worker),
                     contentDescription = "Worker",
@@ -324,7 +320,7 @@ fun AccountSelectScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Card 2: Client (I want to hire)
+        // Client Role Card
         Card(
             onClick = {
                 authPrefs.edit().putString("saved_user_role", UserRole.CUSTOMER.name).apply()
@@ -345,7 +341,6 @@ fun AccountSelectScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Client Image
                 Image(
                     painter = painterResource(id = R.drawable.img_role_client),
                     contentDescription = "Client",
@@ -378,7 +373,6 @@ fun AccountSelectScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Bottom City Illustration & Text
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -402,7 +396,6 @@ fun AccountSelectScreen(
         }
     }
 
-    // Admin Verification Dialog Trigger
     if (showAdminGateDialog) {
         WorkoraAdminSecurityGateDialog(
             onDismiss = { showAdminGateDialog = false },
