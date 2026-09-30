@@ -59,12 +59,11 @@ fun WorkoraRealOtpVerificationDialog(
     var otpInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
-    // Timer logic based on the UI design (00:58)
     var timeLeft by remember { mutableIntStateOf(58) }
     
     LaunchedEffect(timeLeft) {
         if (timeLeft > 0) {
-            delay(1000L) // 1 second delay
+            delay(1000L)
             timeLeft--
         }
     }
@@ -72,7 +71,7 @@ fun WorkoraRealOtpVerificationDialog(
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
-            usePlatformDefaultWidth = false // This makes it full screen
+            usePlatformDefaultWidth = false
         )
     ) {
         Column(
@@ -85,7 +84,6 @@ fun WorkoraRealOtpVerificationDialog(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header: Back Arrow
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -93,7 +91,7 @@ fun WorkoraRealOtpVerificationDialog(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color(0xFF0061FF), // Workora Blue
+                    tint = Color(0xFF0061FF),
                     modifier = Modifier
                         .size(28.dp)
                         .clickable { onDismiss() }
@@ -102,7 +100,6 @@ fun WorkoraRealOtpVerificationDialog(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Title
             Text(
                 text = purposeTitle, 
                 fontSize = 28.sp, 
@@ -112,7 +109,6 @@ fun WorkoraRealOtpVerificationDialog(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Subtitle with Masked Number
             Text(
                 text = "Enter the 6-digit code sent to\n$maskedTargetDisplay", 
                 fontSize = 15.sp, 
@@ -123,13 +119,12 @@ fun WorkoraRealOtpVerificationDialog(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 6-Digit OTP Input Boxes
             BasicTextField(
                 value = otpInput,
                 onValueChange = { 
                     if (it.length <= 6) {
                         otpInput = it.filter { c -> c.isDigit() }
-                        errorMessage = null // Clear error when typing
+                        errorMessage = null
                     } 
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -137,7 +132,7 @@ fun WorkoraRealOtpVerificationDialog(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        verticalAlignment = Alignment.CenterVertically // <--- यह लाइन फिक्स कर दी गई है
                     ) {
                         repeat(6) { index ->
                             val char = when {
@@ -172,18 +167,16 @@ fun WorkoraRealOtpVerificationDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Error Message Display
             if (errorMessage != null) {
                 Text(
                     text = errorMessage!!, 
                     fontSize = 13.sp, 
                     fontWeight = FontWeight.Bold, 
-                    color = Color(0xFFB42318), // Workora Red
+                    color = Color(0xFFB42318),
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
 
-            // Resend OTP Timer Display (Matching the design)
             Text(
                 text = if (timeLeft > 0) "Resend OTP (00:${timeLeft.toString().padStart(2, '0')})" else "Resend OTP Now",
                 fontSize = 14.sp,
@@ -193,7 +186,7 @@ fun WorkoraRealOtpVerificationDialog(
                     if (timeLeft == 0) {
                         errorMessage = null
                         otpInput = ""
-                        timeLeft = 58 // Reset the timer
+                        timeLeft = 58
                         onResendClick()
                         Toast.makeText(context, "OTP Resent!", Toast.LENGTH_SHORT).show()
                     }
@@ -202,7 +195,6 @@ fun WorkoraRealOtpVerificationDialog(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Verify Button
             Button(
                 onClick = {
                     if (otpInput.length < 6) {
@@ -227,7 +219,6 @@ fun WorkoraRealOtpVerificationDialog(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Bottom Resend Link
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
