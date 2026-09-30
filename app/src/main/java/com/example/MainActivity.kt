@@ -33,19 +33,19 @@ class MainActivity : ComponentActivity() {
                     val context = applicationContext
                     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
 
-                    // App States
+                    // App States with safety checks for empty roles
                     var isLoggedIn by remember { mutableStateOf(authPrefs.getBoolean("is_logged_in", false)) }
-                    var currentRole by remember { mutableStateOf(authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER") }
+                    var currentRole by remember { mutableStateOf(authPrefs.getString("saved_user_role", "") ?: "") }
                     
-                    // App starts with SPLASH
-                    var currentScreen by remember { mutableStateOf(if (isLoggedIn) "DASHBOARD" else "SPLASH") }
+                    // White Screen Fix: Agar role empty hai to wapas Splash/Role Select par bhejo
+                    var currentScreen by remember { 
+                        mutableStateOf(if (isLoggedIn && currentRole.isNotEmpty()) "DASHBOARD" else "SPLASH") 
+                    }
 
                     when (currentScreen) {
                         "SPLASH" -> {
                             SplashScreen(
-                                onSplashFinished = {
-                                    currentScreen = "WELCOME" 
-                                }
+                                onSplashFinished = { currentScreen = "WELCOME" }
                             )
                         }
                         "WELCOME" -> {
@@ -74,8 +74,7 @@ class MainActivity : ComponentActivity() {
                                     isLoggedIn = true
                                     authPrefs.edit().putBoolean("is_logged_in", true).apply()
                                     
-                                    // 🔥 ADMIN CHECK LOGIC 🔥
-                                    // अगर ईमेल आपका है, तो सीधा एडमिन डैशबोर्ड खुलेगा
+                                    // Admin Email Check
                                     if (email.trim().equals("ankitah994@gmail.com", ignoreCase = true) || 
                                         email.trim().equals("admin@workora.com", ignoreCase = true)) {
                                         currentRole = "ADMIN"
@@ -85,18 +84,17 @@ class MainActivity : ComponentActivity() {
                                         currentScreen = "DASHBOARD"
                                     }
                                 },
-                                onNavigateToSignUp = { },
+                                onNavigateToSignUp = { currentScreen = "ROLE_SELECT" },
                                 onBack = { currentScreen = "WELCOME" }
                             )
                         }
                         "ADMIN_DASHBOARD" -> {
-                            // आपका नया एडमिन पैनल यहाँ से खुलेगा
                             AdminDashboardScreen(
-                                onNavigateToUsers = { /* Handle Users */ },
-                                onNavigateToJobs = { /* Handle Jobs */ },
-                                onNavigateToReports = { /* Handle Reports */ },
-                                onNavigateToAppControl = { /* Handle App Control */ },
-                                onNavigateToStateControl = { /* Handle State Control */ }
+                                onNavigateToUsers = { /* Admin Users Screen */ },
+                                onNavigateToJobs = { /* Admin Jobs Screen */ },
+                                onNavigateToReports = { /* Admin Reports Screen */ },
+                                onNavigateToAppControl = { /* Admin App Control */ },
+                                onNavigateToStateControl = { /* Admin State Control */ }
                             )
                         }
                         "WORKER_SETUP" -> {
@@ -119,7 +117,7 @@ class MainActivity : ComponentActivity() {
                         }
                         "DASHBOARD" -> {
                             if (currentRole == "ADMIN") {
-                                currentScreen = "ADMIN_DASHBOARD" // Safety check
+                                currentScreen = "ADMIN_DASHBOARD"
                             } else if (currentRole == "LABOUR") {
                                 LabourDashboardScreen()
                             } else {
