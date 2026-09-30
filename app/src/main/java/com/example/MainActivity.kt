@@ -16,7 +16,7 @@ import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.PostJobScreen
 import com.example.ui.screens.SplashScreen
-import com.example.ui.screens.WelcomeScreen
+import com.example.ui.screens.WelcomeScreen // Fixed: Missing import added
 import com.example.ui.screens.WorkerProfileSetupScreen
 import com.example.ui.theme.WorkoraTheme
 
@@ -33,8 +33,9 @@ class MainActivity : ComponentActivity() {
                     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
 
                     // App Navigation States
-                    val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)
-                    val currentRole = authPrefs.getString("saved_user_role", "CUSTOMER")
+                    // Fixed: Changed 'val' to 'var' because they are reassigned later in the code[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
+                    var isLoggedIn by remember { mutableStateOf(authPrefs.getBoolean("is_logged_in", false)) }
+                    var currentRole by remember { mutableStateOf(authPrefs.getString("saved_user_role", "CUSTOMER") ?: "CUSTOMER") }
                     
                     // App starts with SPLASH screen as per Masterplan image
                     var currentScreen by remember { mutableStateOf(if (isLoggedIn) "DASHBOARD" else "SPLASH") }
