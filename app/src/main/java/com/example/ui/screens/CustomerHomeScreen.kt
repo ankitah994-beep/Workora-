@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -196,7 +197,7 @@ fun CustomerHomeScreen(
                 }
             }
 
-            // Search Bar Mock (Clickable to open actual search screen)
+            // Search Bar Mock
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
