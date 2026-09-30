@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val context = applicationContext
                     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
-                    
+
                     // App Navigation States
                     var isLoggedIn by remember { mutableStateOf(authPrefs.getBoolean("is_logged_in", false)) }
                     var currentRole by remember { mutableStateOf(authPrefs.getString("saved_user_role", "CUSTOMER")) }
@@ -52,7 +52,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-
                         "LOGIN" -> {
                             LoginScreen(
                                 onLogin = { email, pass ->
@@ -68,48 +67,30 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-
                         "WORKER_SETUP" -> {
                             WorkerProfileSetupScreen(
-                                onSetupComplete = {
-                                    currentScreen = "DASHBOARD"
-                                },
-                                onBack = {
-                                    currentScreen = "ROLE_SELECT"
-                                }
+                                onSetupComplete = { currentScreen = "DASHBOARD" },
+                                onBack = { currentScreen = "ROLE_SELECT" }
                             )
                         }
-
                         "CLIENT_SETUP" -> {
                             ClientProfileSetupScreen(
-                                onSetupComplete = {
-                                    currentScreen = "DASHBOARD"
-                                },
-                                onBack = {
-                                    currentScreen = "ROLE_SELECT"
-                                }
+                                onSetupComplete = { currentScreen = "DASHBOARD" },
+                                onBack = { currentScreen = "ROLE_SELECT" }
                             )
                         }
-
                         "POST_JOB" -> {
                             PostJobScreen(
-                                onBack = {
-                                    currentScreen = "DASHBOARD"
-                                },
-                                onSubmit = {
-                                    currentScreen = "DASHBOARD"
-                                }
+                                onBack = { currentScreen = "DASHBOARD" },
+                                onJobPosted = { currentScreen = "DASHBOARD" } // <-- ERROR FIXED HERE
                             )
                         }
-
                         "DASHBOARD" -> {
                             if (currentRole == "LABOUR") {
                                 LabourDashboardScreen()
                             } else {
                                 CustomerDashboardScreen(
-                                    onPostJobClick = {
-                                        currentScreen = "POST_JOB"
-                                    }
+                                    onPostJobClick = { currentScreen = "POST_JOB" }
                                 )
                             }
                         }
