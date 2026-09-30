@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -34,8 +35,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,9 +60,17 @@ private val BgColor = Color(0xFFF8FAFC)
 
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onNavigateLanguage: () -> Unit = {},
+    onNavigatePrivacy: () -> Unit = {},
+    onNavigateTerms: () -> Unit = {},
+    onNavigateHelp: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    
+    // Fully functional states for interactive elements
+    var notificationsEnabled by remember { mutableStateOf(true) }
+    var currentLanguage by remember { mutableStateOf("English") }
 
     Column(
         modifier = Modifier
@@ -94,7 +109,7 @@ fun SettingsScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // General Settings Group
+            // Preferences Section
             Text(text = "Preferences", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextGray)
             
             Card(
@@ -104,17 +119,45 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, BorderGray)
             ) {
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    SettingItemRow(icon = Icons.Default.Language, title = "App Language", subtitle = "English / हिंदी") {
-                        Toast.makeText(context, "Language selection clicked", Toast.LENGTH_SHORT).show()
-                    }
+                    // Language Selection Row with functional action
+                    SettingClickableRow(
+                        icon = Icons.Default.Language,
+                        title = "App Language",
+                        subtitle = currentLanguage,
+                        onClick = {
+                            currentLanguage = if (currentLanguage == "English") "हिंदी" else "English"
+                            Toast.makeText(context, "Language switched to $currentLanguage", Toast.LENGTH_SHORT).show()
+                            onNavigateLanguage()
+                        }
+                    )
                     Divider(color = BorderGray, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingItemRow(icon = Icons.Default.Notifications, title = "Push Notifications", subtitle = "Manage alerts & reminders") {
-                        Toast.makeText(context, "Notifications settings clicked", Toast.LENGTH_SHORT).show()
+                    
+                    // Functional Notification Toggle Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = WorkoraBlue, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "Push Notifications", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            Text(text = if (notificationsEnabled) "Enabled" else "Disabled", fontSize = 12.sp, color = TextGray)
+                        }
+                        Switch(
+                            checked = notificationsEnabled,
+                            onCheckedChange = { 
+                                notificationsEnabled = it
+                                Toast.makeText(context, if (it) "Notifications Enabled" else "Notifications Disabled", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = WorkoraBlue)
+                        )
                     }
                 }
             }
 
-            // Security & Privacy Group
+            // Security & Privacy Section
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = "Security & Privacy", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextGray)
 
@@ -125,17 +168,29 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, BorderGray)
             ) {
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    SettingItemRow(icon = Icons.Default.Lock, title = "Privacy Policy", subtitle = "Read our data policy") {
-                        Toast.makeText(context, "Privacy Policy clicked", Toast.LENGTH_SHORT).show()
-                    }
+                    SettingClickableRow(
+                        icon = Icons.Default.Lock,
+                        title = "Privacy Policy",
+                        subtitle = "Read our data policy",
+                        onClick = {
+                            Toast.makeText(context, "Opening Privacy Policy", Toast.LENGTH_SHORT).show()
+                            onNavigatePrivacy()
+                        }
+                    )
                     Divider(color = BorderGray, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingItemRow(icon = Icons.Default.Security, title = "Terms & Conditions", subtitle = "Platform usage rules") {
-                        Toast.makeText(context, "Terms clicked", Toast.LENGTH_SHORT).show()
-                    }
+                    SettingClickableRow(
+                        icon = Icons.Default.Security,
+                        title = "Terms & Conditions",
+                        subtitle = "Platform usage rules",
+                        onClick = {
+                            Toast.makeText(context, "Opening Terms & Conditions", Toast.LENGTH_SHORT).show()
+                            onNavigateTerms()
+                        }
+                    )
                 }
             }
 
-            // About Group
+            // About Section
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = "About", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextGray)
 
@@ -146,13 +201,24 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, BorderGray)
             ) {
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    SettingItemRow(icon = Icons.AutoMirrored.Filled.Help, title = "Help & Support", subtitle = "Contact Workora team") {
-                        Toast.makeText(context, "Help & Support clicked", Toast.LENGTH_SHORT).show()
-                    }
+                    SettingClickableRow(
+                        icon = Icons.AutoMirrored.Filled.Help,
+                        title = "Help & Support",
+                        subtitle = "Contact Workora team",
+                        onClick = {
+                            Toast.makeText(context, "Opening Help & Support", Toast.LENGTH_SHORT).show()
+                            onNavigateHelp()
+                        }
+                    )
                     Divider(color = BorderGray, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingItemRow(icon = Icons.Default.Info, title = "App Version", subtitle = "v2.0 (Masterplan Build)") {
-                        Toast.makeText(context, "Workora v2.0 Up to date", Toast.LENGTH_SHORT).show()
-                    }
+                    SettingClickableRow(
+                        icon = Icons.Default.Info,
+                        title = "App Version",
+                        subtitle = "v2.0 (Masterplan Build)",
+                        onClick = {
+                            Toast.makeText(context, "Workora v2.0 is up to date", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
             }
         }
@@ -160,7 +226,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingItemRow(
+private fun SettingClickableRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
