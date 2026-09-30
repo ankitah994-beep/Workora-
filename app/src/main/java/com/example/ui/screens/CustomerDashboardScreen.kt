@@ -1,208 +1,127 @@
 package com.example.ui.screens
 
-import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val CustNavy = Color(0xFF083D91)
-private val CustOrange = Color(0xFFFF8C00)
+private val WorkoraBlue = Color(0xFF0061FF)
+private val TextDark = Color(0xFF0F172A)
+private val TextGray = Color(0xFF64748B)
+private val BgColor = Color(0xFFF8FAFC)
+
+private fun decodeCustImage(base64Str: String): ImageBitmap? {
+    if (base64Str.isBlank()) return null
+    return try {
+        val bytes = Base64.decode(base64Str, Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    } catch (_: Exception) { null }
+}
 
 @Composable
-fun CustomerDashboardScreen(
-    onNavigateToSearch: () -> Unit = {},
-    onOpenChat: () -> Unit = {}
-) {
+fun CustomerDashboardScreen(onPostJobClick: () -> Unit = {}) {
     val context = LocalContext.current
+    val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
+    val userName = profilePrefs.getString("user_name", "Client") ?: "Client"
+    val userLocation = profilePrefs.getString("user_location", "Silwani, MP") ?: "Silwani, MP"
+    val photoB64 = profilePrefs.getString("profile_photo_base64", "") ?: ""
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
-            .padding(bottom = 60.dp) // Bottom Navigation Padding
-    ) {
-        // ✅ NEW: CUSTOMER MODE BADGE
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFE0E7FF))
-                .padding(vertical = 6.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "👨‍💼 CUSTOMER MODE (ग्राहक)",
-                color = CustNavy,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
-            )
-        }
+    var selectedBottomTab by remember { mutableIntStateOf(0) }
 
-        // Top Location Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { 
-                    Toast.makeText(context, "Location Settings", Toast.LENGTH_SHORT).show()
-                }
-            ) {
-                Icon(Icons.Default.LocationOn, contentDescription = "Location", tint = CustOrange)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text("Bhopal, Madhya Pradesh", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CustNavy)
-                    Text("Tap to change work area", fontSize = 11.sp, color = Color.Gray)
-                }
-                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color.Gray)
-            }
-            
-            IconButton(onClick = { 
-                Toast.makeText(context, "No new notifications", Toast.LENGTH_SHORT).show() 
-            }) {
-                Icon(Icons.Default.Notifications, contentDescription = "Alerts", tint = CustNavy)
+    Scaffold(
+        bottomBar = { CustomerBottomNav(selectedBottomTab) { selectedBottomTab = it } },
+        containerColor = BgColor
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            CustomerHeader(userName, userLocation, photoB64)
+            CustomerContent(onPostJobClick)
+        }
+    }
+}
+
+@Composable
+private fun CustomerHeader(name: String, location: String, photoB64: String) {
+    val profileBmp = remember(photoB64) { decodeCustImage(photoB64) }
+    Row(modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 24.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (profileBmp != null) Image(bitmap = profileBmp, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(50.dp).clip(CircleShape))
+        else Box(modifier = Modifier.size(50.dp).background(Color(0xFFE2E8F0), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.PersonOutline, contentDescription = null, tint = TextGray) }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(text = "Hello, $name 👋", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = TextGray, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = location, fontSize = 13.sp, color = TextGray)
             }
         }
+    }
+}
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Main Banner
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE0E7FF)),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Find Daily Work\nNear You", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CustNavy)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Connect directly with nearby customers & get daily wages.", fontSize = 12.sp, color = CustNavy.copy(alpha = 0.8f))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = onNavigateToSearch,
-                            colors = ButtonDefaults.buttonColors(containerColor = CustNavy),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Explore Jobs", fontSize = 12.sp)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier.size(60.dp).background(Color.White, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Build, contentDescription = null, tint = CustOrange, modifier = Modifier.size(30.dp))
+@Composable
+private fun CustomerContent(onPostJobClick: () -> Unit) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = WorkoraBlue)) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Need work done?", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Post a job and hire trusted workers nearby.", fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onPostJobClick, colors = ButtonDefaults.buttonColors(containerColor = Color.White), shape = RoundedCornerShape(8.dp)) {
+                        Text("Post Job", color = WorkoraBlue, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-
-            // Categories Section
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Find Jobs by Category", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = CustNavy)
-                Text("View All >", fontSize = 12.sp, color = CustNavy, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onNavigateToSearch() })
-            }
-            
-            val categories = listOf("Mason", "Electrician", "Plumber", "Painter", "Carpenter", "More")
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                categories.chunked(3).forEach { row ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        row.forEach { catName ->
-                            Card(
-                                modifier = Modifier.weight(1f).height(80.dp).clickable { onNavigateToSearch() },
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier.size(36.dp).background(Color(0xFFF8FAFC), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.Build, contentDescription = null, tint = CustOrange, modifier = Modifier.size(18.dp))
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(catName, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = CustNavy)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Profile Active Banner
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                border = BorderStroke(1.dp, Color(0xFF86EFAC)),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22A06B), modifier = Modifier.size(32.dp))
+        }
+        item {
+            Text("Top Workers Near You", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Spacer(modifier = Modifier.height(12.dp))
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(50.dp).background(Color(0xFFE2E8F0), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.PersonOutline, contentDescription = null, tint = TextGray) }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text("Verified & Trusted Worker Profile", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CustNavy)
-                        Text("Your profile is active and visible to customers.", fontSize = 11.sp, color = Color.Gray)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Rajesh (Carpenter)", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text("₹500/day", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = WorkoraBlue)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CustomerBottomNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
+    NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
+        val items = listOf("Home" to Icons.Default.Home, "Search" to Icons.Default.Search, "Profile" to Icons.Default.PersonOutline)
+        items.forEachIndexed { index, pair ->
+            NavigationBarItem(
+                icon = { Icon(pair.second, contentDescription = pair.first) },
+                label = { Text(pair.first, fontSize = 11.sp) },
+                selected = selectedIndex == index,
+                onClick = { onTabSelected(index) },
+                colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, selectedTextColor = WorkoraBlue, unselectedTextColor = TextGray)
+            )
         }
     }
 }
