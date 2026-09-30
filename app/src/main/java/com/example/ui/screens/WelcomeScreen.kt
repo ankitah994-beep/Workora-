@@ -42,7 +42,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit = {}, onLoginClick: () -> Unit = {}) 
         Spacer(modifier = Modifier.height(30.dp))
         // Illustration (Make sure you have img_welcome in res/drawable)
         Image(
-            painter = painterResource(id = R.drawable.img_welcome), // Replace with actual image name
+            painter = painterResource(id = R.drawable.workora_splash_logo), // Replace with actual image name
             contentDescription = "Welcome Illustration",
             modifier = Modifier.fillMaxWidth().height(200.dp),
             contentScale = ContentScale.Fit
