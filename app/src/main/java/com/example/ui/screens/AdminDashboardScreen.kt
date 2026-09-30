@@ -6,50 +6,15 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Report
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Work
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -81,6 +46,7 @@ fun AdminDashboardScreen(
     onNavigateToStateControl: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    // State for Bottom Navigation
     var selectedBottomTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -90,35 +56,35 @@ fun AdminDashboardScreen(
                     icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
                     label = { Text("Dashboard", fontSize = 10.sp) },
                     selected = selectedBottomTab == 0,
-                    onClick = { selectedBottomTab = 0 },
+                    onClick = { selectedBottomTab = 0; Toast.makeText(context, "Dashboard Refreshed", Toast.LENGTH_SHORT).show() },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue)
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Group, contentDescription = "Users") },
                     label = { Text("Users", fontSize = 10.sp) },
                     selected = selectedBottomTab == 1,
-                    onClick = { selectedBottomTab = 1; onNavigateToUsers() },
+                    onClick = { selectedBottomTab = 1; Toast.makeText(context, "Opening Users List...", Toast.LENGTH_SHORT).show(); onNavigateToUsers() },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue)
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Work, contentDescription = "Jobs") },
                     label = { Text("Jobs", fontSize = 10.sp) },
                     selected = selectedBottomTab == 2,
-                    onClick = { selectedBottomTab = 2; onNavigateToJobs() },
+                    onClick = { selectedBottomTab = 2; Toast.makeText(context, "Opening Jobs List...", Toast.LENGTH_SHORT).show(); onNavigateToJobs() },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue)
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Report, contentDescription = "Reports") },
                     label = { Text("Reports", fontSize = 10.sp) },
                     selected = selectedBottomTab == 3,
-                    onClick = { selectedBottomTab = 3; onNavigateToReports() },
+                    onClick = { selectedBottomTab = 3; Toast.makeText(context, "Opening Reports...", Toast.LENGTH_SHORT).show(); onNavigateToReports() },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue)
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.MoreHoriz, contentDescription = "More") },
                     label = { Text("More", fontSize = 10.sp) },
                     selected = selectedBottomTab == 4,
-                    onClick = { selectedBottomTab = 4; Toast.makeText(context, "More Menu Opened", Toast.LENGTH_SHORT).show() },
+                    onClick = { selectedBottomTab = 4; Toast.makeText(context, "Opening Menu...", Toast.LENGTH_SHORT).show() },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue)
                 )
             }
@@ -134,6 +100,7 @@ fun AdminDashboardScreen(
                 .imePadding()
                 .verticalScroll(rememberScrollState())
         ) {
+            // Top App Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -147,7 +114,7 @@ fun AdminDashboardScreen(
                         Icons.Default.Menu,
                         contentDescription = "Menu",
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp).clickable { Toast.makeText(context, "Menu Clicked", Toast.LENGTH_SHORT).show() }
+                        modifier = Modifier.size(24.dp).clickable { Toast.makeText(context, "Sidebar Menu Clicked", Toast.LENGTH_SHORT).show() }
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
@@ -156,7 +123,7 @@ fun AdminDashboardScreen(
                     }
                 }
                 Box(
-                    modifier = Modifier.size(36.dp).background(Color.White, CircleShape),
+                    modifier = Modifier.size(36.dp).background(Color.White, CircleShape).clickable { Toast.makeText(context, "Admin Profile Clicked", Toast.LENGTH_SHORT).show() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraBlue, modifier = Modifier.size(22.dp))
@@ -167,56 +134,36 @@ fun AdminDashboardScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+                // Statistics Grid
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     AdminUniqueStatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Person,
-                        title = "Total Users",
-                        value = "24,580",
-                        change = "12%",
-                        isUp = true,
-                        onClick = onNavigateToUsers
+                        modifier = Modifier.weight(1f), icon = Icons.Default.Person, title = "Total Users",
+                        value = "24,580", change = "12%", isUp = true,
+                        onClick = { Toast.makeText(context, "Loading Users Data...", Toast.LENGTH_SHORT).show(); onNavigateToUsers() }
                     )
                     AdminUniqueStatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Work,
-                        title = "Total Jobs",
-                        value = "8,742",
-                        change = "18%",
-                        isUp = true,
-                        onClick = onNavigateToJobs
+                        modifier = Modifier.weight(1f), icon = Icons.Default.Work, title = "Total Jobs",
+                        value = "8,742", change = "18%", isUp = true,
+                        onClick = { Toast.makeText(context, "Loading Jobs Data...", Toast.LENGTH_SHORT).show(); onNavigateToJobs() }
                     )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     AdminUniqueStatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Assessment,
-                        title = "Total Applications",
-                        value = "45,230",
-                        change = "20%",
-                        isUp = true,
-                        onClick = { Toast.makeText(context, "Applications Clicked", Toast.LENGTH_SHORT).show() }
+                        modifier = Modifier.weight(1f), icon = Icons.Default.Assessment, title = "Total Applications",
+                        value = "45,230", change = "20%", isUp = true,
+                        onClick = { Toast.makeText(context, "Loading Applications...", Toast.LENGTH_SHORT).show() }
                     )
                     AdminUniqueStatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Flag,
-                        title = "Reported Issues",
-                        value = "124",
-                        change = "5%",
-                        isUp = false,
-                        onClick = onNavigateToReports
+                        modifier = Modifier.weight(1f), icon = Icons.Default.Flag, title = "Reported Issues",
+                        value = "124", change = "5%", isUp = false,
+                        onClick = { Toast.makeText(context, "Loading Reports...", Toast.LENGTH_SHORT).show(); onNavigateToReports() }
                     )
                 }
 
+                // Platform Growth Graph
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clickable { Toast.makeText(context, "Graph Expanded", Toast.LENGTH_SHORT).show() },
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = BorderStroke(1.dp, BorderGray)
@@ -229,20 +176,13 @@ fun AdminDashboardScreen(
                             val points = listOf(40f, 35f, 50f, 45f, 60f, 80f, 100f)
                             val max = 120f
                             val widthPerPoint = size.width / (points.size - 1)
-                            
                             val path = Path()
                             points.forEachIndexed { index, value ->
                                 val x = index * widthPerPoint
                                 val y = size.height - (value / max * size.height)
                                 if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
                             }
-                            
-                            drawPath(
-                                path = path,
-                                color = WorkoraBlue,
-                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                            )
-                            
+                            drawPath(path = path, color = WorkoraBlue, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
                             points.forEachIndexed { index, value ->
                                 val x = index * widthPerPoint
                                 val y = size.height - (value / max * size.height)
@@ -253,15 +193,13 @@ fun AdminDashboardScreen(
                     }
                 }
 
+                // Quick Actions
                 Text("Quick Actions", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    AdminQuickActionItem(icon = Icons.Default.Settings, title = "App Control", onClick = onNavigateToAppControl)
-                    AdminQuickActionItem(icon = Icons.Default.Report, title = "View Reports", onClick = onNavigateToReports)
-                    AdminQuickActionItem(icon = Icons.Default.Group, title = "Manage Users", onClick = onNavigateToUsers)
-                    AdminQuickActionItem(icon = Icons.Default.Map, title = "State Control", onClick = onNavigateToStateControl)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    AdminQuickActionItem(icon = Icons.Default.Settings, title = "App Control", onClick = { Toast.makeText(context, "Opening App Settings", Toast.LENGTH_SHORT).show(); onNavigateToAppControl() })
+                    AdminQuickActionItem(icon = Icons.Default.Report, title = "View Reports", onClick = { Toast.makeText(context, "Opening Reports", Toast.LENGTH_SHORT).show(); onNavigateToReports() })
+                    AdminQuickActionItem(icon = Icons.Default.Group, title = "Manage Users", onClick = { Toast.makeText(context, "Opening User Management", Toast.LENGTH_SHORT).show(); onNavigateToUsers() })
+                    AdminQuickActionItem(icon = Icons.Default.Map, title = "State Control", onClick = { Toast.makeText(context, "Opening Region Settings", Toast.LENGTH_SHORT).show(); onNavigateToStateControl() })
                 }
             }
         }
@@ -269,15 +207,7 @@ fun AdminDashboardScreen(
 }
 
 @Composable
-private fun AdminUniqueStatCard(
-    modifier: Modifier,
-    icon: ImageVector,
-    title: String,
-    value: String,
-    change: String,
-    isUp: Boolean,
-    onClick: () -> Unit
-) {
+private fun AdminUniqueStatCard(modifier: Modifier, icon: ImageVector, title: String, value: String, change: String, isUp: Boolean, onClick: () -> Unit) {
     Card(
         modifier = modifier.clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
@@ -293,7 +223,7 @@ private fun AdminUniqueStatCard(
             Spacer(modifier = Modifier.height(12.dp))
             Text(value, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = if (isUp) SuccessGreen else DangerRed, modifier = Modifier.size(14.dp))
+                Icon(if (isUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, contentDescription = null, tint = if (isUp) SuccessGreen else DangerRed, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(2.dp))
                 Text(change, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isUp) SuccessGreen else DangerRed)
             }
@@ -302,31 +232,15 @@ private fun AdminUniqueStatCard(
 }
 
 @Composable
-private fun AdminQuickActionItem(
-    icon: ImageVector,
-    title: String,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }.width(80.dp)
-    ) {
+private fun AdminQuickActionItem(icon: ImageVector, title: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }.width(80.dp)) {
         Box(
-            modifier = Modifier
-                .size(50.dp)
-                .background(Color.White, RoundedCornerShape(12.dp))
-                .border(1.dp, BorderGray, RoundedCornerShape(12.dp)),
+            modifier = Modifier.size(50.dp).background(Color.White, RoundedCornerShape(12.dp)).border(1.dp, BorderGray, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = WorkoraBlue, modifier = Modifier.size(24.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            title,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextDark,
-            textAlign = TextAlign.Center
-        )
+        Text(title, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextDark, textAlign = TextAlign.Center)
     }
 }
