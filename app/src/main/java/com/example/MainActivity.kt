@@ -11,10 +11,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.ui.screens.AccountSelectScreen
 import com.example.ui.screens.ClientProfileSetupScreen
-import com.example.ui.screens.CustomerHomeScreen // <-- NEW IMPORT ADDED
+import com.example.ui.screens.CustomerHomeScreen
 import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.PostJobScreen
+import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.WelcomeScreen
 import com.example.ui.screens.WorkerProfileSetupScreen
 import com.example.ui.theme.WorkoraTheme
 
@@ -31,15 +33,35 @@ class MainActivity : ComponentActivity() {
                     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
 
                     // App Navigation States
-                    var isLoggedIn by remember { mutableStateOf(authPrefs.getBoolean("is_logged_in", false)) }
-                    var currentRole by remember { mutableStateOf(authPrefs.getString("saved_user_role", "CUSTOMER")) }
-                    var currentScreen by remember { mutableStateOf(if (isLoggedIn) "DASHBOARD" else "ROLE_SELECT") }
+                    val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)
+                    val currentRole = authPrefs.getString("saved_user_role", "CUSTOMER")
+                    
+                    // App starts with SPLASH screen as per Masterplan image
+                    var currentScreen by remember { mutableStateOf(if (isLoggedIn) "DASHBOARD" else "SPLASH") }
 
                     when (currentScreen) {
+                        "SPLASH" -> {
+                            SplashScreen(
+                                onSplashFinished = {
+                                    currentScreen = "WELCOME"
+                                }
+                            )
+                        }
+                        "WELCOME" -> {
+                            WelcomeScreen(
+                                onGetStarted = {
+                                    currentScreen = "ROLE_SELECT"
+                                },
+                                onLoginClick = {
+                                    currentScreen = "LOGIN"
+                                }
+                            )
+                        }
                         "ROLE_SELECT" -> {
                             AccountSelectScreen(
                                 onSelectRole = { role ->
                                     currentRole = role.name
+                                    authPrefs.edit().putString("saved_user_role", role.name).apply()
                                     currentScreen = "LOGIN"
                                 },
                                 onOpenAdmin = {
@@ -48,7 +70,7 @@ class MainActivity : ComponentActivity() {
                                 onLogout = {
                                     isLoggedIn = false
                                     authPrefs.edit().putBoolean("is_logged_in", false).apply()
-                                    currentScreen = "ROLE_SELECT"
+                                    currentScreen = "WELCOME"
                                 }
                             )
                         }
@@ -63,7 +85,7 @@ class MainActivity : ComponentActivity() {
                                     // Registration handled within LoginScreen via toggle
                                 },
                                 onBack = {
-                                    currentScreen = "ROLE_SELECT"
+                                    currentScreen = "WELCOME"
                                 }
                             )
                         }
@@ -87,9 +109,20 @@ class MainActivity : ComponentActivity() {
                         }
                         "DASHBOARD" -> {
                             if (currentRole == "LABOUR") {
-                                LabourDashboardScreen()
+                                LabourDashboardScreen(
+                                    onNavigateToMyJobs = { /* Handle My Jobs */ },
+                                    onNavigateToChat = { /* Handle Chat */ },
+                                    onNavigateToProfile = { /* Handle Profile */ }
+                                )
                             } else {
-                                CustomerHomeScreen()
+                                CustomerHomeScreen(
+                                    onNavigateToSearch = { /* Handle Search */ },
+                                    onNavigateToNotifications = { /* Handle Notifications */ },
+                                    onNavigateToWorkerDetail = { /* Handle Worker Detail */ },
+                                    onNavigateToBookings = { /* Handle Bookings */ },
+                                    onNavigateToChat = { /* Handle Chat */ },
+                                    onNavigateToProfile = { /* Handle Profile */ }
+                                )
                             }
                         }
                     }
