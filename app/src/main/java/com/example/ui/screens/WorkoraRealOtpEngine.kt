@@ -10,33 +10,30 @@ import java.util.concurrent.TimeUnit
 
 class WorkoraRealOtpEngine(private val activity: Activity) {
     
-    // Firebase Auth ka instance
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private var storedVerificationId: String = ""
 
-    // 1. Real OTP Bhejne ka function
-    fun sendOtp(phoneNumber: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        // India ke numbers ke liye +91 lagana zaroori hai (agar user ne nahi lagaya)
+    // 1. Naam update karke sendRealOtp kar diya
+    fun sendRealOtp(phoneNumber: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         val formattedNumber = if (phoneNumber.startsWith("+")) phoneNumber else "+91$phoneNumber"
 
         val options = PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(formattedNumber)
-            .setTimeout(60L, TimeUnit.SECONDS) // 60 seconds ka timeout
+            .setTimeout(60L, TimeUnit.SECONDS)
             .setActivity(activity)
             .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                    // Agar sim phone mein hi hai, toh auto-verify ho jayega
+                    // Auto-verify
                 }
 
                 override fun onVerificationFailed(e: FirebaseException) {
-                    onError(e.localizedMessage ?: "OTP bhejne mein error aayi. Number check karein.")
+                    onError(e.localizedMessage ?: "OTP bhejne mein error aayi.")
                 }
 
                 override fun onCodeSent(
                     verificationId: String,
                     token: PhoneAuthProvider.ForceResendingToken
                 ) {
-                    // SMS sach mein chala gaya hai!
                     storedVerificationId = verificationId
                     onSuccess()
                 }
@@ -46,8 +43,8 @@ class WorkoraRealOtpEngine(private val activity: Activity) {
         PhoneAuthProvider.verifyPhoneNumber(options)
     }
 
-    // 2. Real OTP Verify karne ka function
-    fun verifyOtp(otp: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+    // 2. Naam update karke verifyRealOtp kar diya
+    fun verifyRealOtp(otp: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         if (storedVerificationId.isEmpty()) {
             onError("Pehle OTP bhejiye.")
             return
@@ -55,11 +52,10 @@ class WorkoraRealOtpEngine(private val activity: Activity) {
 
         val credential = PhoneAuthProvider.getCredential(storedVerificationId, otp)
         
-        // Firebase ke server par OTP match karna
         auth.signInWithCredential(credential)
             .addOnCompleteListener(activity) { task ->
                 if (task.isSuccessful) {
-                    onSuccess() // OTP bilkul sahi hai
+                    onSuccess() 
                 } else {
                     onError(task.exception?.localizedMessage ?: "Galat OTP! Kripya sahi code daalein.")
                 }
