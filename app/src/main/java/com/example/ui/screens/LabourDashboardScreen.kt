@@ -1,25 +1,60 @@
 package com.example.ui.screens
 
-import android.content.Context
-import android.graphics.BitmapFactory
-import android.util.Base64
-import androidx.compose.foundation.Image
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,90 +63,198 @@ import androidx.compose.ui.unit.sp
 private val WorkoraBlue = Color(0xFF0061FF)
 private val TextDark = Color(0xFF0F172A)
 private val TextGray = Color(0xFF64748B)
+private val BorderGray = Color(0xFFE2E8F0)
 private val BgColor = Color(0xFFF8FAFC)
+private val ProfileOrange = Color(0xFFFF8C00)
+private val SuccessGreen = Color(0xFF10B981)
 
-private fun decodeWorkerImage(base64Str: String): ImageBitmap? {
-    if (base64Str.isBlank()) return null
-    return try {
-        val bytes = Base64.decode(base64Str, Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-    } catch (_: Exception) { null }
-}
+data class JobRequest(
+    val clientName: String,
+    val title: String,
+    val location: String,
+    val date: String,
+    val wage: String
+)
 
 @Composable
-fun LabourDashboardScreen() {
+fun LabourDashboardScreen(
+    workerName: String = "Amit Kumar",
+    workerCategory: String = "Painter",
+    onNavigateToJobDetail: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
+    onNavigateToMyJobs: () -> Unit = {},
+    onNavigateToChat: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
+) {
     val context = LocalContext.current
-    val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
-    val userName = profilePrefs.getString("user_name", "Worker") ?: "Worker"
-    val userLocation = profilePrefs.getString("user_location", "Silwani, MP") ?: "Silwani, MP"
-    val photoB64 = profilePrefs.getString("profile_photo_base64", "") ?: ""
-    
     var selectedBottomTab by remember { mutableIntStateOf(0) }
+    var isOnline by remember { mutableStateOf(true) }
+
+    val availableJobs = listOf(
+        JobRequest("Rajesh Verma", "Need Painter for 2 BHK", "Silwani (2 km)", "Tomorrow", "₹850/day"),
+        JobRequest("Vikas Sharma", "Wall putty and primer work", "Raisen (15 km)", "05 Oct 2026", "₹900/day"),
+        JobRequest("Anil Dubey", "Exterior house painting", "Silwani (1 km)", "10 Oct 2026", "₹800/day")
+    )
 
     Scaffold(
-        bottomBar = { WorkerBottomNav(selectedBottomTab) { selectedBottomTab = it } },
-        containerColor = BgColor
-    ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            WorkerHeader(userName, userLocation, photoB64)
-            WorkerContent()
-        }
-    }
-}
-
-@Composable
-private fun WorkerHeader(name: String, location: String, photoB64: String) {
-    val profileBmp = remember(photoB64) { decodeWorkerImage(photoB64) }
-    Row(modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 24.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (profileBmp != null) Image(bitmap = profileBmp, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(50.dp).clip(CircleShape))
-        else Box(modifier = Modifier.size(50.dp).background(Color(0xFFE2E8F0), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.PersonOutline, contentDescription = null, tint = TextGray) }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(text = "Hello, $name 👋", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocationOn, contentDescription = null, tint = TextGray, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = location, fontSize = 13.sp, color = TextGray)
+        bottomBar = {
+            NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    selected = selectedBottomTab == 0,
+                    onClick = { selectedBottomTab = 0 },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Work, contentDescription = "My Jobs") },
+                    label = { Text("My Jobs", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    selected = selectedBottomTab == 1,
+                    onClick = { selectedBottomTab = 1; onNavigateToMyJobs() },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Chat, contentDescription = "Chat") },
+                    label = { Text("Chat", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    selected = selectedBottomTab == 2,
+                    onClick = { selectedBottomTab = 2; onNavigateToChat() },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    selected = selectedBottomTab == 3,
+                    onClick = { selectedBottomTab = 3; onNavigateToProfile() },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun WorkerContent() {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Icon(Icons.Default.WorkOutline, contentDescription = null, tint = WorkoraBlue)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("2", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
-                        Text("Active Jobs", fontSize = 12.sp, color = TextGray)
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BgColor)
+                .padding(paddingValues)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
+        ) {
+            // Header Section
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WorkoraBlue)
+                    .padding(20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(50.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraBlue, modifier = Modifier.size(30.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(text = workerName, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        Text(text = workerCategory, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
                     }
                 }
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = WorkoraBlue)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("₹", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("₹1,200", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                        Text("Earned this week", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                    }
+                IconButton(onClick = onNavigateToNotifications, modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.2f), CircleShape)) {
+                    Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
                 }
             }
-        }
-        item {
-            Text("New Jobs Near You", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
+
+            // Status Toggle (Online/Offline)
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, BorderGray)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(text = "Availability Status", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text(
+                            text = if (isOnline) "Online - Receiving Jobs" else "Offline - Hidden from clients",
+                            fontSize = 12.sp,
+                            color = if (isOnline) SuccessGreen else TextGray
+                        )
+                    }
+                    Switch(
+                        checked = isOnline,
+                        onCheckedChange = { isOnline = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = SuccessGreen)
+                    )
+                }
+            }
+
+            // Quick Stats
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatCard(modifier = Modifier.weight(1f), icon = Icons.Default.CheckCircle, title = "Completed", value = "24", iconTint = SuccessGreen)
+                StatCard(modifier = Modifier.weight(1f), icon = Icons.Default.Star, title = "Rating", value = "4.8", iconTint = ProfileOrange)
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(text = "Available Jobs Near You", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.padding(horizontal = 16.dp))
             Spacer(modifier = Modifier.height(12.dp))
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Need Mason for wall plaster", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Ward 4, Silwani (2 km away)", fontSize = 13.sp, color = TextGray)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { }, modifier = Modifier.fillMaxWidth().height(40.dp), colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue), shape = RoundedCornerShape(8.dp)) {
-                        Text("Apply Now", color = Color.White, fontWeight = FontWeight.Bold)
+
+            // Jobs List
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (!isOnline) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+                            Text(text = "Go Online to see new jobs.", color = TextGray, fontSize = 14.sp)
+                        }
                     }
+                } else {
+                    items(availableJobs) { job ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { onNavigateToJobDetail() },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, BorderGray)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = job.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                    Text(text = job.wage, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Person, contentDescription = null, tint = TextGray, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = job.clientName, fontSize = 12.sp, color = TextGray)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = TextGray, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = job.location, fontSize = 12.sp, color = TextGray)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(text = "• ${job.date}", fontSize = 12.sp, color = TextGray)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(
+                                        onClick = { Toast.makeText(context, "Job Accepted!", Toast.LENGTH_SHORT).show() },
+                                        modifier = Modifier.weight(1f).height(38.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue)
+                                    ) { Text("Accept", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                                }
+                            }
+                        }
+                    }
+                    item { Spacer(modifier = Modifier.height(20.dp)) }
                 }
             }
         }
@@ -119,17 +262,17 @@ private fun WorkerContent() {
 }
 
 @Composable
-private fun WorkerBottomNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
-    NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
-        val items = listOf("Home" to Icons.Default.Home, "Jobs" to Icons.Default.Search, "Profile" to Icons.Default.PersonOutline)
-        items.forEachIndexed { index, pair ->
-            NavigationBarItem(
-                icon = { Icon(pair.second, contentDescription = pair.first) },
-                label = { Text(pair.first, fontSize = 11.sp) },
-                selected = selectedIndex == index,
-                onClick = { onTabSelected(index) },
-                colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, selectedTextColor = WorkoraBlue, unselectedTextColor = TextGray)
-            )
+fun StatCard(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String, iconTint: Color) {
+    Card(modifier = modifier, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, BorderGray)) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(40.dp).background(iconTint.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
+                Text(text = title, fontSize = 12.sp, color = TextGray)
+            }
         }
     }
 }
