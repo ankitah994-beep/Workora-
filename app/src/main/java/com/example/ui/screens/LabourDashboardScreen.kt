@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,7 +35,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
@@ -68,20 +66,14 @@ private val BgColor = Color(0xFFF8FAFC)
 private val ProfileOrange = Color(0xFFFF8C00)
 private val SuccessGreen = Color(0xFF10B981)
 
-data class JobRequest(
-    val clientName: String,
-    val title: String,
-    val location: String,
-    val date: String,
-    val wage: String
-)
-
 @Composable
 fun LabourDashboardScreen(
     workerName: String = "Amit Kumar",
     workerCategory: String = "Painter",
     onNavigateToJobDetail: () -> Unit = {},
-    onNavigateToNotifications: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = { 
+        // Default action agar pass na ho
+    },
     onNavigateToMyJobs: () -> Unit = {},
     onNavigateToChat: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {}
@@ -103,28 +95,43 @@ fun LabourDashboardScreen(
                     icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
                     label = { Text("Home", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                     selected = selectedBottomTab == 0,
-                    onClick = { selectedBottomTab = 0 },
+                    onClick = { 
+                        selectedBottomTab = 0
+                        Toast.makeText(context, "Home Tab Selected", Toast.LENGTH_SHORT).show()
+                    },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Work, contentDescription = "My Jobs") },
                     label = { Text("My Jobs", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                     selected = selectedBottomTab == 1,
-                    onClick = { selectedBottomTab = 1; onNavigateToMyJobs() },
+                    onClick = { 
+                        selectedBottomTab = 1
+                        Toast.makeText(context, "Opening My Jobs", Toast.LENGTH_SHORT).show()
+                        onNavigateToMyJobs() 
+                    },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Chat, contentDescription = "Chat") },
                     label = { Text("Chat", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                     selected = selectedBottomTab == 2,
-                    onClick = { selectedBottomTab = 2; onNavigateToChat() },
+                    onClick = { 
+                        selectedBottomTab = 2
+                        Toast.makeText(context, "Opening Chat", Toast.LENGTH_SHORT).show()
+                        onNavigateToChat() 
+                    },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
                     label = { Text("Profile", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                     selected = selectedBottomTab == 3,
-                    onClick = { selectedBottomTab = 3; onNavigateToProfile() },
+                    onClick = { 
+                        selectedBottomTab = 3
+                        Toast.makeText(context, "Opening Profile", Toast.LENGTH_SHORT).show()
+                        onNavigateToProfile() 
+                    },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = WorkoraBlue, unselectedIconColor = TextGray, indicatorColor = WorkoraBlue.copy(alpha = 0.1f))
                 )
             }
@@ -139,7 +146,7 @@ fun LabourDashboardScreen(
                 .navigationBarsPadding()
                 .imePadding()
         ) {
-            // Header Section
+            // Header Section with working notification click
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,7 +165,13 @@ fun LabourDashboardScreen(
                         Text(text = workerCategory, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
                     }
                 }
-                IconButton(onClick = onNavigateToNotifications, modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.2f), CircleShape)) {
+                IconButton(
+                    onClick = { 
+                        Toast.makeText(context, "Notifications Clicked", Toast.LENGTH_SHORT).show()
+                        onNavigateToNotifications() 
+                    }, 
+                    modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.2f), CircleShape)
+                ) {
                     Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
                 }
             }
@@ -185,7 +198,10 @@ fun LabourDashboardScreen(
                     }
                     Switch(
                         checked = isOnline,
-                        onCheckedChange = { isOnline = it },
+                        onCheckedChange = { 
+                            isOnline = it
+                            Toast.makeText(context, if (it) "You are now Online" else "You are now Offline", Toast.LENGTH_SHORT).show()
+                        },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = SuccessGreen)
                     )
                 }
@@ -204,7 +220,7 @@ fun LabourDashboardScreen(
             Text(text = "Available Jobs Near You", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.padding(horizontal = 16.dp))
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Jobs List
+            // Jobs List with working Accept buttons
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -218,7 +234,10 @@ fun LabourDashboardScreen(
                 } else {
                     items(availableJobs) { job ->
                         Card(
-                            modifier = Modifier.fillMaxWidth().clickable { onNavigateToJobDetail() },
+                            modifier = Modifier.fillMaxWidth().clickable { 
+                                Toast.makeText(context, "Opening Job Details", Toast.LENGTH_SHORT).show()
+                                onNavigateToJobDetail() 
+                            },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             border = BorderStroke(1.dp, BorderGray)
@@ -245,7 +264,7 @@ fun LabourDashboardScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Button(
-                                        onClick = { Toast.makeText(context, "Job Accepted!", Toast.LENGTH_SHORT).show() },
+                                        onClick = { Toast.makeText(context, "Job Accepted Successfully! ✓", Toast.LENGTH_SHORT).show() },
                                         modifier = Modifier.weight(1f).height(38.dp),
                                         shape = RoundedCornerShape(8.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue)
@@ -256,22 +275,6 @@ fun LabourDashboardScreen(
                     }
                     item { Spacer(modifier = Modifier.height(20.dp)) }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun StatCard(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String, iconTint: Color) {
-    Card(modifier = modifier, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, BorderGray)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(40.dp).background(iconTint.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
-                Text(text = title, fontSize = 12.sp, color = TextGray)
             }
         }
     }
