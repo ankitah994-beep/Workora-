@@ -1,10 +1,5 @@
 package com.example
 
-.ui.screens.CustomerDashboardScreen
-import com.example.ui.screens.LabourDashboardScreen
-import com.example.ui.screens.LoginScreen
-import com.example.ui.screens.PostJobScreen
-import com.example.ui.screens.WorkerProfileSetupScreen
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.ui.screens.AccountSelectScreen
 import com.example.ui.screens.ClientProfileSetupScreen
+import com.example.ui.screens.CustomerDashboardScreen
+import com.example.ui.screens.LabourDashboardScreen
+import com.example.ui.screens.LoginScreen
+import com.example.ui.screens.PostJobScreen
+import com.example.ui.screens.WorkerProfileSetupScreen
 import com.example.ui.theme.WorkoraTheme
 
 class MainActivity : ComponentActivity() {
