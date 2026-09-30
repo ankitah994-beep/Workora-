@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.ui.screens.AccountSelectScreen
 import com.example.ui.screens.ClientProfileSetupScreen
-import com.example.ui.screens.CustomerDashboardScreen
+import com.example.ui.screens.CustomerHomeScreen // <-- NEW IMPORT ADDED
 import com.example.ui.screens.LabourDashboardScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.PostJobScreen
@@ -82,17 +82,14 @@ class MainActivity : ComponentActivity() {
                         "POST_JOB" -> {
                             PostJobScreen(
                                 onBack = { currentScreen = "DASHBOARD" },
-                                onJobPosted = { currentScreen = "DASHBOARD" } // <-- ERROR FIXED HERE
+                                onJobPosted = { currentScreen = "DASHBOARD" }
                             )
                         }
-                        ""DASHBOARD" -> {
-    if (currentRole == "LABOUR") {
-        LabourDashboardScreen()
-    } else {
-        CustomerHomeScreen()
-    }
-}
-
+                        "DASHBOARD" -> {
+                            if (currentRole == "LABOUR") {
+                                LabourDashboardScreen()
+                            } else {
+                                CustomerHomeScreen()
                             }
                         }
                     }
