@@ -1,12 +1,12 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,245 +15,263 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.WorkoraTheme
 
-// New Premium Colors
 private val WorkoraBlue = Color(0xFF0061FF)
 private val TextDark = Color(0xFF0F172A)
 private val TextGray = Color(0xFF64748B)
 private val BorderGray = Color(0xFFE2E8F0)
-private val BgColor = Color.White
+private val BgColor = Color(0xFFF8FAFC)
+private val SuccessGreen = Color(0xFF10B981)
 
 @Composable
 fun PostJobScreen(
-    modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onSubmit: () -> Unit = {} 
+    onJobPosted: () -> Unit = {}
 ) {
-    var jobTitle by rememberSaveable { mutableStateOf("") }
-    var jobDescription by rememberSaveable { mutableStateOf("") }
-    var selectedCategory by rememberSaveable { mutableStateOf("Labour") } // New UI addition
-    var date by rememberSaveable { mutableStateOf("") }
-    var time by rememberSaveable { mutableStateOf("") }
-    var wage by rememberSaveable { mutableStateOf("") }
-    var location by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    
+    // Functional States for Form Inputs
+    var jobTitle by remember { mutableStateOf("") }
+    var jobDescription by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var expectedDate by remember { mutableStateOf("") }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("Select Category") }
+    var isSubmitted by remember { mutableStateOf(false) }
 
-    val categories = listOf("Labour", "Carpenter", "Electrician", "Plumber", "Painter", "Mason", "Cleaner")
+    val categories = listOf("Painter", "Plumber", "Electrician", "Mason", "Carpenter", "Other")
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(BgColor)
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
     ) {
-        // Header
+        // Top Header
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .background(Color.White)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = WorkoraBlue,
-                modifier = Modifier
-                    .size(28.dp)
-                    .clickable { onBack() }
-            )
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = WorkoraBlue)
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = "Post a Job",
-                fontSize = 24.sp,
+                text = "Post a New Job",
+                fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = TextDark
             )
         }
 
-        // Scrollable Form
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "What kind of work do you need?",
-                fontSize = 15.sp,
-                color = TextGray,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, BorderGray)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(text = "Job Details", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
 
-            // Category Selection (Premium Touch)
-            Text(text = "Category", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(categories.size) { index ->
-                    val cat = categories[index]
-                    val isSelected = selectedCategory == cat
-                    OutlinedButton(
-                        onClick = { selectedCategory = cat },
-                        modifier = Modifier.height(36.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, if (isSelected) WorkoraBlue else BorderGray),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isSelected) WorkoraBlue else Color.White
+                    // Job Title
+                    OutlinedTextField(
+                        value = jobTitle,
+                        onValueChange = { jobTitle = it },
+                        label = { Text("Job Title (e.g. Need a Painter for 2 BHK)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = WorkoraBlue,
+                            unfocusedBorderColor = BorderGray
                         ),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
-                    ) {
-                        Text(
-                            text = cat,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else TextGray
+                        singleLine = true
+                    )
+
+                    // Category Dropdown
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category") },
+                            trailingIcon = {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextGray)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { categoryExpanded = true },
+                            enabled = false, // Disabled to prevent keyboard, relying on Box click
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = TextDark,
+                                disabledBorderColor = BorderGray,
+                                disabledLabelColor = TextGray,
+                                disabledTrailingIconColor = TextGray
+                            )
                         )
+                        // Invisible clickable box over the text field
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { categoryExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = categoryExpanded,
+                            onDismissRequest = { categoryExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.85f).background(Color.White)
+                        ) {
+                            categories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(text = category, color = TextDark) },
+                                    onClick = {
+                                        selectedCategory = category
+                                        categoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
+
+                    // Job Description
+                    OutlinedTextField(
+                        value = jobDescription,
+                        onValueChange = { jobDescription = it },
+                        label = { Text("Job Description") },
+                        placeholder = { Text("Describe the work in detail...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        maxLines = 5,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = WorkoraBlue,
+                            unfocusedBorderColor = BorderGray
+                        )
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, BorderGray)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(text = "Location & Date", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
 
-            JobInputField(
-                value = jobTitle,
-                onValueChange = { jobTitle = it },
-                label = "Job Title (e.g. Wall Plastering)",
-                keyboardType = KeyboardType.Text
-            )
+                    // Location
+                    OutlinedTextField(
+                        value = location,
+                        onValueChange = { location = it },
+                        label = { Text("Location (e.g. Silwani, MP)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = WorkoraBlue,
+                            unfocusedBorderColor = BorderGray
+                        ),
+                        singleLine = true
+                    )
 
-            JobInputField(
-                value = jobDescription,
-                onValueChange = { jobDescription = it },
-                label = "Job Description & Requirements",
-                keyboardType = KeyboardType.Text,
-                singleLine = false,
-                modifier = Modifier.height(120.dp)
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                JobInputField(
-                    value = date,
-                    onValueChange = { date = it },
-                    label = "Date (e.g. Tomorrow)",
-                    modifier = Modifier.weight(1f)
-                )
-                JobInputField(
-                    value = time,
-                    onValueChange = { time = it },
-                    label = "Time (e.g. 9:00 AM)",
-                    modifier = Modifier.weight(1f)
-                )
+                    // Expected Date
+                    OutlinedTextField(
+                        value = expectedDate,
+                        onValueChange = { expectedDate = it },
+                        label = { Text("Expected Date (e.g. 05 Oct 2026)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = WorkoraBlue,
+                            unfocusedBorderColor = BorderGray
+                        ),
+                        singleLine = true
+                    )
+                }
             }
-
-            JobInputField(
-                value = wage,
-                onValueChange = { wage = it.filter { c -> c.isDigit() } }, // Safe number parsing
-                label = "Offered Wage (₹ / day)",
-                keyboardType = KeyboardType.Number
-            )
-
-            JobInputField(
-                value = location,
-                onValueChange = { location = it },
-                label = "Work Location (Address)",
-                keyboardType = KeyboardType.Text
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
 
         // Submit Button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .background(Color.White)
+                .padding(20.dp)
         ) {
             Button(
-                onClick = onSubmit,
+                onClick = {
+                    if (jobTitle.isBlank() || selectedCategory == "Select Category" || location.isBlank()) {
+                        Toast.makeText(context, "Please fill all required details!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        isSubmitted = true
+                        Toast.makeText(context, "Job Posted Successfully! ✓", Toast.LENGTH_LONG).show()
+                        onJobPosted()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSubmitted) SuccessGreen else WorkoraBlue
+                )
             ) {
                 Text(
-                    text = "Publish Job",
+                    text = if (isSubmitted) "Job Posted ✓" else "Post Job",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun JobInputField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    singleLine: Boolean = true
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, color = TextGray) },
-        modifier = modifier.fillMaxWidth(),
-        singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = keyboardType,
-            imeAction = ImeAction.Next
-        ),
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = TextDark,
-            unfocusedTextColor = TextDark,
-            focusedBorderColor = WorkoraBlue,
-            unfocusedBorderColor = BorderGray,
-            focusedLabelColor = WorkoraBlue,
-            unfocusedLabelColor = TextGray
-        )
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun PostJobScreenPreview() {
-    WorkoraTheme {
-        PostJobScreen()
     }
 }
