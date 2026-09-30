@@ -104,6 +104,9 @@ private val WorkoraOrange = Color(0xFFFF8C00)
 private val WorkoraGreen = Color(0xFF22A06B)
 private val WorkoraRed = Color(0xFFB42318)
 private val WorkoraBlue = Color(0xFF0061FF) // New Design Primary Color
+private val TextDark = Color(0xFF0F172A)
+private val TextGray = Color(0xFF64748B)
+private val BorderGray = Color(0xFFE2E8F0)
 
 private fun decodeLoginBase64Image(base64Str: String): ImageBitmap? {
     if (base64Str.isBlank()) return null
@@ -247,7 +250,7 @@ fun WorkoraRealOtpVerificationDialog(
                     singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
                 )
                 Text(
-                    text = "Resend OTP", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy,
+                    text = "Resend OTP", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue,
                     modifier = Modifier.clickable { errorMessage = null; otpInput = ""; onResendClick() }
                 )
             }
@@ -280,7 +283,7 @@ fun LoginScreen(
     val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
     var isRegistrationScreen by remember { mutableStateOf(false) }
     
-    // Login States (Preserved logic)
+    // Login States
     var identifierInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
@@ -295,8 +298,8 @@ fun LoginScreen(
     var forgotMaskedTarget by remember { mutableStateOf("") }
     var showForgotOtpVerify by remember { mutableStateOf(false) }
 
-    // Registration States (Untouched)
-    var regRole by remember { mutableStateOf("CUSTOMER") }
+    // Registration States (All untouched logic, newly styled)
+    var regRole by remember { mutableStateOf("LABOUR") } // Default as per new UI
     var regFullName by remember { mutableStateOf("") }
     var regMobile by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
@@ -305,7 +308,10 @@ fun LoginScreen(
     var regExperience by remember { mutableStateOf("") }
     var regDailyWage by remember { mutableStateOf("") }
     var regPassword by remember { mutableStateOf("") }
+    var regConfirmPassword by remember { mutableStateOf("") }
     var regShowPassword by remember { mutableStateOf(false) }
+    var regShowConfirmPassword by remember { mutableStateOf(false) }
+    
     var regProfilePhotoB64 by remember { mutableStateOf("") }
     var regWorkProof1B64 by remember { mutableStateOf("") }
     var regWorkProof2B64 by remember { mutableStateOf("") }
@@ -331,121 +337,239 @@ fun LoginScreen(
     
     val workCategoriesList = listOf("Default", "Mason", "Electrician", "Plumber", "Painter", "Carpenter", "Labour", "Cleaner", "Farm Worker", "Tile Worker", "Other")
 
-    // --- REGISTRATION SCREEN (Untouched Logic) ---
+    // =========================================================================
+    // SIGN UP (CREATE ACCOUNT) SCREEN - NEW DESIGN
+    // =========================================================================
     if (isRegistrationScreen) {
         Column(
-            modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).statusBarsPadding().navigationBarsPadding().imePadding()
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
         ) {
+            // Header
             Row(
-                modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { isRegistrationScreen = false }) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = WorkoraNavy) }
-                Text("Create Workora Account", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = WorkoraBlue,
+                    modifier = Modifier.size(28.dp).clickable { isRegistrationScreen = false }
+                )
             }
+            
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                val profileBmp = remember(regProfilePhotoB64) { decodeLoginBase64Image(regProfilePhotoB64) }
+                // Title
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Create Account", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Join Workora today", fontSize = 15.sp, color = TextGray)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Role Toggle (Worker / Client)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .background(Color(0xFFF1F5F9), RoundedCornerShape(26.dp))
+                        .padding(4.dp)
+                ) {
+                    val isWorker = regRole == "LABOUR"
+                    Button(
+                        onClick = { regRole = "LABOUR" },
+                        modifier = Modifier.weight(1f).fillMaxSize(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isWorker) WorkoraBlue else Color.Transparent),
+                        contentPadding = PaddingValues(0.dp),
+                        elevation = null
+                    ) { Text("Worker", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isWorker) Color.White else TextGray) }
+                    
+                    Button(
+                        onClick = { regRole = "CUSTOMER" },
+                        modifier = Modifier.weight(1f).fillMaxSize(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (!isWorker) WorkoraBlue else Color.Transparent),
+                        contentPadding = PaddingValues(0.dp),
+                        elevation = null
+                    ) { Text("Client", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (!isWorker) Color.White else TextGray) }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Profile Photo Upload (Centered)
+                val profileBmp = remember(regProfilePhotoB64) { decodeLoginBase64Image(regProfilePhotoB64) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { activeUploadSlot = 0; photoPickerLauncher.launch("image/*") }) {
                     Box(
-                        modifier = Modifier.size(80.dp).clip(CircleShape).background(WorkoraNavy).clickable { activeUploadSlot = 0; photoPickerLauncher.launch("image/*") },
+                        modifier = Modifier.size(80.dp).background(Color(0xFFE2E8F0), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (profileBmp != null) { Image(bitmap = profileBmp, contentDescription = "Profile Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) } 
-                        else { Icon(imageVector = Icons.Default.AddAPhoto, contentDescription = "Profile Photo", tint = Color.White, modifier = Modifier.size(26.dp)) }
+                        if (profileBmp != null) {
+                            Image(bitmap = profileBmp, contentDescription = "Profile Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(CircleShape))
+                        } else {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = TextGray, modifier = Modifier.size(28.dp))
+                        }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Profile Photo", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WorkoraNavy)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Add Profile Photo", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue)
+                    Text("(Recommended)", fontSize = 11.sp, color = TextGray)
                 }
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFE5E7EB)), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            listOf("CUSTOMER" to "Customer (ग्राहक)", "LABOUR" to "Worker (कारीगर)").forEach { (rKey, rLabel) ->
-                                val selected = regRole == rKey
-                                Button(
-                                    onClick = { regRole = rKey }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (selected) WorkoraNavy else Color(0xFFF1F5F9)),
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                ) { Text(rLabel, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (selected) Color.White else Color(0xFF102A43), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                            }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Common TextField Colors
+                val tfColors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = WorkoraBlue, unfocusedBorderColor = BorderGray,
+                    focusedLeadingIconColor = WorkoraBlue, unfocusedLeadingIconColor = TextGray
+                )
+
+                // Form Fields
+                OutlinedTextField(
+                    value = regFullName, onValueChange = { regFullName = it },
+                    label = { Text("Full Name") }, leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = tfColors
+                )
+                
+                OutlinedTextField(
+                    value = regMobile, onValueChange = { if (it.length <= 10) regMobile = it.filter { c -> c.isDigit() } },
+                    label = { Text("Phone Number") }, placeholder = { Text("Enter mobile number") }, leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = tfColors
+                )
+                
+                OutlinedTextField(
+                    value = regEmail, onValueChange = { regEmail = it },
+                    label = { Text("Email (optional)") }, placeholder = { Text("example@gmail.com") }, leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = tfColors
+                )
+
+                // Additional Profile Details (Preserved logic, clean UI)
+                OutlinedTextField(
+                    value = regLocation, onValueChange = { regLocation = it },
+                    label = { Text("Location / City") }, leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = tfColors
+                )
+                
+                Text("Work Category", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
+                workCategoriesList.chunked(3).forEach { rowCats ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rowCats.forEach { catItem ->
+                            val isSelected = regSelectedCategory.equals(catItem, ignoreCase = true)
+                            OutlinedButton(
+                                onClick = { regSelectedCategory = catItem }, modifier = Modifier.weight(1f).height(40.dp), shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, if (isSelected) WorkoraBlue else BorderGray),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = if (isSelected) WorkoraBlue.copy(alpha = 0.1f) else Color.White),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
+                            ) { Text(catItem, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) WorkoraBlue else TextDark, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         }
-                        OutlinedTextField(value = regFullName, onValueChange = { regFullName = it }, label = { Text("Full Name (आपका पूरा नाम)") }, leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = WorkoraOrange) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                        OutlinedTextField(value = regMobile, onValueChange = { if (it.length <= 10) regMobile = it.filter { c -> c.isDigit() } }, label = { Text("Mobile Number (10-Digit Number)") }, placeholder = { Text("1234567890") }, leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = WorkoraOrange) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                        OutlinedTextField(value = regEmail, onValueChange = { regEmail = it }, label = { Text("Gmail / Email ID") }, placeholder = { Text("example@gmail.com") }, leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = WorkoraOrange) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                        OutlinedTextField(value = regLocation, onValueChange = { regLocation = it }, label = { Text("Village / City (गाँव या शहर)") }, leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = WorkoraOrange) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                        Text("Work Category (काम की श्रेणी चुनें)", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF102A43))
-                        workCategoriesList.chunked(3).forEach { rowCats ->
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                rowCats.forEach { catItem ->
-                                    val isSelected = regSelectedCategory.equals(catItem, ignoreCase = true)
-                                    OutlinedButton(
-                                        onClick = { regSelectedCategory = catItem }, modifier = Modifier.weight(1f).height(38.dp), shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, if (isSelected) WorkoraOrange else Color(0xFFD0D5DD)), colors = ButtonDefaults.outlinedButtonColors(containerColor = if (isSelected) WorkoraOrange.copy(alpha = 0.15f) else Color.White),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                    ) { Text(catItem, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) WorkoraOrange else Color(0xFF102A43), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                }
-                            }
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedTextField(value = regExperience, onValueChange = { regExperience = it }, label = { Text("Experience (अनुभव)") }, singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp))
-                            OutlinedTextField(value = regDailyWage, onValueChange = { regDailyWage = it.filter { c -> c.isDigit() } }, label = { Text("Daily Wage (₹/day)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp))
-                        }
-                        Text("Work Proof Photos (काम के प्रमाण की 3 फोटो)", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF102A43))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            listOf(1 to regWorkProof1B64, 2 to regWorkProof2B64, 3 to regWorkProof3B64).forEach { (slotNum, photoB64) ->
-                                val bmp = remember(photoB64) { decodeLoginBase64Image(photoB64) }
-                                Card(
-                                    onClick = { activeUploadSlot = slotNum; photoPickerLauncher.launch("image/*") }, modifier = Modifier.weight(1f).height(92.dp),
-                                    shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (photoB64.isNotBlank()) Color(0xFFDCFCE7) else Color(0xFFF8FAFC)),
-                                    border = BorderStroke(1.2.dp, if (photoB64.isNotBlank()) WorkoraGreen else Color(0xFFD0D5DD))
-                                ) {
-                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        if (bmp != null) { Image(bitmap = bmp, contentDescription = "Photo $slotNum", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) } 
-                                        else { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = WorkoraOrange, modifier = Modifier.size(22.dp)); Spacer(modifier = Modifier.height(4.dp)); Text("Photo $slotNum", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475467), maxLines = 1) } }
-                                    }
-                                }
-                            }
-                        }
-                        OutlinedTextField(
-                            value = regPassword, onValueChange = { regPassword = it }, label = { Text("Create Password") }, leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = WorkoraOrange) },
-                            trailingIcon = { IconButton(onClick = { regShowPassword = !regShowPassword }) { Icon(imageVector = if (regShowPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = "Toggle Password", tint = WorkoraOrange) } },
-                            visualTransformation = if (regShowPassword) VisualTransformation.None else PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)
-                        )
-                        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)), border = BorderStroke(1.dp, Color(0xFFE5E7EB))) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                val hasLen = regPassword.length >= 8
-                                val hasLet = regPassword.any { it.isLetter() }
-                                val hasNum = regPassword.any { it.isDigit() }
-                                Text("${if (hasLen) "✓" else "•"} Minimum 8 characters (कम से कम 8 अक्षर)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (hasLen) WorkoraGreen else Color(0xFF667085))
-                                Text("${if (hasLet) "✓" else "•"} At least 1 letter (A-Z या a-z)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (hasLet) WorkoraGreen else Color(0xFF667085))
-                                Text("${if (hasNum) "✓" else "•"} At least 1 number (0-9)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (hasNum) WorkoraGreen else Color(0xFF667085))
-                            }
-                        }
-                        Button(
-                            onClick = {
-                                val cleanName = regFullName.trim()
-                                val cleanPhone = regMobile.filter { it.isDigit() }.takeLast(10)
-                                val cleanEmail = regEmail.trim().lowercase()
-                                val cleanPass = regPassword.trim()
-                                if (cleanName.length < 2) { Toast.makeText(context, "Please enter your full name", Toast.LENGTH_SHORT).show(); return@Button }
-                                if (cleanPhone.length != 10) { Toast.makeText(context, "Please enter 10-digit mobile number", Toast.LENGTH_SHORT).show(); return@Button }
-                                if (!WorkoraSecurityManager.isStrongPassword(cleanPass)) { Toast.makeText(context, "Password must be 8+ characters with 1 letter & 1 number", Toast.LENGTH_SHORT).show(); return@Button }
-                                regOtpTargetKey = cleanPhone
-                                WorkoraRealOtpEngine.sendRealOtp(context = context, phoneOrEmail = cleanPhone, emailOptional = cleanEmail, purpose = "REGISTRATION") { showRegOtpDialog = true }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = WorkoraOrange)
+                    }
+                }
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = regExperience, onValueChange = { regExperience = it }, label = { Text("Experience") }, singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = tfColors)
+                    OutlinedTextField(value = regDailyWage, onValueChange = { regDailyWage = it.filter { c -> c.isDigit() } }, label = { Text("Daily Wage (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = tfColors)
+                }
+
+                // Photos Section
+                Text("Upload Work Proof (3 Photos)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf(1 to regWorkProof1B64, 2 to regWorkProof2B64, 3 to regWorkProof3B64).forEach { (slotNum, photoB64) ->
+                        val bmp = remember(photoB64) { decodeLoginBase64Image(photoB64) }
+                        Box(
+                            modifier = Modifier.weight(1f).height(80.dp).clip(RoundedCornerShape(12.dp)).background(if (photoB64.isNotBlank()) Color.Transparent else Color(0xFFF8FAFC)).clickable { activeUploadSlot = slotNum; photoPickerLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Create Account", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            if (bmp != null) {
+                                Image(bitmap = bmp, contentDescription = "Proof $slotNum", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = TextGray, modifier = Modifier.size(20.dp))
+                                    Text("Add", fontSize = 11.sp, color = TextGray)
+                                }
+                            }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+
+                // Password & Confirm Password
+                OutlinedTextField(
+                    value = regPassword, onValueChange = { regPassword = it },
+                    label = { Text("Password") }, leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                    trailingIcon = { IconButton(onClick = { regShowPassword = !regShowPassword }) { Icon(imageVector = if (regShowPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = "Toggle Password", tint = TextGray) } },
+                    visualTransformation = if (regShowPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = tfColors
+                )
+                
+                OutlinedTextField(
+                    value = regConfirmPassword, onValueChange = { regConfirmPassword = it },
+                    label = { Text("Confirm Password") }, leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                    trailingIcon = { IconButton(onClick = { regShowConfirmPassword = !regShowConfirmPassword }) { Icon(imageVector = if (regShowConfirmPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = "Toggle Confirm", tint = TextGray) } },
+                    visualTransformation = if (regShowConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = tfColors
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Sign Up Button
+                Button(
+                    onClick = {
+                        val cleanName = regFullName.trim()
+                        val cleanPhone = regMobile.filter { it.isDigit() }.takeLast(10)
+                        val cleanEmail = regEmail.trim().lowercase()
+                        val cleanPass = regPassword.trim()
+                        val cleanConfirm = regConfirmPassword.trim()
+                        
+                        if (cleanName.length < 2) { Toast.makeText(context, "Please enter your full name", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (cleanPhone.length != 10) { Toast.makeText(context, "Please enter 10-digit mobile number", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (!WorkoraSecurityManager.isStrongPassword(cleanPass)) { Toast.makeText(context, "Password must be 8+ characters with 1 letter & 1 number", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (cleanPass != cleanConfirm) { Toast.makeText(context, "Passwords do not match!", Toast.LENGTH_SHORT).show(); return@Button }
+                        
+                        regOtpTargetKey = cleanPhone
+                        WorkoraRealOtpEngine.sendRealOtp(context = context, phoneOrEmail = cleanPhone, emailOptional = cleanEmail, purpose = "REGISTRATION") { showRegOtpDialog = true }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue)
+                ) {
+                    Text("Sign Up", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Footer Text
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Already have an account? ", fontSize = 14.sp, color = TextGray)
+                    Text(
+                        text = "Login",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WorkoraBlue,
+                        modifier = Modifier.clickable { isRegistrationScreen = false }
+                    )
+                }
             }
         }
+        
+        // OTP Dialog for Registration
         if (showRegOtpDialog) {
             WorkoraRealOtpVerificationDialog(
                 targetKey = regOtpTargetKey, maskedTargetDisplay = "+91 $regOtpTargetKey", purposeTitle = "Verify OTP",
@@ -491,7 +615,7 @@ fun LoginScreen(
     }
 
     // =========================================================================
-    // NEW LOGIN SCREEN DESIGN (As per Figma Mockup)
+    // LOGIN SCREEN - NEW DESIGN
     // =========================================================================
     Column(
         modifier = Modifier
@@ -508,90 +632,49 @@ fun LoginScreen(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
             tint = WorkoraBlue,
-            modifier = Modifier
-                .size(28.dp)
-                .clickable { onBack() }
+            modifier = Modifier.size(28.dp).clickable { onBack() }
         )
         
         Spacer(modifier = Modifier.height(24.dp))
 
         // Titles
-        Text(
-            text = "Login",
-            fontSize = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color(0xFF0F172A)
-        )
+        Text(text = "Login", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = TextDark)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Welcome back! Please login\nto your Workora account.",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF64748B),
-            lineHeight = 22.sp
-        )
+        Text(text = "Welcome back! Please login\nto your Workora account.", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextGray, lineHeight = 22.sp)
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Unified Phone/Email Input (Logic automatically checks for @ or 10 digits)
+        // Unified Phone/Email Input
         OutlinedTextField(
-            value = identifierInput,
-            onValueChange = { identifierInput = it },
-            label = { Text("Phone number or Email") },
-            leadingIcon = { Icon(Icons.Default.PhoneIphone, contentDescription = null, tint = Color(0xFF64748B)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = WorkoraBlue,
-                unfocusedBorderColor = Color(0xFFE2E8F0)
-            )
+            value = identifierInput, onValueChange = { identifierInput = it },
+            label = { Text("Phone number or Email") }, leadingIcon = { Icon(Icons.Default.PhoneIphone, contentDescription = null, tint = TextGray) },
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = WorkoraBlue, unfocusedBorderColor = BorderGray)
         )
         
         Spacer(modifier = Modifier.height(16.dp))
 
         // Password Input
         OutlinedTextField(
-            value = passwordInput,
-            onValueChange = { passwordInput = it },
-            label = { Text("Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF64748B)) },
-            trailingIcon = {
-                IconButton(onClick = { showPassword = !showPassword }) {
-                    Icon(
-                        imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = "Toggle Password",
-                        tint = Color(0xFF64748B)
-                    )
-                }
-            },
+            value = passwordInput, onValueChange = { passwordInput = it },
+            label = { Text("Password") }, leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = TextGray) },
+            trailingIcon = { IconButton(onClick = { showPassword = !showPassword }) { Icon(imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = "Toggle Password", tint = TextGray) } },
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = WorkoraBlue,
-                unfocusedBorderColor = Color(0xFFE2E8F0)
-            )
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = WorkoraBlue, unfocusedBorderColor = BorderGray)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // Forgot Password
         Text(
-            text = "Forgot password?",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = WorkoraBlue,
-            textAlign = TextAlign.End,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { showForgotDialog = true }
+            text = "Forgot password?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue, textAlign = TextAlign.End,
+            modifier = Modifier.fillMaxWidth().clickable { showForgotDialog = true }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Login Button (Original Logic Preserved)
+        // Login Button
         Button(
             onClick = {
                 val rawId = identifierInput.trim()
@@ -599,31 +682,19 @@ fun LoginScreen(
                 val cleanDigits = rawId.filter { it.isDigit() }.takeLast(10)
                 val lookupKey = if (isEmail) rawId.lowercase() else cleanDigits
 
-                if (isEmail && rawId.length < 5) {
-                    Toast.makeText(context, "Please enter valid email", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
-                if (!isEmail && cleanDigits.length != 10) {
-                    Toast.makeText(context, "Please enter 10-digit mobile number", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
+                if (isEmail && rawId.length < 5) { Toast.makeText(context, "Please enter valid email", Toast.LENGTH_SHORT).show(); return@Button }
+                if (!isEmail && cleanDigits.length != 10) { Toast.makeText(context, "Please enter 10-digit mobile number", Toast.LENGTH_SHORT).show(); return@Button }
                 
                 val (allowed, lockMsg) = WorkoraSecurityManager.checkLoginBruteForceAllowed(context, lookupKey)
                 if (!allowed) { Toast.makeText(context, lockMsg, Toast.LENGTH_LONG).show(); return@Button }
 
                 val cleanPass = passwordInput.trim()
-                if (cleanPass.length < 6) {
-                    Toast.makeText(context, "Please enter your password", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
+                if (cleanPass.length < 6) { Toast.makeText(context, "Please enter your password", Toast.LENGTH_SHORT).show(); return@Button }
                 
                 val storedPass = authPrefs.getString("user_pass_$lookupKey", null)
                 val storedHash = authPrefs.getString("user_hash_$lookupKey", null)
                 
-                if (storedHash == null && storedPass == null) {
-                    Toast.makeText(context, "Account not found! Please Sign Up first.", Toast.LENGTH_LONG).show()
-                    return@Button
-                }
+                if (storedHash == null && storedPass == null) { Toast.makeText(context, "Account not found! Please Sign Up first.", Toast.LENGTH_LONG).show(); return@Button }
                 
                 val passMatches = when {
                     storedHash != null -> WorkoraSecurityManager.verifyPasswordSecure(cleanPass, storedHash)
@@ -637,7 +708,6 @@ fun LoginScreen(
                     return@Button
                 }
 
-                // If password matches, proceed directly to login (OTP skipped for password flow as per design)
                 WorkoraSecurityManager.recordLoginAttempt(context, lookupKey, isSuccess = true)
                 val finalEmail = if (isEmail) lookupKey else "${cleanDigits}@workora.in"
                 authPrefs.edit().apply {
@@ -645,36 +715,21 @@ fun LoginScreen(
                     putString("last_logged_in_email", finalEmail)
                     apply()
                 }
-                if (!isEmail && cleanDigits.length == 10) {
-                    profilePrefs.edit().putString("user_phone", "+91 $cleanDigits").apply()
-                }
+                if (!isEmail && cleanDigits.length == 10) { profilePrefs.edit().putString("user_phone", "+91 $cleanDigits").apply() }
                 Toast.makeText(context, "Welcome to Workora! ✓", Toast.LENGTH_SHORT).show()
                 onLogin(finalEmail, cleanPass)
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = WorkoraBlue)
-        ) {
-            Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
+        ) { Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White) }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // OR Divider
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Divider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
-            Text(
-                text = "or",
-                color = Color(0xFF64748B),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            Divider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Divider(modifier = Modifier.weight(1f), color = BorderGray)
+            Text("or", color = TextGray, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp))
+            Divider(modifier = Modifier.weight(1f), color = BorderGray)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -682,18 +737,13 @@ fun LoginScreen(
         // Continue with Google Button
         OutlinedButton(
             onClick = { Toast.makeText(context, "Google Login Setup Pending", Toast.LENGTH_SHORT).show() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, BorderGray),
             colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Placeholder for Google 'G' icon
                 Text("G", fontWeight = FontWeight.ExtraBold, color = Color.Red, fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Continue with Google", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
+                Text("Continue with Google", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
             }
         }
 
@@ -701,26 +751,17 @@ fun LoginScreen(
 
         // Sign Up Link at bottom
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "Don't have an account? ", fontSize = 14.sp, color = Color(0xFF64748B))
-            Text(
-                text = "Sign Up",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkoraBlue,
-                modifier = Modifier.clickable { isRegistrationScreen = true }
-            )
+            Text(text = "Don't have an account? ", fontSize = 14.sp, color = TextGray)
+            Text(text = "Sign Up", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue, modifier = Modifier.clickable { isRegistrationScreen = true })
         }
     }
 
     // Forgot Password Dialogs (Untouched Logic)
     if (showForgotDialog) {
         AlertDialog(
-            onDismissRequest = { showForgotDialog = false },
-            containerColor = Color.White,
+            onDismissRequest = { showForgotDialog = false }, containerColor = Color.White,
             title = { Text("Reset Password", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = WorkoraNavy) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
