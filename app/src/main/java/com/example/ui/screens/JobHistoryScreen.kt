@@ -1,16 +1,18 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,204 +22,212 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.JobPost
-import com.example.ui.theme.WorkoraBgLight
-import com.example.ui.theme.WorkoraBorder
-import com.example.ui.theme.WorkoraNavy
-import com.example.ui.theme.WorkoraOrange
-import com.example.ui.theme.WorkoraTextDark
-import com.example.ui.theme.WorkoraTextMuted
+
+private val WorkoraBlue = Color(0xFF0061FF)
+private val TextDark = Color(0xFF0F172A)
+private val TextGray = Color(0xFF64748B)
+private val BorderGray = Color(0xFFE2E8F0)
+private val BgColor = Color(0xFFF8FAFC)
+private val SuccessGreen = Color(0xFF10B981)
+private val PendingOrange = Color(0xFFF59E0B)
+
+data class JobItem(
+    val title: String,
+    val category: String,
+    val wage: String,
+    val date: String,
+    val status: String // "Ongoing", "Completed", "Pending"
+)
 
 @Composable
 fun JobHistoryScreen(
-    modifier: Modifier = Modifier,
-    jobs: List<JobPost> = emptyList(),
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onJobClick: (JobItem) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Ongoing", "Completed", "Pending")
+
+    val jobList = listOf(
+        JobItem("Wall Plastering & Repair", "Mason", "₹900 / day", "Today, 9:00 AM", "Ongoing"),
+        JobItem("Pipe Fitting & Leakage", "Plumber", "₹800 / day", "Yesterday", "Completed"),
+        JobItem("Wiring & Switchboard Fix", "Electrician", "₹1,000 / day", "25 Sep 2026", "Completed"),
+        JobItem("House Painting", "Painter", "₹850 / day", "Upcoming", "Pending")
+    )
+
+    val filteredJobs = jobList.filter { 
+        when (selectedTab) {
+            0 -> it.status == "Ongoing"
+            1 -> it.status == "Completed"
+            2 -> it.status == "Pending"
+            else -> true
+        }
+    }
+
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(WorkoraBgLight)
+            .background(BgColor)
             .statusBarsPadding()
             .navigationBarsPadding()
+            .imePadding()
     ) {
-        // Top Header Bar
+        // Header
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
-                .padding(horizontal = 8.dp, vertical = 12.dp)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    tint = WorkoraNavy
-                )
-            }
-            Spacer(modifier = Modifier.width(4.dp))
             Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                tint = WorkoraOrange,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Complete Job History & Status",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkoraTextDark
-            )
-        }
-
-        if (jobs.isEmpty()) {
-            Box(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = WorkoraBlue,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = null,
-                        tint = WorkoraTextMuted,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "No job history available yet.",
-                        fontSize = 15.sp,
-                        color = WorkoraTextMuted,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                    .size(24.dp)
+                    .clickable { onBack() }
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "My Job Bookings",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = TextDark
+            )
+        }
+
+        // Tabs (Ongoing, Completed, Pending)
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.White,
+            contentColor = WorkoraBlue,
+            indicator = { tabPositions ->
+                androidx.compose.material3.TabRowDefaults.Indicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = WorkoraBlue,
+                    height = 3.dp
+                )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(jobs, key = { it.id }) { job ->
-                    JobHistoryItemCard(job = job)
-                }
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = {
+                        Text(
+                            text = title,
+                            fontSize = 14.sp,
+                            fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == index) WorkoraBlue else TextGray
+                        )
+                    }
+                )
             }
         }
-    }
-}
 
-@Composable
-fun JobHistoryItemCard(job: JobPost) {
-    val statusColor = when (job.status) {
-        "ACCEPTED" -> Color(0xFF16A34A)
-        "COMPLETED" -> Color(0xFF0284C7)
-        "REJECTED" -> Color(0xFFDC2626)
-        else -> Color(0xFFD97706)
-    }
-    val statusBg = when (job.status) {
-        "ACCEPTED" -> Color(0xFFDCFCE7)
-        "COMPLETED" -> Color(0xFFE0F2FE)
-        "REJECTED" -> Color(0xFFFEE2E2)
-        else -> Color(0xFFFEF3C7)
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, WorkoraBorder)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = job.category,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoraOrange
-                )
-                Box(
-                    modifier = Modifier
-                        .background(statusBg, shape = RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = job.status,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = statusColor
-                    )
+        // Job List
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (filteredJobs.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "No jobs found in this section.", color = TextGray, fontSize = 14.sp)
+                    }
                 }
-            }
+            } else {
+                items(filteredJobs) { job ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                Toast.makeText(context, "Clicked: ${job.title}", Toast.LENGTH_SHORT).show()
+                                onJobClick(job)
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, BorderGray)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .background(Color(0xFFEFF6FF), RoundedCornerShape(8.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Work, contentDescription = null, tint = WorkoraBlue, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(text = job.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        Text(text = job.category, fontSize = 12.sp, color = TextGray)
+                                    }
+                                }
 
-            Spacer(modifier = Modifier.height(6.dp))
+                                // Status Badge
+                                val badgeColor = when (job.status) {
+                                    "Ongoing" -> WorkoraBlue
+                                    "Completed" -> SuccessGreen
+                                    else -> PendingOrange
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(badgeColor.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(text = job.status, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = badgeColor)
+                                }
+                            }
 
-            Text(
-                text = job.title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkoraTextDark
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = job.description,
-                fontSize = 13.sp,
-                color = WorkoraTextMuted,
-                maxLines = 2
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Schedule,
-                        contentDescription = null,
-                        tint = WorkoraNavy,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(text = job.dateTime, fontSize = 11.sp, color = WorkoraNavy)
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = WorkoraTextMuted,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(text = job.location, fontSize = 11.sp, color = WorkoraTextMuted)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(text = job.date, fontSize = 13.sp, color = TextGray)
+                                Text(text = job.wage, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WorkoraBlue)
+                            }
+                        }
+                    }
                 }
             }
         }
