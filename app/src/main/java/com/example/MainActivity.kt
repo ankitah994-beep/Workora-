@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                             if (currentRole == "LABOUR") {
                                 LabourDashboardScreen()
                             } else {
-                                CustomerDashboardScreen(
+                                CustomerHomeScreen()
                                     onPostJobClick = { currentScreen = "POST_JOB" }
                                 )
                             }
