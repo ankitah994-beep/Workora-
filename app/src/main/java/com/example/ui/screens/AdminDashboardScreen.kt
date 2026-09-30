@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -133,7 +134,6 @@ fun AdminDashboardScreen(
                 .imePadding()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Top App Bar matching Masterplan
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,12 +167,11 @@ fun AdminDashboardScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Real-time Statistics Grid (2x2) matching Masterplan image
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    AdminStatCard(
+                    AdminUniqueStatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Person,
                         title = "Total Users",
@@ -181,7 +180,7 @@ fun AdminDashboardScreen(
                         isUp = true,
                         onClick = onNavigateToUsers
                     )
-                    AdminStatCard(
+                    AdminUniqueStatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Work,
                         title = "Total Jobs",
@@ -196,7 +195,7 @@ fun AdminDashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    AdminStatCard(
+                    AdminUniqueStatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Assessment,
                         title = "Total Applications",
@@ -205,7 +204,7 @@ fun AdminDashboardScreen(
                         isUp = true,
                         onClick = { Toast.makeText(context, "Applications Clicked", Toast.LENGTH_SHORT).show() }
                     )
-                    AdminStatCard(
+                    AdminUniqueStatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Flag,
                         title = "Reported Issues",
@@ -216,7 +215,6 @@ fun AdminDashboardScreen(
                     )
                 }
 
-                // Platform Growth Graph Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -255,16 +253,15 @@ fun AdminDashboardScreen(
                     }
                 }
 
-                // Quick Actions Section matching Masterplan layout
                 Text("Quick Actions", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    QuickActionItem(icon = Icons.Default.Settings, title = "App Control", onClick = onNavigateToAppControl)
-                    QuickActionItem(icon = Icons.Default.Report, title = "View Reports", onClick = onNavigateToReports)
-                    QuickActionItem(icon = Icons.Default.Group, title = "Manage Users", onClick = onNavigateToUsers)
-                    QuickActionItem(icon = Icons.Default.Map, title = "State Control", onClick = onNavigateToStateControl)
+                    AdminQuickActionItem(icon = Icons.Default.Settings, title = "App Control", onClick = onNavigateToAppControl)
+                    AdminQuickActionItem(icon = Icons.Default.Report, title = "View Reports", onClick = onNavigateToReports)
+                    AdminQuickActionItem(icon = Icons.Default.Group, title = "Manage Users", onClick = onNavigateToUsers)
+                    AdminQuickActionItem(icon = Icons.Default.Map, title = "State Control", onClick = onNavigateToStateControl)
                 }
             }
         }
@@ -272,9 +269,9 @@ fun AdminDashboardScreen(
 }
 
 @Composable
-private fun AdminStatCard(
+private fun AdminUniqueStatCard(
     modifier: Modifier,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     value: String,
     change: String,
@@ -305,8 +302,8 @@ private fun AdminStatCard(
 }
 
 @Composable
-private fun QuickActionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun AdminQuickActionItem(
+    icon: ImageVector,
     title: String,
     onClick: () -> Unit
 ) {
