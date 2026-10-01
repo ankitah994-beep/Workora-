@@ -2,89 +2,78 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R // अगर आपका पैकेज नाम अलग है, तो इसे बदल लें
 import kotlinx.coroutines.delay
+import com.example.R // अपना पैकेज नेम चेक कर लें
 
 @Composable
-fun SplashScreen(
-    onSplashFinished: () -> Unit = {}
-) {
-    // 2.5 सेकंड तक यह लोडिंग स्क्रीन दिखेगी, फिर ऐप चालू होगा
+fun SplashScreen(onSplashFinished: () -> Unit) {
+    var progress by remember { mutableFloatStateOf(0f) }
+
+    // लोडिंग एनीमेशन (2 सेकंड के लिए)
     LaunchedEffect(Unit) {
-        delay(2500L)
+        while (progress < 1f) {
+            progress += 0.05f
+            delay(100)
+        }
         onSplashFinished()
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0061FF)), // डिज़ाइन वाला गाढ़ा नीला रंग
+            .background(Color(0xFF0061FF)) // मास्टरप्लान का नीला रंग
+            .padding(24.dp)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ऊपर से थोड़ी जगह छोड़ने के लिए
-        Spacer(modifier = Modifier.height(100.dp))
-
-        // 1. आपका लोगो (W Workora)
+        Spacer(modifier = Modifier.height(40.dp))
+        
+        // Logo & Text (सफ़ेद रंग में)
+        Text(text = "W", fontSize = 72.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+        Text(text = "Workora", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(text = "Find. Hire. Work.", fontSize = 16.sp, color = Color.White.copy(alpha = 0.8f))
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // 2 Workers Illustration
         Image(
-            painter = painterResource(id = R.drawable.workora_splash_logo),
-            contentDescription = "Workora Logo",
-            modifier = Modifier.width(220.dp), // लोगो का साइज़
+            painter = painterResource(id = R.drawable.workora_splash_logo), // सही स्पेलिंग वाला नाम
+            contentDescription = "Splash Illustration",
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp),
             contentScale = ContentScale.Fit
         )
         
-        // 2. लोगो के नीचे वाली टैगलाइन (डिज़ाइन के अनुसार)
-        Text(
-            text = "Find. Hire. Work.",
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(top = 12.dp)
-        )
-
-        // यह खाली जगह बीच में आएगी, जिससे Loading Bar सबसे नीचे चला जाएगा
-        Spacer(modifier = Modifier.weight(1f)) 
-
-        // 3. लोडिंग वाली लाइन (Progress Bar)
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Loading Bar
         LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth(0.6f)
+                .height(4.dp),
             color = Color.White,
             trackColor = Color.White.copy(alpha = 0.3f),
-            modifier = Modifier
-                .width(180.dp)
-                .height(6.dp)
-                .clip(RoundedCornerShape(4.dp))
+            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 4. Loading... टेक्स्ट
-        Text(
-            text = "Loading...",
-            color = Color.White.copy(alpha = 0.9f),
-            fontSize = 14.sp
-        )
-
-        // नीचे से थोड़ी जगह (Padding)
-        Spacer(modifier = Modifier.height(60.dp))
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(text = "Loading...", fontSize = 14.sp, color = Color.White)
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
