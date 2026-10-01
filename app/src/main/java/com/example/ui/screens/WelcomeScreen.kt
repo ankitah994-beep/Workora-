@@ -20,45 +20,67 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R // Apna package name confirm karein
+import com.example.R // अपना पैकेज नेम चेक कर लें
 
 @Composable
-fun WelcomeScreen(onGetStarted: () -> Unit = {}, onLoginClick: () -> Unit = {}) {
+fun WelcomeScreen(
+    onGetStarted: () -> Unit = {},
+    onLoginClick: () -> Unit = {}
+) {
     Column(
-        modifier = Modifier.fillMaxSize().background(Color.White).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .padding(24.dp)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(20.dp))
-        // Logo
-        Text(text = "W", fontSize = 60.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0061FF))
+        
+        // Logo and Branding
+        Text(text = "W", fontSize = 54.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0061FF))
         Text(text = "Workora", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0061FF))
         Text(text = "Find. Hire. Work.", fontSize = 14.sp, color = Color.Gray)
         
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(40.dp))
+        
+        // Welcome Text
         Text(text = "Welcome to Workora", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Your local platform to find work\nor hire skilled workers.", fontSize = 15.sp, color = Color.Gray, textAlign = TextAlign.Center)
+        Text(
+            text = "Your local platform to find work\nor hire skilled workers.",
+            fontSize = 15.sp,
+            color = Color.Gray,
+            textAlign = TextAlign.Center
+        )
         
-        Spacer(modifier = Modifier.height(30.dp))
-        // Illustration (Make sure you have img_welcome in res/drawable)
+        Spacer(modifier = Modifier.height(40.dp))
+        
+        // Illustration (अपनी सफेद वाली वेलकम इमेज का नाम यहाँ डालें, जैसे img_welcome)
         Image(
-            painter = painterResource(id = R.drawable.workora_splash_logo), // Replace with actual image name
+            painter = painterResource(id = R.drawable.workora_logo), // इसे बदलकर अपनी वेलकम इमेज का नाम रखें
             contentDescription = "Welcome Illustration",
-            modifier = Modifier.fillMaxWidth().height(200.dp),
+            modifier = Modifier.fillMaxWidth().height(220.dp),
             contentScale = ContentScale.Fit
         )
         
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+        
         // Paging Dots
         Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF0061FF)))
             Spacer(modifier = Modifier.width(8.dp))
-            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.LightGray))
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE2E8F0)))
             Spacer(modifier = Modifier.width(8.dp))
-            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.LightGray))
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE2E8F0)))
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE2E8F0)))
         }
         
         Spacer(modifier = Modifier.weight(1f))
+        
+        // Buttons
         Button(
             onClick = onGetStarted,
             modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -67,11 +89,19 @@ fun WelcomeScreen(onGetStarted: () -> Unit = {}, onLoginClick: () -> Unit = {}) 
         ) {
             Text("Get Started →", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
+        
         Spacer(modifier = Modifier.height(20.dp))
+        
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Already have an account? ", color = Color.Gray, fontSize = 14.sp)
-            Text("Login", color = Color(0xFF0061FF), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.clickable { onLoginClick() }.padding(4.dp))
+            Text(
+                "Login",
+                color = Color(0xFF0061FF),
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                modifier = Modifier.clickable { onLoginClick() }.padding(4.dp)
+            )
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(10.dp))
     }
 }
