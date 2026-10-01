@@ -6,12 +6,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +48,6 @@ fun LabourDashboardScreen() {
         LazyColumn(
             modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).padding(paddingValues)
         ) {
-            // Blue Header
             item {
                 Row(modifier = Modifier.fillMaxWidth().background(Color(0xFF0061FF)).padding(horizontal = 16.dp, vertical = 12.dp).statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
@@ -56,8 +55,6 @@ fun LabourDashboardScreen() {
                     Text("Find Work", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
-
-            // Search and Filters
             item {
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
@@ -76,15 +73,18 @@ fun LabourDashboardScreen() {
                     }
                 }
             }
-
-            // Tabs
             item {
                 ScrollableTabRow(
                     selectedTabIndex = selectedTopTab,
                     containerColor = Color.Transparent,
                     contentColor = Color(0xFF0061FF),
                     edgePadding = 16.dp,
-                    indicator = { tabPositions -> SecondaryIndicator(Modifier.tabIndicatorOffset(tabPositions[selectedTopTab]), color = Color(0xFF0061FF)) }
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTopTab]),
+                            color = Color(0xFF0061FF)
+                        )
+                    }
                 ) {
                     listOf("All Jobs", "Open", "Applications", "My Jobs").forEachIndexed { index, title ->
                         Tab(selected = selectedTopTab == index, onClick = { selectedTopTab = index }, text = { Text(title, fontWeight = FontWeight.Bold, color = if (selectedTopTab == index) Color(0xFF0061FF) else Color.Gray) })
@@ -92,8 +92,6 @@ fun LabourDashboardScreen() {
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            // Job List
             items(jobs) { job ->
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable { Toast.makeText(context, "Job Details Opened", Toast.LENGTH_SHORT).show() },
