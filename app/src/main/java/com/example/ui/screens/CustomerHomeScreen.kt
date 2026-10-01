@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,7 +46,6 @@ fun CustomerHomeScreen() {
         LazyColumn(
             modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).padding(paddingValues)
         ) {
-            // Extended Blue Header with Search
             item {
                 Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF0061FF)).padding(16.dp).statusBarsPadding()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -73,8 +73,6 @@ fun CustomerHomeScreen() {
                     )
                 }
             }
-
-            // Categories
             item {
                 LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(categories) { category ->
@@ -88,8 +86,6 @@ fun CustomerHomeScreen() {
                     }
                 }
             }
-
-            // Post Banner
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { Toast.makeText(context, "Post New Work", Toast.LENGTH_SHORT).show() },
@@ -109,8 +105,6 @@ fun CustomerHomeScreen() {
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
-
-            // Active Jobs Section
             item {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Active Jobs", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
