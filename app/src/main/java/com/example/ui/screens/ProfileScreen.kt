@@ -93,7 +93,9 @@ fun ProfileScreen(
     onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val profilePrefs = remember { context.getSharedPreferences("workora_real_profile", Context.MODE_PRIVATE) }
+    
+    // File name updated to match WorkerProfileSetupScreen
+    val profilePrefs = remember { context.getSharedPreferences("workora_prefs", Context.MODE_PRIVATE) }
     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
     
     val savedName = profilePrefs.getString("user_name", userName) ?: userName
@@ -101,7 +103,8 @@ fun ProfileScreen(
     val savedLoc = profilePrefs.getString("user_location", userLocation) ?: userLocation
     val savedSkill = profilePrefs.getString("user_skill", userCategory) ?: userCategory
     val savedExp = profilePrefs.getString("user_experience", userExperience) ?: userExperience
-    val savedRate = profilePrefs.getString("user_rate", userDailyWage) ?: userDailyWage
+    // Changed key from "user_rate" to "user_wage" to match setup screen
+    val savedRate = profilePrefs.getString("user_wage", userDailyWage) ?: userDailyWage
     val savedAge = profilePrefs.getString("user_age", userAge) ?: userAge
     
     val profileB64 = profilePrefs.getString("profile_photo_base64", "") ?: ""
@@ -213,7 +216,7 @@ fun ProfileScreen(
                     Divider(color = BorderGray)
                     ProfileDetailRow(Icons.Default.Person, "Age", savedAge)
                     Divider(color = BorderGray)
-                    ProfileDetailRow(Icons.Default.Star, "Daily Wage", if (savedRate.isNotBlank()) "₹$savedRate/day" else "")
+                    ProfileDetailRow(Icons.Default.Star, "Daily Wage", if (savedRate.isNotBlank() && savedRate != "No details provided") "₹$savedRate/day" else savedRate)
                 }
             }
 
