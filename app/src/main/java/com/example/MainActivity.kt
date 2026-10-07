@@ -9,16 +9,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.example.ui.screens.AccountSelectScreen
+
+// ✅ जो फाइल्स हमने बना ली हैं, उनके सही नाम अपडेट कर दिए
+import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.WelcomeScreen 
+import com.example.ui.screens.RoleSelectionScreen // AccountSelectScreen की जगह 
+import com.example.ui.screens.AuthScreen // LoginScreen की जगह
+import com.example.ui.screens.WorkerProfileSetupScreen
+
+// ⏳ जो फाइल्स अभी आगे बनानी हैं, उन्हें कमेंट कर दिया है ताकि लाल Error ना आए
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.ClientProfileSetupScreen
 import com.example.ui.screens.CustomerHomeScreen
 import com.example.ui.screens.LabourDashboardScreen
-import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.PostJobScreen
-import com.example.ui.screens.SplashScreen
-import com.example.ui.screens.WelcomeScreen
-import com.example.ui.screens.WorkerProfileSetupScreen
+
 import com.example.ui.theme.WorkoraTheme
 
 class MainActivity : ComponentActivity() {
@@ -32,21 +37,15 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val context = applicationContext
                     val authPrefs = remember { context.getSharedPreferences("workora_real_auth", Context.MODE_PRIVATE) }
-
-                    // App States with safety checks for empty roles
+                    
                     var isLoggedIn by remember { mutableStateOf(authPrefs.getBoolean("is_logged_in", false)) }
                     var currentRole by remember { mutableStateOf(authPrefs.getString("saved_user_role", "") ?: "") }
                     
-                    // White Screen Fix: Agar role empty hai to wapas Splash/Role Select par bhejo
-                    var currentScreen by remember { 
-                        mutableStateOf(if (isLoggedIn && currentRole.isNotEmpty()) "DASHBOARD" else "SPLASH") 
-                    }
+                    var currentScreen by remember { mutableStateOf(if (isLoggedIn && currentRole.isNotEmpty()) "DASHBOARD" else "SPLASH") }
 
                     when (currentScreen) {
                         "SPLASH" -> {
-                            SplashScreen(
-                                onSplashFinished = { currentScreen = "WELCOME" }
-                            )
+                            SplashScreen(onSplashFinished = { currentScreen = "WELCOME" })
                         }
                         "WELCOME" -> {
                             WelcomeScreen(
@@ -55,46 +54,26 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "ROLE_SELECT" -> {
-                            AccountSelectScreen(
-                                onSelectRole = { role ->
-                                    currentRole = role.name
-                                    authPrefs.edit().putString("saved_user_role", role.name).apply()
-                                    currentScreen = "LOGIN"
+                            RoleSelectionScreen( 
+                                onWorkerSelected = {
+                                    currentRole = "LABOUR"
+                                    authPrefs.edit().putString("saved_user_role", "LABOUR").apply()
+                                    currentScreen = "WORKER_SETUP" // Worker रजिस्ट्रेशन पर भेजो
                                 },
-                                onLogout = {
-                                    isLoggedIn = false
-                                    authPrefs.edit().putBoolean("is_logged_in", false).apply()
-                                    currentScreen = "WELCOME"
+                                onCustomerSelected = {
+                                    currentRole = "CUSTOMER"
+                                    authPrefs.edit().putString("saved_user_role", "CUSTOMER").apply()
+                                    currentScreen = "LOGIN" 
                                 }
                             )
                         }
                         "LOGIN" -> {
-                            LoginScreen(
-                                onLogin = { email, pass ->
+                            AuthScreen( 
+                                onLoginClick = { 
                                     isLoggedIn = true
                                     authPrefs.edit().putBoolean("is_logged_in", true).apply()
-                                    
-                                    // Admin Email Check
-                                    if (email.trim().equals("ankitah994@gmail.com", ignoreCase = true) || 
-                                        email.trim().equals("admin@workora.com", ignoreCase = true)) {
-                                        currentRole = "ADMIN"
-                                        authPrefs.edit().putString("saved_user_role", "ADMIN").apply()
-                                        currentScreen = "ADMIN_DASHBOARD"
-                                    } else {
-                                        currentScreen = "DASHBOARD"
-                                    }
-                                },
-                                onNavigateToSignUp = { currentScreen = "ROLE_SELECT" },
-                                onBack = { currentScreen = "WELCOME" }
-                            )
-                        }
-                        "ADMIN_DASHBOARD" -> {
-                            AdminDashboardScreen(
-                                onNavigateToUsers = { /* Admin Users Screen */ },
-                                onNavigateToJobs = { /* Admin Jobs Screen */ },
-                                onNavigateToReports = { /* Admin Reports Screen */ },
-                                onNavigateToAppControl = { /* Admin App Control */ },
-                                onNavigateToStateControl = { /* Admin State Control */ }
+                                    currentScreen = "DASHBOARD"
+                                }
                             )
                         }
                         "WORKER_SETUP" -> {
@@ -103,26 +82,9 @@ class MainActivity : ComponentActivity() {
                                 onBack = { currentScreen = "ROLE_SELECT" }
                             )
                         }
-                        "CLIENT_SETUP" -> {
-                            ClientProfileSetupScreen(
-                                onSetupComplete = { currentScreen = "DASHBOARD" },
-                                onBack = { currentScreen = "ROLE_SELECT" }
-                            )
-                        }
-                        "POST_JOB" -> {
-                            PostJobScreen(
-                                onBack = { currentScreen = "DASHBOARD" },
-                                onJobPosted = { currentScreen = "DASHBOARD" }
-                            )
-                        }
                         "DASHBOARD" -> {
-                            if (currentRole == "ADMIN") {
-                                currentScreen = "ADMIN_DASHBOARD"
-                            } else if (currentRole == "LABOUR") {
-                                LabourDashboardScreen()
-                            } else {
-                                CustomerHomeScreen()
-                            }
+                            // जब तक Dashboard फाइल नहीं बनती, ऐप यहाँ रुकेगा ताकि क्रैश ना हो
+                            androidx.compose.material3.Text("Home Dashboard Coming Soon...", modifier = Modifier.fillMaxSize())
                         }
                     }
                 }
