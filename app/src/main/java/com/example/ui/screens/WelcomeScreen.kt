@@ -15,9 +15,12 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun WelcomeScreen(
-    onGetStarted: () -> Unit,
-    onLoginClick: () -> Unit
+    onGetStarted: () -> Unit = {},
+    onLoginClick: () -> Unit = {} // <-- यह लाइन जोड़ दें
 ) {
+   // आपका बाकी का कोड...
+}
+
     Column(
         modifier = Modifier
             .fillMaxSize()
