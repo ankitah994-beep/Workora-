@@ -16,11 +16,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun WelcomeScreen(
     onGetStarted: () -> Unit = {},
-    onLoginClick: () -> Unit = {} // <-- Yeh line add karein
+    onLoginClick: () -> Unit = {}
 ) {
-    // Baaki poora code waisa hi rahega
-}
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -32,7 +29,6 @@ fun WelcomeScreen(
     ) {
         Spacer(modifier = Modifier.weight(1f))
         
-        // Workora Text Logo
         Text("W", fontSize = 80.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0061FF))
         Text("Workora", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0061FF))
         Text("Find. Hire. Work.", fontSize = 16.sp, color = Color.Gray)
